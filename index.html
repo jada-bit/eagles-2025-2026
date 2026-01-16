@@ -28,9 +28,6 @@
         .inactive-nav { color: #9ca3af; }
         .inactive-nav:hover { color: white; }
         
-        .clipboard-card { background: #0a0a0a; border: 1px solid #222; border-top: 4px solid var(--eagle-gold); }
-        .profile-stat-box { background: #111; border: 1px solid #222; padding: 1rem; border-radius: 0.75rem; text-align: center; }
-        
         .court-container { 
             position: relative; width: 100%; max-width: 500px; aspect-ratio: 50/47; 
             background: #0d0d0d; border: 2px solid #333; margin: 0 auto; border-radius: 8px; overflow: hidden;
@@ -59,17 +56,16 @@
         .heat-good { background: rgba(234, 179, 8, 0.4); border: 1px solid #eab308; }
         .heat-elite { background: rgba(34, 197, 94, 0.4); border: 1px solid #22c55e; }
 
-        .log-card { background: #000; border: 1px solid #222; border-radius: 2rem; overflow: hidden; margin-bottom: 1.5rem; border-left: 10px solid var(--eagle-gold); }
-        .log-score { font-size: 2.5rem; font-weight: 900; font-style: italic; letter-spacing: -0.05em; line-height: 1; }
-        .log-result-box { width: 4.5rem; height: 4.5rem; border-radius: 1.25rem; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 900; }
-
         .alert-badge { padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; margin-bottom: 0.5rem; border: 1px solid; }
         .alert-success { background: #064e3b; color: #34d399; border-color: #065f46; }
         .alert-warning { background: #450a0a; color: #f87171; border-color: #7f1d1d; }
-        .alert-info { background: #1e3a8a; color: #60a5fa; border-color: #1e40af; }
 
         .progress-bar { width: 100%; height: 8px; background: #111; border-radius: 4px; overflow: hidden; }
         .progress-fill { height: 100%; background: var(--eagle-gold); transition: width 0.5s ease-out; }
+        
+        .log-card { background: #000; border: 1px solid #222; border-radius: 2rem; overflow: hidden; margin-bottom: 1.5rem; border-left: 10px solid var(--eagle-gold); }
+        .log-score { font-size: 2.5rem; font-weight: 900; font-style: italic; letter-spacing: -0.05em; line-height: 1; }
+        .log-result-box { width: 4.5rem; height: 4.5rem; border-radius: 1.25rem; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 900; }
     </style>
 </head>
 <body class="bg-gray-950">
@@ -107,33 +103,30 @@
             { name: 'Hold Opponents Under 50', target: 50, type: 'oppPPG' }
         ];
 
-        // Global Chart Storage
         let trendCharts = {};
 
-        // --- FEATURE 1: VALIDATION ---
+        // --- VALIDATION HELPER ---
         const validateEntry = (playerName, field, value, currentStats) => {
-            const playerStats = currentStats[playerName] || {};
-            const newVal = parseInt(value) || 0;
+            const ps = currentStats[playerName] || {};
+            const val = parseInt(value) || 0;
             if (['fg2m', 'fg3m', 'ftm'].includes(field)) {
-                const attemptField = field.replace('m', 'a');
-                const attempts = playerStats[attemptField] || 0;
-                if (newVal > attempts && attempts > 0) {
-                    alert(`Error: ${field.toUpperCase()} cannot exceed ${attemptField.toUpperCase()}`);
+                const att = field.replace('m', 'a');
+                if (val > (ps[att] || 0) && (ps[att] || 0) > 0) {
+                    alert(`Error: ${field.toUpperCase()} exceeds ${att.toUpperCase()}`);
                     return false;
                 }
             }
             if (['fg2a', 'fg3a', 'fta'].includes(field)) {
-                const madeField = field.replace('a', 'm');
-                const made = playerStats[madeField] || 0;
-                if (newVal < made) {
-                    alert(`Error: ${field.toUpperCase()} must be at least ${madeField.toUpperCase()} (${made})`);
+                const made = field.replace('a', 'm');
+                if (val < (ps[made] || 0)) {
+                    alert(`Error: ${field.toUpperCase()} is less than ${made.toUpperCase()}`);
                     return false;
                 }
             }
             return true;
         };
 
-        // --- FEATURE 9: PDF HELPERS ---
+        // --- PDF REPORT HELPERS ---
         const getTeamStatsHTML = (game) => {
             let m=0, a=0, m3=0, a3=0, reb=0, ast=0, to=0, stl=0, blk=0;
             game.stats.forEach(s => {
@@ -169,11 +162,8 @@
                 opp: SHOT_ZONES.reduce((a, z) => ({...a, [z]: {m:0, x:0}}), {})
             });
 
-            // Chart Refs
             const scoringRef = React.useRef(null);
             const fgRef = React.useRef(null);
-            const threeRef = React.useRef(null);
-            const toRef = React.useRef(null);
 
             React.useEffect(() => {
                 auth.signInAnonymously();
@@ -186,7 +176,6 @@
                 return () => unsub();
             }, []);
 
-            // --- FEATURE 2: LIVE TOTALS ---
             const liveTotals = React.useMemo(() => {
                 let m = 0, a = 0, pts = 0;
                 Object.values(playerStats).forEach(p => {
@@ -194,66 +183,52 @@
                     a += (p.fg2a || 0) + (p.fg3a || 0);
                     pts += ((p.fg2m || 0) * 2) + ((p.fg3m || 0) * 3) + (p.ftm || 0);
                 });
-                const pct = a > 0 ? ((m / a) * 100).toFixed(1) : '0.0';
-                return { pts, pct: `${pct}%` };
+                return { pts, pct: a > 0 ? ((m / a) * 100).toFixed(1) + '%' : '0.0%' };
             }, [playerStats]);
 
             const aggregates = React.useMemo(() => {
                 const data = {};
-                ROSTER.forEach(r => data[r.name] = { gp:0, pts:0, reb:0, ast:0, stl:0, blk:0, to:0, m3:0, a3:0, m2:0, a2:0, mft:0, aft:0, highs:{pts:0,reb:0,ast:0,stl:0,blk:0} });
+                ROSTER.forEach(r => data[r.name] = { gp:0, pts:0, reb:0, ast:0, stl:0, blk:0, to:0, m3:0, a3:0, m2:0, a2:0, mft:0, aft:0, highs:{pts:0,reb:0} });
                 games.forEach(g => {
                     g.stats.forEach(s => {
                         const p = data[s.name]; if(!p) return;
                         p.gp++; p.pts += (s.pts||0); p.reb += (s.reb||0); p.ast += (s.ast||0); p.stl += (s.stl||0); p.blk += (s.blk||0); p.to += (s.to||0);
                         p.m3 += (s.fg3m||0); p.a3 += (s.fg3a||0); p.m2 += (s.fg2m||0); p.a2 += (s.fg2a||0); p.mft += (s.ftm||0); p.aft += (s.fta||0);
                         if(s.pts > p.highs.pts) p.highs.pts = s.pts;
-                        if(s.reb > p.highs.reb) p.highs.reb = s.reb;
                     });
                 });
                 return data;
             }, [games]);
 
-            // --- FEATURE 3: ALERTS ---
             const activeAlerts = React.useMemo(() => {
                 const alerts = []; if (games.length < 3) return alerts;
-                const recent3 = games.slice(0, 3);
-                let rTO = 0; recent3.forEach(g => g.stats.forEach(s => rTO += (s.to||0)));
-                if ((rTO/3) > 15) alerts.push({ type: 'warning', message: 'Team turnover rate spiking over last 3 games' });
                 let streak = 0, st = games[0].result;
                 for(let g of games) { if(g.result === st) streak++; else break; }
                 if(streak >= 3) alerts.push({ type: st==='W'?'success':'warning', message: `${streak}-game ${st==='W'?'win':'loss'} streak` });
                 return alerts;
             }, [games]);
 
-            // --- FEATURE 4: CHARTS ---
             const renderCharts = React.useCallback(() => {
                 if (games.length === 0 || view !== 'summary') return;
                 const sorted = [...games].reverse();
                 const labels = sorted.map(g => `${g.opp} (${g.date.slice(5)})`);
-                const opt = { responsive: true, maintainAspectRatio: false, plugins:{legend:{labels:{color:'#fff',font:{size:10}}}} };
+                const opt = { responsive: true, maintainAspectRatio: false, plugins:{legend:{labels:{color:'#fff'}}} };
 
                 if(trendCharts.scoring) trendCharts.scoring.destroy();
                 trendCharts.scoring = new Chart(scoringRef.current, {
-                    type:'line', 
-                    data:{labels, datasets:[
-                        {label:'Eagles', data:sorted.map(g=>g.teamScore), borderColor:'#FFB81C', tension:0.4},
-                        {label:'Opp', data:sorted.map(g=>g.oppScore), borderColor:'#ef4444', tension:0.4}
-                    ]}, options:opt
+                    type:'line', data:{labels, datasets:[{label:'Eagles', data:sorted.map(g=>g.teamScore), borderColor:'#FFB81C'},{label:'Opp', data:sorted.map(g=>g.oppScore), borderColor:'#ef4444'}]}, options:opt
                 });
-
                 if(trendCharts.fg) trendCharts.fg.destroy();
                 trendCharts.fg = new Chart(fgRef.current, {
-                    type:'line', 
-                    data:{labels, datasets:[{label:'FG%', data:sorted.map(g=>{
+                    type:'line', data:{labels, datasets:[{label:'FG%', data:sorted.map(g=>{
                         let m=0, a=0; g.stats.forEach(s=>{m+=(s.fg2m+s.fg3m); a+=(s.fg2a+s.fg3a)});
                         return a>0?((m/a)*100).toFixed(1):0;
                     }), borderColor:'#FFB81C'}]}, options:opt
                 });
             }, [games, view]);
 
-            React.useEffect(() => { setTimeout(renderCharts, 200); }, [renderCharts]);
+            React.useEffect(() => { if(view === 'summary') setTimeout(renderCharts, 200); }, [view, renderCharts]);
 
-            // --- FEATURE 5 & 6: VENUE/GOALS ---
             const venueStats = React.useMemo(() => {
                 const home = games.filter(g => g.venue === 'Home');
                 const away = games.filter(g => g.venue === 'Away');
@@ -264,19 +239,6 @@
                 return { home: calc(home), away: calc(away) };
             }, [games]);
 
-            const goalData = React.useMemo(() => {
-                if (games.length === 0) return { team: [] };
-                const wins = games.filter(g => g.result === 'W').length;
-                const ppg = games.reduce((s, g) => s + g.teamScore, 0) / games.length;
-                const oppPPG = games.reduce((s, g) => s + g.oppScore, 0) / games.length;
-                return TEAM_GOALS.map(goal => {
-                    let cur = goal.type==='wins'?wins : goal.type==='ppg'?ppg : oppPPG;
-                    let prog = goal.type==='oppPPG' ? (cur===0?0:(goal.target/cur)*100) : (cur/goal.target)*100;
-                    return { ...goal, cur, prog: Math.min(prog, 100).toFixed(0), ach: goal.type==='oppPPG'?cur<=goal.target:cur>=goal.target };
-                });
-            }, [games]);
-
-            // --- FEATURE 7: TACTICS ---
             const tacticalData = React.useMemo(() => {
                 let filtered = tacticFilter === 'all' ? games : [games.find(g => g.cloudId === tacticFilter)].filter(Boolean);
                 const plays = {}, heat = SHOT_ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {});
@@ -290,11 +252,62 @@
                 return { sortedPlays: Object.entries(plays).map(([name, d]) => ({ name, ...d })).sort((a,b)=>(b.p/b.r)-(a.p/a.r)), heat };
             }, [games, tacticFilter]);
 
-            // --- FEATURE 10: ENHANCED SAVE ---
+            // --- ADMIN FUNCTIONS ---
+            const exportToCSV = () => {
+                let c = "Date,Opponent,OppScore,Player,2PM,2PA,3PM,3PA,FTM,FTA,REB,AST,STL,BLK,TO,PTS,SetPlays_JSON,ShotMap_JSON\n";
+                games.forEach(g => {
+                    const sp = JSON.stringify(g.setPlays || []).replace(/"/g, '""');
+                    const sm = JSON.stringify(g.shotMap || {}).replace(/"/g, '""');
+                    g.stats.forEach(s => {
+                        c += `${g.date},${g.opp},${g.oppScore},${s.name},${s.fg2m||0},${s.fg2a||0},${s.fg3m||0},${s.fg3a||0},${s.ftm||0},${s.fta||0},${s.reb||0},${s.ast||0},${s.stl||0},${s.blk||0},${s.to||0},${s.pts||0},"${sp}","${sm}"\n`;
+                    });
+                });
+                const a = document.createElement('a'); 
+                a.href = URL.createObjectURL(new Blob([c], {type:'text/csv'})); a.download = 'Eagles_Cloud_Backup.csv'; a.click();
+            };
+
+            const handleImport = (e) => {
+                const file = e.target.files[0]; if(!file) return;
+                const reader = new FileReader();
+                reader.onload = async (evt) => {
+                    const rows = evt.target.result.split('\n').filter(r => r.trim());
+                    const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
+                    const groups = {};
+                    rows.slice(1).forEach(row => {
+                        const regex = /(".*?"|[^,]+|(?<=,)(?=,)|(?<=,)$|^)/g;
+                        const cols = row.match(regex).map(c => c.replace(/^"|"$/g, '').replace(/""/g, '"').trim());
+                        const d = {}; headers.forEach((h, i) => d[h] = cols[i]);
+                        const key = `${d.date}_${d.opponent}`;
+                        if(!groups[key]) {
+                            groups[key] = { date: d.date, opp: d.opponent, oppScore: parseInt(d.oppscore)||0, stats: [], setPlays: [], shotMap: { eagles: {}, opp: {} } };
+                            try { if(d.setplays_json) groups[key].setPlays = JSON.parse(d.setplays_json); } catch(err){}
+                            try { if(d.shotmap_json) groups[key].shotMap = JSON.parse(d.shotmap_json); } catch(err){}
+                        }
+                        groups[key].stats.push({ name: d.player, fg2m: parseInt(d['2pm'])||0, fg2a: parseInt(d['2pa'])||0, fg3m: parseInt(d['3pm'])||0, fg3a: parseInt(d['3pa'])||0, ftm: parseInt(d.ftm)||0, fta: parseInt(d.fta)||0, reb: parseInt(d.reb)||0, ast: parseInt(d.ast)||0, stl: parseInt(d.stl)||0, blk: parseInt(d.blk)||0, to: parseInt(d.to)||0, pts: parseInt(d.pts)||0 });
+                    });
+                    for(let k in groups) {
+                        groups[k].teamScore = groups[k].stats.reduce((acc, s) => acc + s.pts, 0);
+                        groups[k].result = groups[k].teamScore > groups[k].oppScore ? 'W' : 'L';
+                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').add(groups[k]);
+                    }
+                    alert("Imported Successfully!");
+                };
+                reader.readAsText(file);
+            };
+
+            const clearCloudData = async () => {
+                if(confirm("PURGE ALL CLOUD RECORDS PERMANENTLY?")) {
+                    setLoading(true);
+                    const snap = await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').get();
+                    snap.forEach(doc => doc.ref.delete());
+                    setLoading(false); alert("Cloud Purged!");
+                }
+            };
+
             const saveGame = async () => {
                 const opp = document.getElementById('opponent').value.trim();
-                const gameDate = document.getElementById('gameDate').value;
-                if (!gameDate || !opp) return alert("Missing Date or Opponent");
+                const gDate = document.getElementById('gameDate').value;
+                if (!gDate || !opp) return alert("Date and Opponent required");
                 
                 let tPts = 0, hasStats = false;
                 const stats = ROSTER.map(p => {
@@ -305,10 +318,10 @@
                     return { ...p, ...s, pts: score };
                 });
 
-                if (!hasStats && !confirm('Save empty game?')) return;
+                if (!hasStats && !confirm('No stats entered. Save?')) return;
 
                 const payload = {
-                    date: gameDate, opp: opp.toUpperCase(), oppScore, teamScore: tPts,
+                    date: gDate, opp: opp.toUpperCase(), oppScore, teamScore: tPts,
                     venue: document.getElementById('venue')?.value || 'Away',
                     result: tPts > oppScore ? 'W' : 'L', stats, shotMap,
                     setPlays: setPlayRows.map(r => {
@@ -326,14 +339,14 @@
                 try {
                     setLoading(true);
                     await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').add(payload);
-                    alert("✅ Cloud Sync Complete!");
+                    alert("✅ Cloud Sync Success!");
                     setPlayerStats({}); setOppScore(0); setView('log');
-                } catch (e) { alert("Sync Error"); } finally { setLoading(false); }
+                } catch (e) { alert("Error"); } finally { setLoading(false); }
             };
 
             const exportGameReport = (game) => {
                 const w = window.open('', '_blank');
-                w.document.write(`<html><head><style>body{font-family:sans-serif;padding:40px;}.header{border-bottom:4px solid #FFB81C;text-align:center;}.score{font-size:32px;font-weight:900;margin:20px 0;}.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin:20px 0;}.stat-box{border:1px solid #FFB81C;padding:10px;text-align:center;}table{width:100%;border-collapse:collapse;}th{background:#FFB81C;padding:10px;}td{padding:10px;border-bottom:1px solid #eee;}</style></head><body><div class="header"><h1>EAGLES REPORT</h1><p>${game.date} vs ${game.opp}</p></div><div class="score" style="text-align:center;">EAGLES ${game.teamScore} - ${game.opp} ${game.oppScore}</div><div class="stats-grid">${getTeamStatsHTML(game)}</div><table><thead><tr><th>Player</th><th>PTS</th><th>REB</th><th>AST</th><th>FG</th></tr></thead><tbody>${game.stats.map(s=>`<tr><td>${s.name}</td><td>${s.pts}</td><td>${s.reb}</td><td>${s.ast}</td><td>${(s.fg2m||0)+(s.fg3m||0)}/${(s.fg2a||0)+(s.fg3a||0)}</td></tr>`).join('')}</tbody></table></body></html>`);
+                w.document.write(`<html><head><style>body{font-family:sans-serif;padding:40px;}.header{border-bottom:4px solid #FFB81C;text-align:center;}.score{font-size:32px;font-weight:900;margin:20px 0;text-align:center;}.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin:20px 0;}.stat-box{border:1px solid #FFB81C;padding:10px;text-align:center;}table{width:100%;border-collapse:collapse;}th{background:#FFB81C;padding:10px;}td{padding:10px;border-bottom:1px solid #eee;}</style></head><body><div class="header"><h1>EAGLES REPORT</h1><p>${game.date} vs ${game.opp}</p></div><div class="score">EAGLES ${game.teamScore} - ${game.opp} ${game.oppScore}</div><div class="stats-grid">${getTeamStatsHTML(game)}</div><table><thead><tr><th>Player</th><th>PTS</th><th>REB</th><th>AST</th><th>FG</th></tr></thead><tbody>${game.stats.map(s=>`<tr><td>${s.name}</td><td>${s.pts}</td><td>${s.reb}</td><td>${s.ast}</td><td>${(s.fg2m||0)+(s.fg3m||0)}/${(s.fg2a||0)+(s.fg3a||0)}</td></tr>`).join('')}</tbody></table><button onclick="window.print()">Print PDF</button></body></html>`);
                 w.document.close();
             };
 
@@ -344,17 +357,13 @@
                     <header className="sticky top-0 z-50 bg-black border-b-4 border-gold p-4 shadow-2xl">
                         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-6">
                             <h1 className="text-3xl font-black italic uppercase tracking-tighter">Eagles <span className="text-gold">Dashboard</span></h1>
-                            
                             <div className="flex gap-4 bg-gray-900 px-6 py-2 rounded-xl border border-gray-700">
-                                <div className="text-center"><div className="text-[10px] text-gold font-bold uppercase">Eagles</div><div className="text-2xl font-black">{liveTotals.pts}</div></div>
-                                <div className="text-gray-700 text-2xl font-light">|</div>
-                                <div className="text-center"><div className="text-[10px] text-red-500 font-bold uppercase">Opponent</div><div className="text-2xl font-black">{oppScore}</div></div>
-                                <div className="text-gray-700 text-2xl font-light">|</div>
-                                <div className="text-center"><div className="text-[10px] text-gray-500 font-bold uppercase">FG%</div><div className="text-2xl font-black text-gold">{liveTotals.pct}</div></div>
+                                <div className="text-center text-xs uppercase font-bold text-gold">Eagles<br/>{liveTotals.pts}</div>
+                                <div className="text-center text-xs uppercase font-bold text-red-500">Opp<br/>{oppScore}</div>
+                                <div className="text-center text-xs uppercase font-bold text-gray-500">FG%<br/>{liveTotals.pct}</div>
                             </div>
-
                             <nav className="flex flex-wrap justify-center gap-1">
-                                {['entry', 'summary', 'tactics', 'compare', 'log', 'profiles'].map(v => (
+                                {['entry', 'summary', 'tactics', 'compare', 'log', 'profiles', 'settings'].map(v => (
                                     <button key={v} onClick={() => setView(v)} className={`nav-btn ${view === v ? 'active-nav' : 'inactive-nav'}`}>{v}</button>
                                 ))}
                             </nav>
@@ -362,30 +371,22 @@
                     </header>
 
                     <main className="max-w-7xl mx-auto p-4 md:p-8">
-                        {activeAlerts.length > 0 && (
-                            <div className="mb-6 flex flex-wrap gap-2">
-                                {activeAlerts.map((a, i) => <div key={i} className={`alert-badge alert-${a.type}`}>{a.message}</div>)}
-                            </div>
-                        )}
+                        {activeAlerts.map((a, i) => <div key={i} className={`alert-badge alert-${a.type}`}>{a.message}</div>)}
 
                         {view === 'entry' && (
                             <div className="space-y-8 animate-fadeIn">
                                 <div className="bg-black border border-gray-800 rounded-2xl p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
-                                    <div><label className="text-[10px] text-gold font-bold uppercase block mb-1">Date</label><input type="date" id="gameDate" className="w-full bg-gray-900 border border-gray-700 p-3 rounded text-white" /></div>
-                                    <div><label className="text-[10px] text-gold font-bold uppercase block mb-1">Opponent</label><input type="text" id="opponent" className="w-full bg-gray-900 border border-gray-700 p-3 rounded text-white uppercase font-bold" /></div>
-                                    <div><label className="text-[10px] text-red-500 font-bold uppercase block mb-1">Opp Score</label><input type="number" value={oppScore} onChange={(e)=>setOppScore(parseInt(e.target.value)||0)} className="w-full bg-gray-900 border border-gray-700 p-3 rounded text-white font-black text-xl" /></div>
-                                    <div><label className="text-[10px] text-gold font-bold uppercase block mb-1">Venue</label><select id="venue" className="w-full bg-gray-900 border border-gray-700 p-3 rounded text-white font-bold uppercase"><option value="Home">Home</option><option value="Away">Away</option></select></div>
+                                    <input type="date" id="gameDate" className="bg-gray-900 border border-gray-700 p-3 rounded text-white" />
+                                    <input type="text" id="opponent" placeholder="Opponent" className="bg-gray-900 border border-gray-700 p-3 rounded text-white uppercase font-bold" />
+                                    <input type="number" placeholder="Opp Score" onChange={(e)=>setOppScore(parseInt(e.target.value)||0)} className="bg-gray-900 border border-gray-700 p-3 rounded text-white font-black" />
+                                    <select id="venue" className="bg-gray-900 border border-gray-700 p-3 rounded text-white font-bold uppercase"><option value="Away">Away</option><option value="Home">Home</option></select>
                                 </div>
-
                                 <div className="bg-black border border-gray-800 rounded-2xl p-6">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h3 className="text-gold font-black uppercase text-sm italic">Set Play Tracking</h3>
-                                        <button onClick={()=>setSetPlayRows([...setPlayRows, {id:Date.now()}])} className="bg-gold text-black px-4 py-1 rounded-full text-[10px] font-black uppercase hover:scale-105 transition-transform">+ Add Play</button>
-                                    </div>
+                                    <div className="flex justify-between items-center mb-4"><h3 className="text-gold font-black uppercase text-sm">Plays</h3><button onClick={()=>setSetPlayRows([...setPlayRows, {id:Date.now()}])} className="bg-gold text-black px-4 py-1 rounded-full text-[10px] uppercase font-black">+ Add</button></div>
                                     <div className="space-y-2">
                                         {setPlayRows.map(r => (
                                             <div key={r.id} id={`row-${r.id}`} className="grid grid-cols-4 gap-2 bg-gray-950 p-2 rounded-lg border border-gray-800">
-                                                <input type="text" placeholder="Play Name" className="set-name bg-black border border-gray-700 p-2 rounded text-xs text-white" />
+                                                <input type="text" placeholder="Play" className="set-name bg-black border border-gray-700 p-2 rounded text-xs text-white" />
                                                 <input type="number" placeholder="Run" className="set-run stat-input w-full" />
                                                 <input type="number" placeholder="Scored" className="set-scored stat-input w-full" />
                                                 <input type="number" placeholder="Pts" className="set-pts stat-input w-full" />
@@ -393,10 +394,9 @@
                                         ))}
                                     </div>
                                 </div>
-
                                 <div className="bg-black border border-gray-800 rounded-2xl overflow-x-auto">
-                                    <table className="w-full text-left text-xs">
-                                        <thead className="bg-gray-900 text-gold uppercase"><tr><th className="p-4">Player</th>{STAT_FIELDS.map(f=><th key={f} className="p-2 text-center">{f.toUpperCase()}</th>)}</tr></thead>
+                                    <table className="w-full text-xs">
+                                        <thead className="bg-gray-900 text-gold uppercase"><tr><th className="p-4">Player</th>{STAT_FIELDS.map(f=><th key={f} className="p-2">{f}</th>)}</tr></thead>
                                         <tbody>
                                             {ROSTER.map(p => (
                                                 <tr key={p.id} className="border-b border-gray-900">
@@ -404,8 +404,7 @@
                                                     {STAT_FIELDS.map(f => (
                                                         <td key={f} className="p-2 text-center">
                                                             <input type="number" className="stat-input" onChange={e => {
-                                                                const val = e.target.value;
-                                                                if(validateEntry(p.name, f, val, playerStats)) setPlayerStats({...playerStats, [p.name]:{...playerStats[p.name], [f]:parseInt(val)||0}});
+                                                                if(validateEntry(p.name, f, e.target.value, playerStats)) setPlayerStats({...playerStats, [p.name]:{...playerStats[p.name], [f]:parseInt(e.target.value)||0}});
                                                             }} />
                                                         </td>
                                                     ))}
@@ -414,42 +413,17 @@
                                         </tbody>
                                     </table>
                                 </div>
-                                <button onClick={saveGame} className="w-full bg-gold text-black py-8 rounded-3xl font-black text-3xl uppercase shadow-2xl hover:scale-105 transition-transform">Sync Record to Cloud</button>
+                                <button onClick={saveGame} className="w-full bg-gold text-black py-8 rounded-3xl font-black text-3xl uppercase">Sync Record to Cloud</button>
                             </div>
                         )}
 
                         {view === 'summary' && (
                             <div className="space-y-12 animate-fadeIn">
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                    <div className="bg-black border border-gray-800 p-8 rounded-3xl text-center shadow-xl border-t-4 border-t-gold">
-                                        <div className="text-6xl font-black mb-2 text-gold">{games.filter(g=>g.result==='W').length}-{games.filter(g=>g.result==='L').length}</div>
-                                        <div className="text-xl font-black uppercase tracking-tighter mb-4">Season Record</div>
-                                    </div>
-                                    <div className="lg:col-span-2 bg-black border border-gray-800 p-8 rounded-3xl shadow-xl">
-                                        <div className="grid grid-cols-2 gap-8 text-center">
-                                            <div><div className="text-4xl font-black text-gold">{venueStats.home.rec}</div><div className="text-[10px] uppercase font-bold text-gray-500">Home Record</div></div>
-                                            <div><div className="text-4xl font-black text-white">{venueStats.away.rec}</div><div className="text-[10px] uppercase font-bold text-gray-500">Away Record</div></div>
-                                        </div>
-                                    </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+                                    <div className="bg-black border border-gray-800 p-8 rounded-3xl border-t-4 border-t-gold"><div className="text-4xl font-black text-gold">{games.filter(g=>g.result==='W').length}-{games.filter(g=>g.result==='L').length}</div><div className="text-xs uppercase font-bold text-gray-500">Record</div></div>
+                                    <div className="bg-black border border-gray-800 p-8 rounded-3xl"><div className="text-4xl font-black text-white">{venueStats.home.rec}</div><div className="text-xs uppercase font-bold text-gray-500">Home</div></div>
+                                    <div className="bg-black border border-gray-800 p-8 rounded-3xl"><div className="text-4xl font-black text-white">{venueStats.away.rec}</div><div className="text-xs uppercase font-bold text-gray-500">Away</div></div>
                                 </div>
-
-                                <section>
-                                    <h3 className="text-xl font-black uppercase italic text-gold mb-6 border-l-4 border-gold pl-4">Season Goals Tracker</h3>
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                        <div className="space-y-4">
-                                            {goalData.map((goal, i) => (
-                                                <div key={i} className="bg-black border border-gray-800 p-6 rounded-2xl">
-                                                    <div className="flex justify-between items-center mb-4">
-                                                        <h4 className="text-sm font-black uppercase">{goal.name}</h4>
-                                                        <span className={`text-xl font-black ${goal.ach ? 'text-green-500' : 'text-gold'}`}>{goal.cur.toFixed(1)} / {goal.target}</span>
-                                                    </div>
-                                                    <div className="progress-bar mb-2"><div className="progress-fill" style={{ width: `${goal.prog}%` }}></div></div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </section>
-
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-64">
                                     <div className="bg-black border border-gray-800 p-4 rounded-2xl"><canvas ref={scoringRef}></canvas></div>
                                     <div className="bg-black border border-gray-800 p-4 rounded-2xl"><canvas ref={fgRef}></canvas></div>
@@ -459,56 +433,26 @@
 
                         {view === 'tactics' && (
                             <div className="space-y-8 animate-fadeIn">
-                                <select onChange={(e)=>setTacticFilter(e.target.value)} className="w-full bg-black border border-gold p-4 rounded-xl text-gold font-bold uppercase">
-                                    <option value="all">Season Average</option>
-                                    {games.map(g => <option key={g.cloudId} value={g.cloudId}>{g.date} vs {g.opp}</option>)}
-                                </select>
+                                <select onChange={(e)=>setTacticFilter(e.target.value)} className="w-full bg-black border border-gold p-4 rounded-xl text-gold font-bold uppercase"><option value="all">Season Average</option>{games.map(g => <option key={g.cloudId} value={g.cloudId}>{g.date} vs {g.opp}</option>)}</select>
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                     <div className="bg-black border border-gray-800 p-6 rounded-3xl">
                                         <div className="court-container">
-                                            <div className="court-line baseline"></div><div className="court-line the-key"></div><div className="court-line free-throw-circle"></div><div className="three-point-arc"></div><div className="rim"></div>
+                                            <div className="court-line baseline"></div><div className="court-line the-key"></div><div className="three-point-arc"></div><div className="rim"></div>
                                             {Object.entries(tacticalData.heat).map(([zone, v]) => {
                                                 const att = v.m + v.x; const pct = att > 0 ? ((v.m/att)*100) : 0;
-                                                let hc = 'heat-poor'; if (pct >= 50) hc = 'heat-elite'; else if (pct >= 40) hc = 'heat-good'; else if (pct >= 30) hc = 'heat-avg';
                                                 const cm = { paint:'z-paint', ml:'z-mid-l', mr:'z-mid-r', '3lc':'z-3-lc', '3rc':'z-3-rc', '3lw':'z-3-lw', '3rw':'z-3-rw', '3t':'z-3-t' };
-                                                return <div key={zone} className={`court-zone ${cm[zone]} ${hc} rounded p-1`}><span className="text-[10px] font-black text-white">{pct.toFixed(0)}%</span><span className="text-[7px] text-white/80">{v.m}/${att}</span></div>;
+                                                let hc = 'heat-poor'; if (pct >= 50) hc = 'heat-elite'; else if (pct >= 40) hc = 'heat-good'; else if (pct >= 30) hc = 'heat-avg';
+                                                return <div key={zone} className={`court-zone ${cm[zone]} ${hc} rounded p-1 text-center`}><span className="text-[10px] font-black text-white">{pct.toFixed(0)}%</span><span className="text-[7px] text-white/80">{v.m}/${att}</span></div>;
                                             })}
                                         </div>
                                     </div>
                                     <div className="bg-black border border-gray-800 rounded-3xl overflow-hidden">
-                                        <table className="w-full text-xs">
-                                            <thead className="bg-gray-900 text-gold uppercase"><tr><th className="p-4">Set Play</th><th>Runs</th><th>Scored%</th><th>Pts/Run</th></tr></thead>
-                                            <tbody>
-                                                {tacticalData.sortedPlays.map((p, i) => (
-                                                    <tr key={i} className="border-b border-gray-900 text-center"><td className="p-4 text-left font-bold">{p.name}</td><td>{p.r}</td><td className="font-black text-white">{((p.s/p.r)*100||0).toFixed(0)}%</td><td className="text-gold font-black">{(p.p/p.r||0).toFixed(2)}</td></tr>
-                                                ))}
-                                            </tbody>
+                                        <table className="w-full text-xs text-center">
+                                            <thead className="bg-gray-900 text-gold uppercase"><tr><th className="p-4 text-left">Play</th><th>Runs</th><th>Scored%</th><th>Pts/Run</th></tr></thead>
+                                            <tbody>{tacticalData.sortedPlays.map((p, i) => <tr key={i} className="border-b border-gray-900"><td className="p-4 text-left font-bold">{p.name}</td><td>{p.r}</td><td className="text-white font-black">{((p.s/p.r)*100||0).toFixed(0)}%</td><td className="text-gold font-black">{(p.p/p.r||0).toFixed(2)}</td></tr>)}</tbody>
                                         </table>
                                     </div>
                                 </div>
-                            </div>
-                        )}
-
-                        {view === 'compare' && (
-                            <div className="space-y-8 animate-fadeIn">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <select onChange={e=>setCompareP1(e.target.value)} className="bg-black border-2 border-gold p-4 rounded-xl text-gold font-black uppercase"><option value="">Eagle 1</option>{ROSTER.map(p=><option key={p.id} value={p.name}>{p.name}</option>)}</select>
-                                    <select onChange={e=>setCompareP2(e.target.value)} className="bg-black border-2 border-white p-4 rounded-xl text-white font-black uppercase"><option value="">Eagle 2</option>{ROSTER.map(p=><option key={p.id} value={p.name}>{p.name}</option>)}</select>
-                                </div>
-                                {compareP1 && compareP2 && (
-                                    <div className="grid grid-cols-2 gap-8">
-                                        {[compareP1, compareP2].map((name, i) => {
-                                            const p = aggregates[name]; if(!p) return null;
-                                            return <div key={name} className={`bg-black border-2 ${i===0?'border-gold':'border-white'} p-8 rounded-3xl text-center`}>
-                                                <h3 className="text-2xl font-black uppercase mb-4">{name}</h3>
-                                                <div className="grid grid-cols-2 gap-4 text-xs">
-                                                    <div className="bg-gray-900 p-2 rounded">PPG: {(p.pts/p.gp).toFixed(1)}</div>
-                                                    <div className="bg-gray-900 p-2 rounded">RPG: {(p.reb/p.gp).toFixed(1)}</div>
-                                                </div>
-                                            </div>
-                                        })}
-                                    </div>
-                                )}
                             </div>
                         )}
 
@@ -518,7 +462,7 @@
                                     <div key={g.cloudId} className="log-card p-10 flex flex-col md:flex-row justify-between items-center">
                                         <div className="flex items-center gap-10">
                                             <div className="log-result-box bg-gray-950 border-2 border-gray-800 text-gold">{g.result}</div>
-                                            <div><div className="text-gray-500 font-black uppercase text-sm mb-1">{g.date}</div><div className="log-score uppercase tracking-tighter">EAGLES {g.teamScore}, {g.opp} {g.oppScore}</div></div>
+                                            <div><div className="text-gray-500 font-black uppercase text-sm mb-1">{g.date}</div><div className="log-score uppercase tracking-tighter italic">EAGLES {g.teamScore}, {g.opp} {g.oppScore}</div></div>
                                         </div>
                                         <div className="flex gap-2">
                                             <button onClick={()=>exportGameReport(g)} className="text-gold border border-gold px-4 py-2 rounded-xl font-black text-xs">📄 Report</button>
@@ -529,22 +473,48 @@
                             </div>
                         )}
 
+                        {view === 'settings' && (
+                            <div className="p-4 md:p-8 space-y-8 animate-fadeIn">
+                                <div className="bg-black border border-gray-800 p-12 rounded-3xl max-w-2xl mx-auto text-center">
+                                    <h2 className="text-2xl font-black text-gold uppercase italic mb-8">Admin Control Panel</h2>
+                                    <div className="flex flex-col gap-4">
+                                        <button onClick={exportToCSV} className="bg-gray-800 text-white px-8 py-4 rounded-xl font-black uppercase text-xs hover:bg-gray-700">Backup Cloud (CSV)</button>
+                                        <label className="bg-blue-900 text-white px-8 py-4 rounded-xl font-black uppercase text-xs cursor-pointer hover:bg-blue-800">Restore Backup File<input type="file" className="hidden" onChange={handleImport} accept=".csv"/></label>
+                                        <button onClick={clearCloudData} className="bg-red-900 text-white px-8 py-4 rounded-xl font-black uppercase text-xs hover:bg-red-800">Purge Cloud Data</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {view === 'profiles' && (
                             <div className="space-y-8">
-                                <select className="w-full bg-black border-2 border-gold p-6 rounded-3xl text-gold font-black uppercase text-xl" onChange={e=>setSelectedProfile(e.target.value)}>
+                                <select className="w-full bg-black border-2 border-gold p-6 rounded-3xl text-gold font-black uppercase" onChange={e=>setSelectedProfile(e.target.value)}>
                                     <option value="">Select Eagle</option>
                                     {ROSTER.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                                 </select>
                                 {selectedProfile && aggregates[selectedProfile] && (
-                                    <div className="space-y-4 animate-fadeIn">
-                                        <div className="bg-black border border-gold p-8 rounded-3xl text-center">
-                                            <h2 className="text-3xl font-black uppercase mb-1">{selectedProfile}</h2>
-                                            <button onClick={()=>alert("Exporting Profile...")} className="bg-gold text-black px-4 py-2 rounded-lg text-xs font-black uppercase mt-2 mb-4">📊 Export Stats</button>
-                                            <div className="grid grid-cols-2 gap-4 text-center">
-                                                <div className="bg-gray-950 p-4 rounded border border-gray-800"><div className="text-[8px] text-gray-500 uppercase">PPG</div><div className="text-2xl font-black text-white">{(aggregates[selectedProfile].pts/aggregates[selectedProfile].gp).toFixed(1)}</div></div>
-                                                <div className="bg-gray-950 p-4 rounded border border-gray-800"><div className="text-[8px] text-gray-500 uppercase">RPG</div><div className="text-2xl font-black text-white">{(aggregates[selectedProfile].reb/aggregates[selectedProfile].gp).toFixed(1)}</div></div>
-                                            </div>
+                                    <div className="bg-black border border-gold p-8 rounded-3xl text-center animate-fadeIn">
+                                        <h2 className="text-3xl font-black uppercase mb-1">{selectedProfile}</h2>
+                                        <div className="text-gold text-[10px] font-black uppercase mb-6">{aggregates[selectedProfile].gp} Games Logged</div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="bg-gray-950 p-4 rounded border border-gray-800">PPG: {(aggregates[selectedProfile].pts/aggregates[selectedProfile].gp).toFixed(1)}</div>
+                                            <div className="bg-gray-900 p-4 rounded border border-gray-800">RPG: {(aggregates[selectedProfile].reb/aggregates[selectedProfile].gp).toFixed(1)}</div>
                                         </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {view === 'compare' && (
+                            <div className="space-y-8 animate-fadeIn">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <select onChange={e=>setCompareP1(e.target.value)} className="bg-black border-2 border-gold p-4 rounded-xl text-gold uppercase font-black"><option value="">Eagle 1</option>{ROSTER.map(p=><option key={p.id} value={p.name}>{p.name}</option>)}</select>
+                                    <select onChange={e=>setCompareP2(e.target.value)} className="bg-black border-2 border-white p-4 rounded-xl text-white uppercase font-black"><option value="">Eagle 2</option>{ROSTER.map(p=><option key={p.id} value={p.name}>{p.name}</option>)}</select>
+                                </div>
+                                {compareP1 && compareP2 && (
+                                    <div className="grid grid-cols-2 gap-8 text-center uppercase font-black italic">
+                                        <div className="bg-black border border-gold p-6 rounded-xl"><h1>{compareP1}</h1><br/>{(aggregates[compareP1].pts/aggregates[compareP1].gp).toFixed(1)} PPG</div>
+                                        <div className="bg-black border border-white p-6 rounded-xl"><h1>{compareP2}</h1><br/>{(aggregates[compareP2].pts/aggregates[compareP2].gp).toFixed(1)} PPG</div>
                                     </div>
                                 )}
                             </div>
