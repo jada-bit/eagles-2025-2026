@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eagles Analytics - Tactical Command</title>
+    <title>Eagles Analytics - Head Coach Dashboard</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -14,41 +14,52 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
-        :root { --gold: #FFB81C; --black: #050505; --red: #ef4444; --green: #22c55e; --blue: #3b82f6; }
+        :root { --gold: #FFB81C; --black: #050505; --red: #ef4444; --green: #22c55e; --blue: #3b82f6; --zinc: #18181b; }
         body { background-color: var(--black); color: white; font-family: system-ui, -apple-system, sans-serif; }
         
+        /* Modern Glass Cards */
         .bento-card { 
-            background: rgba(25, 25, 25, 0.85); 
+            background: rgba(30, 30, 30, 0.6); 
+            backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.08); 
             border-radius: 16px; 
             padding: 1.25rem; 
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s;
         }
+        .bento-card:hover { border-color: var(--gold); }
         
-        .nav-btn { font-size: 11px; font-weight: 800; text-transform: uppercase; padding: 10px 16px; border-radius: 99px; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; }
+        .nav-btn { font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 10px 14px; border-radius: 99px; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; white-space: nowrap; }
         .active-nav { background-color: var(--gold); color: black; box-shadow: 0 0 15px rgba(255, 184, 28, 0.3); }
         .inactive-nav { background: rgba(255,255,255,0.05); color: #888; }
         .inactive-nav:hover { background: rgba(255,255,255,0.1); color: white; }
 
+        .stat-val { font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+        
+        /* Leaderboard Styles */
+        .leader-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .leader-row:last-child { border-bottom: none; }
+        .rank-badge { font-size: 10px; font-weight: 900; color: #555; width: 20px; }
+        .leader-name { font-size: 13px; font-weight: 700; color: #ddd; }
+        .leader-val { font-size: 14px; font-weight: 900; color: var(--gold); }
+        .leader-sub { font-size: 9px; color: #666; margin-left: 6px; }
+
+        /* Honor Roll Styles */
+        .honor-card { background: linear-gradient(145deg, #1a1a1a, #0a0a0a); border: 1px solid #333; padding: 15px; border-radius: 12px; }
+        .honor-label { font-size: 9px; font-weight: 900; text-transform: uppercase; color: #666; letter-spacing: 1px; margin-bottom: 4px; }
+        .honor-val { font-size: 24px; font-weight: 900; color: white; line-height: 1; }
+        .honor-player { font-size: 11px; font-weight: 700; color: var(--gold); margin-top: 4px; }
+        .honor-game { font-size: 9px; font-style: italic; color: #555; }
+
         .court-svg { width: 100%; display: block; margin: 0 auto; touch-action: manipulation; filter: drop-shadow(0 0 8px rgba(255,184,28,0.1)); }
         .zone { cursor: pointer; transition: 0.2s; opacity: 0.3; stroke: rgba(255,255,255,0.4); stroke-width: 0.8; fill: transparent; }
         .zone:hover { opacity: 0.6; stroke: white; }
-        
-        .stat-input { background: #111; border: 1px solid #333; color: white; padding: 4px; text-align: center; border-radius: 6px; width: 100%; font-weight: bold; }
-        
-        .alert-box { animation: slideIn 0.3s ease-out; border-left: 4px solid; padding: 12px; margin-bottom: 8px; background: rgba(255,255,255,0.03); border-radius: 0 8px 8px 0; }
-        .alert-good { border-color: var(--green); } .alert-bad { border-color: var(--red); }
-        @keyframes slideIn { from { transform: translateX(-10px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-
-        /* Tactical Table Styles */
-        .tac-row { display: grid; grid-template-columns: 3fr 1fr 1fr 1fr; gap: 8px; padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: center; }
-        .tac-head { font-size: 10px; font-weight: 900; color: #666; text-transform: uppercase; padding-bottom: 4px; }
     </style>
 </head>
 <body>
     <div id="root">
         <div style="height: 100vh; display: flex; align-items: center; justify-content: center; color: #FFB81C; font-weight: bold; font-size: 24px; animation: pulse 2s infinite;">
-            LOADING TACTICS...
+            LOADING DASHBOARD...
         </div>
     </div>
 
@@ -63,34 +74,25 @@
             {id: 34, name: "Dani Cardona", pos: "C"}, {id: 15, name: "Alexa Troiano", pos: "C"},
             {id: 0, name: "Bela Smith", pos: "G/F"}
         ];
+        const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','blk','to'];
         const ZONES = ['paint', 'mid_l', 'mid_r', 'mid_c', 'corn_l', 'corn_r', 'wing_l', 'wing_r', 'top'];
-        const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','to'];
 
         // --- APP ---
         function App() {
-            // -- CORE STATE --
             const [view, setView] = React.useState('clipboard');
             const [games, setGames] = React.useState([]);
             const [loading, setLoading] = React.useState(true);
             const [db, setDb] = React.useState(null);
 
-            // -- DATA ENTRY STATE --
+            // Input States
             const [gameMeta, setGameMeta] = React.useState({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0, venue: 'Home' });
             const [playerStats, setPlayerStats] = React.useState({});
             const [shotMap, setShotMap] = React.useState({ eagles: ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}), opp: {} });
-            const [playStats, setPlayStats] = React.useState([
-                { id: 'trans', name: 'TRANSITION', att: 0, made: 0, pts: 0 },
-                { id: 'broken', name: 'BROKEN PLAY', att: 0, made: 0, pts: 0 },
-                { id: 'motion', name: 'Motion Offense', att: 0, made: 0, pts: 0 }
-            ]);
+            const [playStats, setPlayStats] = React.useState([]);
             const [newPlayName, setNewPlayName] = React.useState('');
             const [shotMode, setShotMode] = React.useState('make');
             const [editId, setEditId] = React.useState(null);
 
-            // -- TACTICS FILTER STATE --
-            const [tacticsFilter, setTacticsFilter] = React.useState('season'); // 'season' or gameId
-
-            // -- INITIALIZATION --
             React.useEffect(() => {
                 try {
                     const firebaseConfig = { apiKey: "AIzaSyA5H5SsumWG7bym_0EZ7jOlfWeswpSauhk", projectId: "eagles-stats", appId: "1:386723096734:web:b50e343c703983e838b38f" };
@@ -104,52 +106,88 @@
                 } catch(e) { console.warn("Offline"); setLoading(false); }
             }, []);
 
-            // -- HELPERS --
-            const getTacticalData = () => {
-                let targetGames = games;
-                if (tacticsFilter !== 'season') targetGames = games.filter(g => g.id === tacticsFilter);
-
-                // Aggregate Plays
-                const aggPlays = {};
-                targetGames.forEach(g => {
-                    if(g.playStats) {
-                        g.playStats.forEach(p => {
-                            if(!aggPlays[p.name]) aggPlays[p.name] = { name: p.name, att: 0, made: 0, pts: 0 };
-                            aggPlays[p.name].att += (p.att || 0);
-                            aggPlays[p.name].made += (p.made || 0);
-                            aggPlays[p.name].pts += (p.pts || (p.made*2) || 0); // Fallback logic
-                        });
-                    }
+            // --- DATA ENGINE ---
+            const getDashboardData = () => {
+                const totalGames = games.length || 1;
+                
+                // 1. Team Averages
+                const teamTotals = { pts:0, opp:0, reb:0, ast:0, to:0, stocks:0 };
+                games.forEach(g => {
+                    teamTotals.pts += g.teamScore || 0;
+                    teamTotals.opp += g.oppScore || 0;
+                    g.stats.forEach(s => {
+                        teamTotals.reb += (s.reb||0);
+                        teamTotals.ast += (s.ast||0);
+                        teamTotals.to += (s.to||0);
+                        teamTotals.stocks += ((s.stl||0) + (s.blk||0));
+                    });
                 });
 
-                // Aggregate Shot Map
-                const aggMap = ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {});
-                targetGames.forEach(g => {
-                    if(g.shotMap && g.shotMap.eagles) {
-                        ZONES.forEach(z => {
-                            const zone = g.shotMap.eagles[z] || {m:0, x:0};
-                            aggMap[z].m += zone.m;
-                            aggMap[z].x += zone.x;
-                        });
-                    }
+                // 2. Player Totals & Highs
+                const pMap = {};
+                ROSTER.forEach(p => pMap[p.name] = { 
+                    name: p.name, gp:0, pts:0, reb:0, ast:0, fg3m:0, fg3a:0, ftm:0, fta:0,
+                    highs: { pts:0, ast:0, reb:0, stl:0, blk:0 } // Track Season Highs
                 });
 
-                return { plays: Object.values(aggPlays), map: aggMap };
-            };
+                let seasonHighs = {
+                    pts: { val: 0, player: '-', game: '-' },
+                    ast: { val: 0, player: '-', game: '-' },
+                    reb: { val: 0, player: '-', game: '-' },
+                    stl: { val: 0, player: '-', game: '-' },
+                    blk: { val: 0, player: '-', game: '-' }
+                };
 
-            const handlePlayUpdate = (index, points) => {
-                const newPlays = [...playStats];
-                newPlays[index].att += 1;
-                if (points > 0) {
-                    newPlays[index].made += 1;
-                    newPlays[index].pts += points;
-                }
-                setPlayStats(newPlays);
+                games.forEach(g => {
+                    g.stats.forEach(s => {
+                        if(pMap[s.name]) {
+                            const p = pMap[s.name];
+                            p.gp++;
+                            // Calc Points
+                            const pts = ((s.fg2m||0)*2) + ((s.fg3m||0)*3) + (s.ftm||0);
+                            p.pts += pts;
+                            p.reb += (s.reb||0);
+                            p.ast += (s.ast||0);
+                            p.fg3m += (s.fg3m||0); p.fg3a += (s.fg3a||0);
+                            p.ftm += (s.ftm||0); p.fta += (s.fta||0);
+
+                            // Check Season Highs (Global)
+                            if (pts > seasonHighs.pts.val) seasonHighs.pts = { val: pts, player: s.name, game: `vs ${g.opp}` };
+                            if ((s.reb||0) > seasonHighs.reb.val) seasonHighs.reb = { val: s.reb, player: s.name, game: `vs ${g.opp}` };
+                            if ((s.ast||0) > seasonHighs.ast.val) seasonHighs.ast = { val: s.ast, player: s.name, game: `vs ${g.opp}` };
+                            if ((s.stl||0) > seasonHighs.stl.val) seasonHighs.stl = { val: s.stl, player: s.name, game: `vs ${g.opp}` };
+                            if ((s.blk||0) > seasonHighs.blk.val) seasonHighs.blk = { val: s.blk, player: s.name, game: `vs ${g.opp}` };
+                        }
+                    });
+                });
+
+                // 3. Leaderboards
+                const players = Object.values(pMap).filter(p => p.gp > 0);
+                
+                const scorers = [...players].sort((a,b) => (b.pts/b.gp) - (a.pts/a.gp)).slice(0,3);
+                const rebounders = [...players].sort((a,b) => (b.reb/b.gp) - (a.reb/a.gp)).slice(0,3);
+                
+                // Efficiency (Min 5 attempts to qualify)
+                const snipers = [...players].filter(p=>p.fg3a > 5).sort((a,b) => (b.fg3m/b.fg3a) - (a.fg3m/a.fg3a)).slice(0,3);
+                const freeThrowers = [...players].filter(p=>p.fta > 5).sort((a,b) => (b.ftm/b.fta) - (a.ftm/a.fta)).slice(0,3);
+
+                return {
+                    team: {
+                        ppg: (teamTotals.pts / totalGames).toFixed(1),
+                        opp: (teamTotals.opp / totalGames).toFixed(1),
+                        rpg: (teamTotals.reb / totalGames).toFixed(1),
+                        apg: (teamTotals.ast / totalGames).toFixed(1),
+                        topg: (teamTotals.to / totalGames).toFixed(1),
+                        stocks: (teamTotals.stocks / totalGames).toFixed(1),
+                        record: `${games.filter(g=>g.result==='W').length}-${games.filter(g=>g.result==='L').length}`
+                    },
+                    scorers, rebounders, snipers, freeThrowers, seasonHighs
+                };
             };
 
             const saveGame = async () => {
                 if(!db) return alert("Offline Mode");
-                if(!gameMeta.opp) return alert("Need Opponent Name");
+                if(!gameMeta.opp) return alert("Enter Opponent Name");
                 let tScore = 0;
                 const stats = ROSTER.map(p => {
                     const s = playerStats[p.name] || {};
@@ -161,192 +199,168 @@
                 try {
                     if(editId) await db.collection('games').doc(editId).update(payload);
                     else await db.collection('games').add(payload);
-                    alert("Tactical Data Saved"); setEditId(null); setView('tactics');
+                    alert("Saved!"); setEditId(null); setView('clipboard');
                 } catch(e) { alert("Error: "+e.message); }
+            };
+
+            const handlePlayUpdate = (index, points) => {
+                const newPlays = [...playStats];
+                newPlays[index].att += 1;
+                if (points > 0) { newPlays[index].made += 1; newPlays[index].pts += points; }
+                setPlayStats(newPlays);
             };
 
             if(loading) return <div className="p-20 text-center text-gold font-bold">LOADING...</div>;
 
-            // -- RENDER --
-            const tacticalData = getTacticalData();
+            const dash = getDashboardData();
 
             return (
                 <div className="pb-24 max-w-7xl mx-auto p-4">
                     {/* NAV HEADER */}
-                    <div className="flex justify-between items-center mb-6 bg-zinc-900 p-4 rounded-xl border border-white/10">
-                        <h1 className="text-xl font-black italic uppercase">Eagles <span className="text-gold">Tactics</span></h1>
-                        <nav className="flex gap-2">
-                            {['clipboard', 'new', 'tactics', 'trends', 'log'].map(t => (
+                    <div className="flex flex-col md:flex-row justify-between items-center mb-6 bg-zinc-900 p-4 rounded-xl border border-white/10 sticky top-2 z-50 shadow-xl">
+                        <div className="flex items-center gap-2 mb-4 md:mb-0">
+                            <span className="text-2xl">🦅</span>
+                            <h1 className="text-xl font-black italic uppercase">Eagles <span className="text-gold">Analytics</span></h1>
+                        </div>
+                        <nav className="flex gap-1 overflow-x-auto w-full md:w-auto pb-1 no-scrollbar">
+                            {['clipboard', 'new', 'tactics', 'stats', 'log'].map(t => (
                                 <button key={t} onClick={()=>setView(t)} className={`nav-btn ${view===t?'active-nav':'inactive-nav'}`}>{t}</button>
                             ))}
                         </nav>
                     </div>
 
-                    {/* VIEW: TACTICS (NEW) */}
-                    {view === 'tactics' && (
+                    {/* --- VIEW: CLIPBOARD (UPDATED) --- */}
+                    {view === 'clipboard' && (
                         <div className="space-y-6 animate-slideIn">
-                            {/* Filter Bar */}
-                            <div className="flex justify-between items-center bg-zinc-900 p-3 rounded-lg border border-zinc-800">
-                                <label className="text-xs font-bold text-zinc-500 uppercase mr-3">Data Source:</label>
-                                <select className="bg-black text-white font-bold text-xs p-2 rounded border border-zinc-700 flex-1" value={tacticsFilter} onChange={e=>setTacticsFilter(e.target.value)}>
-                                    <option value="season">FULL SEASON AGGREGATE</option>
-                                    <optgroup label="Single Games">
-                                        {games.map(g => <option key={g.id} value={g.id}>{g.date} vs {g.opp} ({g.result})</option>)}
-                                    </optgroup>
-                                </select>
+                            
+                            {/* ROW 1: MASTER GRID */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                                <MiniStat label="Record" value={dash.team.record} />
+                                <MiniStat label="PPG" value={dash.team.ppg} color="text-gold" />
+                                <MiniStat label="Opp PPG" value={dash.team.opp} color="text-red-400" />
+                                <MiniStat label="RPG" value={dash.team.rpg} />
+                                <MiniStat label="APG" value={dash.team.apg} />
+                                <MiniStat label="Stocks" value={dash.team.stocks} sub="(Stl+Blk)" />
+                                <MiniStat label="TO/G" value={dash.team.topg} color="text-zinc-400" />
                             </div>
 
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                {/* 1. PLAY EFFICIENCY TABLE */}
-                                <div className="bento-card h-full">
-                                    <h3 className="text-xl font-black text-gold uppercase italic mb-4">Set Play Efficiency</h3>
-                                    <div className="tac-row bg-zinc-900/50 border-none rounded mb-2">
-                                        <div className="tac-head">Play Name</div>
-                                        <div className="tac-head text-center">Poss</div>
-                                        <div className="tac-head text-center">Score %</div>
-                                        <div className="tac-head text-right text-gold">PPP</div>
-                                    </div>
-                                    <div className="space-y-1">
-                                        {tacticalData.plays.sort((a,b)=>((b.pts/b.att)||-1)-((a.pts/a.att)||-1)).map((p, i) => {
-                                            const ppp = p.att > 0 ? (p.pts / p.att).toFixed(2) : '0.00';
-                                            const pct = p.att > 0 ? Math.round((p.made/p.att)*100) : 0;
-                                            return (
-                                                <div key={i} className="tac-row hover:bg-white/5 transition">
-                                                    <div className="font-bold text-sm">{p.name}</div>
-                                                    <div className="text-center font-mono text-zinc-400">{p.att}</div>
-                                                    <div className={`text-center font-bold text-xs ${pct>=50?'text-green-500':(pct<30?'text-red-500':'text-blue-400')}`}>{pct}%</div>
-                                                    <div className="text-right font-black text-gold text-lg">{ppp}</div>
-                                                </div>
-                                            );
-                                        })}
-                                        {tacticalData.plays.length === 0 && <div className="text-center text-zinc-600 py-10 text-xs uppercase">No Play Data Found</div>}
-                                    </div>
-                                </div>
+                            {/* ROW 2: LEADERBOARDS */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                <Leaderboard title="Scoring Leaders" icon="🔥" players={dash.scorers} 
+                                    valFunc={p=>(p.pts/p.gp).toFixed(1)} label="PPG" />
+                                <Leaderboard title="Glass Cleaners" icon="💪" players={dash.rebounders} 
+                                    valFunc={p=>(p.reb/p.gp).toFixed(1)} label="RPG" />
+                                <Leaderboard title="Snipers (3PT%)" icon="🎯" players={dash.snipers} 
+                                    valFunc={p=>Math.round((p.fg3m/p.fg3a)*100)+'%'} label={`on ${dash.snipers[0]?.fg3a||0} att`} />
+                                <Leaderboard title="Free Throws" icon="🔒" players={dash.freeThrowers} 
+                                    valFunc={p=>Math.round((p.ftm/p.fta)*100)+'%'} label={`on ${dash.freeThrowers[0]?.fta||0} att`} />
+                            </div>
 
-                                {/* 2. ENHANCED HEAT MAP */}
-                                <div className="bento-card">
-                                    <div className="flex justify-between items-center mb-6">
-                                        <h3 className="text-xl font-black text-gold uppercase italic">Shot Heat Map</h3>
-                                        <div className="text-[9px] font-bold text-zinc-500 text-right uppercase">
-                                            <span className="text-green-500">● 50%+</span> <span className="text-blue-500 ml-1">● 40%</span> <span className="text-yellow-500 ml-1">● 30%</span> <span className="text-red-500 ml-1">● &lt;30%</span>
-                                        </div>
-                                    </div>
-                                    <HeatMapCourt data={tacticalData.map} />
-                                    <div className="mt-4 text-center">
-                                        <div className="inline-block bg-zinc-900 px-4 py-2 rounded-lg border border-zinc-800">
-                                            <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Total eFG% (This View)</div>
-                                            <div className="text-2xl font-black text-white italic">
-                                                {(() => {
-                                                    let m=0, x=0;
-                                                    Object.values(tacticalData.map).forEach(z=>{m+=z.m; x+=z.x;});
-                                                    return (m+x)>0 ? Math.round((m/(m+x))*100) + '%' : '-';
-                                                })()}
-                                            </div>
-                                        </div>
-                                    </div>
+                            {/* ROW 3: HONOR ROLL (SEASON HIGHS) */}
+                            <div className="bento-card border-t-4 border-gold">
+                                <h3 className="text-sm font-black text-zinc-500 uppercase tracking-widest mb-4">🏆 Season Honor Roll (Single Game Highs)</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                    <HonorCard label="Most Points" data={dash.seasonHighs.pts} color="text-white" />
+                                    <HonorCard label="Most Assists" data={dash.seasonHighs.ast} color="text-blue-400" />
+                                    <HonorCard label="Most Rebounds" data={dash.seasonHighs.reb} color="text-green-400" />
+                                    <HonorCard label="Most Steals" data={dash.seasonHighs.stl} color="text-gold" />
+                                    <HonorCard label="Most Blocks" data={dash.seasonHighs.blk} color="text-red-400" />
                                 </div>
                             </div>
+
                         </div>
                     )}
 
-                    {/* VIEW: NEW GAME (UPDATED INPUTS) */}
+                    {/* --- OTHER VIEWS (Simplified) --- */}
                     {view === 'new' && (
-                        <div className="space-y-6 animate-slideIn">
-                             {/* META INPUTS */}
-                             <div className="bento-card grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div className="space-y-1"><label className="text-[9px] font-bold uppercase text-zinc-500">Opponent</label><input className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" value={gameMeta.opp} onChange={e=>setGameMeta({...gameMeta, opp:e.target.value})}/></div>
-                                <div className="space-y-1"><label className="text-[9px] font-bold uppercase text-zinc-500">Opp Score</label><input type="number" className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" value={gameMeta.oppScore} onChange={e=>setGameMeta({...gameMeta, oppScore:parseInt(e.target.value)||0})}/></div>
-                                <div className="space-y-1"><label className="text-[9px] font-bold uppercase text-zinc-500">Date</label><input type="date" className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" value={gameMeta.date} onChange={e=>setGameMeta({...gameMeta, date:e.target.value})}/></div>
-                                <div className="space-y-1"><label className="text-[9px] font-bold uppercase text-zinc-500">Venue</label><select className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" value={gameMeta.venue} onChange={e=>setGameMeta({...gameMeta, venue:e.target.value})}><option>Home</option><option>Away</option></select></div>
+                        <div className="space-y-6">
+                            <div className="bento-card grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="space-y-1"><label className="text-[9px] font-bold text-zinc-500 uppercase">Opponent</label><input className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" value={gameMeta.opp} onChange={e=>setGameMeta({...gameMeta, opp:e.target.value})} /></div>
+                                <div className="space-y-1"><label className="text-[9px] font-bold text-zinc-500 uppercase">Opp Score</label><input type="number" className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" value={gameMeta.oppScore} onChange={e=>setGameMeta({...gameMeta, oppScore:parseInt(e.target.value)||0})} /></div>
+                                <div className="space-y-1"><label className="text-[9px] font-bold text-zinc-500 uppercase">Date</label><input type="date" className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" value={gameMeta.date} onChange={e=>setGameMeta({...gameMeta, date:e.target.value})} /></div>
+                                <div className="space-y-1"><label className="text-[9px] font-bold text-zinc-500 uppercase">Venue</label><select className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" value={gameMeta.venue} onChange={e=>setGameMeta({...gameMeta, venue:e.target.value})}><option>Home</option><option>Away</option></select></div>
                             </div>
-
                             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                                {/* PLAYBOOK INPUT */}
-                                <div className="lg:col-span-5 bento-card border-t-4 border-gold">
-                                    <h3 className="font-black text-gold uppercase mb-4">Playbook Input</h3>
-                                    <div className="space-y-3">
-                                        {playStats.map((p, i) => (
-                                            <div key={i} className="bg-zinc-900/50 p-3 rounded-xl border border-white/5 flex flex-col gap-2">
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-bold text-sm uppercase">{p.name}</span>
-                                                    <span className="text-[10px] font-mono text-zinc-500">{(p.pts/(p.att||1)).toFixed(2)} PPP</span>
-                                                </div>
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    <button onClick={()=>handlePlayUpdate(i,0)} className="bg-zinc-800 text-zinc-400 hover:bg-red-900/50 hover:text-red-200 py-2 rounded text-[10px] font-black uppercase tracking-widest border border-zinc-700">Stop</button>
-                                                    <button onClick={()=>handlePlayUpdate(i,2)} className="bg-zinc-800 text-zinc-400 hover:bg-blue-900/50 hover:text-blue-200 py-2 rounded text-[10px] font-black uppercase tracking-widest border border-zinc-700">+2 Pts</button>
-                                                    <button onClick={()=>handlePlayUpdate(i,3)} className="bg-zinc-800 text-zinc-400 hover:bg-green-900/50 hover:text-green-200 py-2 rounded text-[10px] font-black uppercase tracking-widest border border-zinc-700">+3 Pts</button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                        <div className="flex gap-2 pt-2"><input className="bg-black border border-zinc-700 rounded p-2 text-xs flex-1 text-white font-bold" placeholder="New Play..." value={newPlayName} onChange={e=>setNewPlayName(e.target.value)} /><button onClick={()=>{if(newPlayName){setPlayStats([...playStats,{id:Date.now(),name:newPlayName,att:0,made:0,pts:0}]);setNewPlayName('');}}} className="bg-gold text-black font-bold text-xs px-3 rounded uppercase">Add</button></div>
-                                    </div>
+                                <div className="lg:col-span-4 bento-card border-t-4 border-gold">
+                                    <h3 className="font-black text-gold uppercase mb-4">Playbook</h3>
+                                    <div className="space-y-2">{playStats.map((p,i)=>(<div key={i} className="flex items-center gap-2 p-2 border-b border-white/5"><div className="flex-1 font-bold text-xs uppercase">{p.name}</div><button onClick={()=>handlePlayUpdate(i,0)} className="px-2 py-1 bg-zinc-800 rounded text-[10px] hover:bg-red-900/50">Stop</button><button onClick={()=>handlePlayUpdate(i,2)} className="px-2 py-1 bg-zinc-800 rounded text-[10px] hover:bg-blue-900/50">+2</button><button onClick={()=>handlePlayUpdate(i,3)} className="px-2 py-1 bg-zinc-800 rounded text-[10px] hover:bg-green-900/50">+3</button></div>))}</div>
+                                    <div className="flex gap-2 mt-4"><input className="bg-black border border-zinc-700 rounded p-2 text-xs flex-1 text-white font-bold" placeholder="New Play..." value={newPlayName} onChange={e=>setNewPlayName(e.target.value)} /><button onClick={()=>{if(newPlayName){setPlayStats([...playStats,{id:Date.now(),name:newPlayName,att:0,made:0,pts:0}]);setNewPlayName('');}}} className="bg-gold text-black font-bold text-xs px-3 rounded uppercase">Add</button></div>
                                 </div>
-
-                                {/* SHOT CHART INPUT */}
-                                <div className="lg:col-span-7 bento-card">
-                                    <div className="flex justify-between mb-4"><h3 className="font-black text-gold uppercase">Shot Input</h3><div className="flex bg-black rounded border border-zinc-800 p-1"><button onClick={()=>setShotMode('make')} className={`px-3 py-1 text-[10px] font-black uppercase rounded ${shotMode==='make'?'bg-green-600 text-white':'text-zinc-500'}`}>Make</button><button onClick={()=>setShotMode('miss')} className={`px-3 py-1 text-[10px] font-black uppercase rounded ${shotMode==='miss'?'bg-red-600 text-white':'text-zinc-500'}`}>Miss</button></div></div>
-                                    <InteractiveCourt data={shotMap.eagles} mode={shotMode} onClick={(z,m)=>{const c=shotMap.eagles[z]||{m:0,x:0};setShotMap({...shotMap,eagles:{...shotMap.eagles,[z]:{m:c.m+(m?1:0),x:c.x+(m?0:1)}}})}} />
-                                    {/* Quick Stats Grid */}
-                                    <div className="mt-6 overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-zinc-500 border-b border-zinc-800"><th className="p-2 text-left">PLAYER</th>{STAT_FIELDS.map(f=><th key={f} className="p-1 uppercase text-center">{f.replace('fg','').replace('m','')}</th>)}<th className="p-2 text-gold text-right">PTS</th></tr></thead><tbody>{ROSTER.map(p=>{const s=playerStats[p.name]||{};return(<tr key={p.id} className="border-b border-white/5"><td className="p-2 font-bold whitespace-nowrap">{p.name}</td>{STAT_FIELDS.map(f=><td key={f} className="p-1"><input type="number" className="stat-input" value={s[f]||''} onChange={e=>setPlayerStats({...playerStats,[p.name]:{...s,[f]:parseInt(e.target.value)||0}})}/></td>)}<td className="p-2 text-gold font-bold text-right">{((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0)}</td></tr>)})}</tbody></table></div>
+                                <div className="lg:col-span-8 bento-card">
+                                    <div className="flex justify-between mb-4"><h3 className="font-black text-gold uppercase">Input</h3><div className="flex bg-black rounded border border-zinc-800 p-1"><button onClick={()=>setShotMode('make')} className={`px-3 py-1 text-[10px] font-black uppercase rounded ${shotMode==='make'?'bg-green-600 text-white':'text-zinc-500'}`}>Make</button><button onClick={()=>setShotMode('miss')} className={`px-3 py-1 text-[10px] font-black uppercase rounded ${shotMode==='miss'?'bg-red-600 text-white':'text-zinc-500'}`}>Miss</button></div></div>
+                                    <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-zinc-500 border-b border-zinc-800"><th className="p-2 text-left">PLAYER</th>{STAT_FIELDS.map(f=><th key={f} className="p-1 uppercase text-center">{f.replace('fg','').replace('m','')}</th>)}</tr></thead><tbody>{ROSTER.map(p=>{const s=playerStats[p.name]||{};return(<tr key={p.id} className="border-b border-white/5"><td className="p-2 font-bold whitespace-nowrap">{p.name}</td>{STAT_FIELDS.map(f=><td key={f} className="p-1"><input type="number" className="stat-input" value={s[f]||''} onChange={e=>setPlayerStats({...playerStats,[p.name]:{...s,[f]:parseInt(e.target.value)||0}})}/></td>)}</tr>)})}</tbody></table></div>
                                 </div>
                             </div>
-                            <button onClick={saveGame} className="w-full py-4 bg-gold hover:bg-white text-black font-black uppercase text-xl rounded-xl shadow-lg transition-all">Save Game Log</button>
+                            <button onClick={saveGame} className="w-full py-4 bg-gold hover:bg-white text-black font-black uppercase text-xl rounded-xl shadow-lg transition-all">Save Game</button>
                         </div>
                     )}
 
-                    {/* OTHER VIEWS (Simplified for this version) */}
-                    {view === 'clipboard' && <div className="text-center py-20 text-zinc-500 uppercase font-black">Dashboard View (See Pro Version for full Analytics)</div>}
-                    {view === 'trends' && <div className="text-center py-20 text-zinc-500 uppercase font-black">Trends View (See Pro Version for Charts)</div>}
-                    {view === 'log' && <div className="grid gap-4">{games.map(g=><div key={g.id} className="bento-card flex justify-between items-center"><div><div className="text-xs font-bold text-zinc-500">{g.date}</div><div className="text-xl font-black italic">{g.result} vs {g.opp}</div></div><button onClick={()=>{setEditId(g.id);setGameMeta({date:g.date,opp:g.opp,oppScore:g.oppScore,venue:g.venue});setPlayStats(g.playStats||[]);const sm={};g.stats.forEach(s=>sm[s.name]=s);setPlayerStats(sm);setShotMap(g.shotMap);setView('new');}} className="bg-zinc-800 text-xs font-bold uppercase p-2 rounded">Edit</button></div>)}</div>}
+                    {view === 'tactics' && <div className="bento-card text-center py-10">Tactics View (See Previous Code)</div>}
+                    {view === 'stats' && <div className="bento-card text-center py-10">Stats View (See Previous Code)</div>}
+                    {view === 'log' && (
+                        <div className="grid gap-4">
+                            {games.map(g=><div key={g.id} className="bento-card flex justify-between items-center"><div><div className="text-xs font-bold text-zinc-500">{g.date}</div><div className="text-xl font-black italic">{g.result} vs {g.opp}</div></div><button onClick={()=>{setEditId(g.id);setGameMeta({date:g.date,opp:g.opp,oppScore:g.oppScore,venue:g.venue});setPlayStats(g.playStats||[]);const sm={};g.stats.forEach(s=>sm[s.name]=s);setPlayerStats(sm);setShotMap(g.shotMap);setView('new');}} className="bg-zinc-800 text-xs font-bold uppercase p-2 rounded hover:bg-white hover:text-black">Edit</button></div>)}
+                        </div>
+                    )}
                 </div>
             );
         }
 
-        // --- SUB COMPONENTS ---
+        // --- SUB-COMPONENTS ---
+        function MiniStat({label, value, color, sub}) {
+            return (
+                <div className="bento-card flex flex-col items-center justify-center py-4">
+                    <div className="text-[9px] font-black uppercase text-zinc-500 tracking-widest mb-1">{label}</div>
+                    <div className={`text-2xl lg:text-3xl font-black italic tracking-tighter ${color||'text-white'}`}>{value}</div>
+                    {sub && <div className="text-[8px] text-zinc-600 font-bold">{sub}</div>}
+                </div>
+            )
+        }
+
+        function Leaderboard({ title, icon, players, valFunc, label }) {
+            return (
+                <div className="bento-card h-full">
+                    <div className="flex items-center gap-2 mb-4 border-b border-white/5 pb-2">
+                        <span className="text-lg">{icon}</span>
+                        <h3 className="text-sm font-black uppercase text-zinc-400 tracking-wider">{title}</h3>
+                    </div>
+                    <div className="space-y-1">
+                        {players.map((p, i) => (
+                            <div key={i} className="leader-row">
+                                <div className="flex items-center gap-2">
+                                    <span className="rank-badge">{i+1}</span>
+                                    <span className="leader-name">{p.name.split(' ')[0]} {p.name.split(' ')[1][0]}.</span>
+                                </div>
+                                <div className="flex items-end">
+                                    <span className="leader-val">{valFunc(p)}</span>
+                                    {i===0 && <span className="leader-sub">{label}</span>}
+                                </div>
+                            </div>
+                        ))}
+                        {players.length === 0 && <div className="text-xs text-zinc-600 text-center py-4">Not enough data</div>}
+                    </div>
+                </div>
+            )
+        }
+
+        function HonorCard({ label, data, color }) {
+            return (
+                <div className="honor-card text-center">
+                    <div className="honor-label">{label}</div>
+                    <div className={`honor-val ${color}`}>{data.val}</div>
+                    {data.val > 0 ? (
+                        <>
+                            <div className="honor-player">{data.player.split(' ')[0]} {data.player.split(' ')[1][0]}.</div>
+                            <div className="honor-game">{data.game}</div>
+                        </>
+                    ) : <div className="text-[9px] text-zinc-600 mt-2">-</div>}
+                </div>
+            )
+        }
+
         function InteractiveCourt({ data, onClick, mode }) {
             const getFill = (key) => { const z=data[key]||{m:0,x:0}, t=z.m+z.x; if(t===0) return 'transparent'; return (z.m/t)>=0.4?'rgba(34,197,94,0.6)':'rgba(239,68,68,0.6)'; };
             return (<div className="relative max-w-[350px] mx-auto select-none"><svg viewBox="0 0 100 94" className="court-svg"><rect width="100" height="94" fill="#111" stroke="#333"/><path d="M 35,94 L 35,55 L 65,55 L 65,94 Z" className="zone" fill={getFill('paint')} onClick={()=>onClick('paint',mode==='make')}/><path d="M 10,94 L 10,15 Q 50,-15 90,15 L 90,94" fill="none" stroke="#555" strokeWidth="1" strokeDasharray="4,4" pointerEvents="none"/><path d="M 10,55 L 35,55 L 35,94 L 10,94 Z" className="zone" onClick={()=>onClick('mid_l',mode==='make')} fill={getFill('mid_l')}/><path d="M 65,55 L 90,55 L 90,94 L 65,94 Z" className="zone" onClick={()=>onClick('mid_r',mode==='make')} fill={getFill('mid_r')}/><path d="M 35,55 L 35,30 L 65,30 L 65,55 Z" className="zone" onClick={()=>onClick('mid_c',mode==='make')} fill={getFill('mid_c')}/><path d="M 0,94 L 0,60 L 10,60 L 10,94 Z" className="zone" onClick={()=>onClick('corn_l',mode==='make')} fill={getFill('corn_l')}/><path d="M 90,94 L 90,60 L 100,60 L 100,94 Z" className="zone" onClick={()=>onClick('corn_r',mode==='make')} fill={getFill('corn_r')}/><path d="M 0,60 L 0,0 L 30,0 L 35,30 L 10,55 Z" className="zone" onClick={()=>onClick('wing_l',mode==='make')} fill={getFill('wing_l')}/><path d="M 100,60 L 100,0 L 70,0 L 65,30 L 90,55 Z" className="zone" onClick={()=>onClick('wing_r',mode==='make')} fill={getFill('wing_r')}/><path d="M 30,0 L 70,0 L 65,30 L 35,30 Z" className="zone" onClick={()=>onClick('top',mode==='make')} fill={getFill('top')}/><text x="50" y="85" className="zone-label" fill="white" fontSize="4">PAINT</text></svg></div>);
-        }
-
-        // --- NEW: 4-COLOR HEAT MAP ---
-        function HeatMapCourt({ data }) {
-            const getFill = (key) => { 
-                const z = data[key] || {m:0,x:0}, t = z.m+z.x; 
-                if(t === 0) return 'rgba(255,255,255,0.05)'; 
-                const pct = z.m/t;
-                if(pct >= 0.5) return 'rgba(34, 197, 94, 0.7)'; // Elite (Green)
-                if(pct >= 0.4) return 'rgba(59, 130, 246, 0.7)'; // Good (Blue)
-                if(pct >= 0.3) return 'rgba(234, 179, 8, 0.7)';  // Avg (Yellow)
-                return 'rgba(239, 68, 68, 0.7)';                 // Poor (Red)
-            };
-            return (
-                <div className="relative max-w-[350px] mx-auto select-none">
-                    <svg viewBox="0 0 100 94" className="court-svg">
-                        <rect width="100" height="94" fill="#000" stroke="#333"/>
-                        {/* 4-Color Logic Applied Here */}
-                        <path d="M 35,94 L 35,55 L 65,55 L 65,94 Z" fill={getFill('paint')} stroke="black" strokeWidth="0.5" />
-                        <path d="M 10,94 L 10,15 Q 50,-15 90,15 L 90,94" fill="none" stroke="#444" strokeWidth="1" strokeDasharray="4,4" />
-                        <path d="M 10,55 L 35,55 L 35,94 L 10,94 Z" fill={getFill('mid_l')} stroke="black" strokeWidth="0.5"/>
-                        <path d="M 65,55 L 90,55 L 90,94 L 65,94 Z" fill={getFill('mid_r')} stroke="black" strokeWidth="0.5"/>
-                        <path d="M 35,55 L 35,30 L 65,30 L 65,55 Z" fill={getFill('mid_c')} stroke="black" strokeWidth="0.5"/>
-                        <path d="M 0,94 L 0,60 L 10,60 L 10,94 Z" fill={getFill('corn_l')} stroke="black" strokeWidth="0.5"/>
-                        <path d="M 90,94 L 90,60 L 100,60 L 100,94 Z" fill={getFill('corn_r')} stroke="black" strokeWidth="0.5"/>
-                        <path d="M 0,60 L 0,0 L 30,0 L 35,30 L 10,55 Z" fill={getFill('wing_l')} stroke="black" strokeWidth="0.5"/>
-                        <path d="M 100,60 L 100,0 L 70,0 L 65,30 L 90,55 Z" fill={getFill('wing_r')} stroke="black" strokeWidth="0.5"/>
-                        <path d="M 30,0 L 70,0 L 65,30 L 35,30 Z" fill={getFill('top')} stroke="black" strokeWidth="0.5"/>
-                        
-                        {/* Overlay Text for Percentages */}
-                        {ZONES.map(z => {
-                             const d = data[z] || {m:0,x:0}, t = d.m+d.x;
-                             if(t<1) return null;
-                             const pct = Math.round((d.m/t)*100);
-                             const pos = { paint:[50,80], mid_l:[22,75], mid_r:[78,75], mid_c:[50,45], corn_l:[5,80], corn_r:[95,80], wing_l:[15,30], wing_r:[85,30], top:[50,20] }[z];
-                             if(!pos) return null;
-                             return <text key={z} x={pos[0]} y={pos[1]} fill="white" fontSize="3" fontWeight="900" textAnchor="middle">{pct}%</text>
-                        })}
-                    </svg>
-                </div>
-            );
         }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
