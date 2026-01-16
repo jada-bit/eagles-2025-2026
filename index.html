@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eagles Analytics - Safe Mode</title>
+    <title>Eagles Analytics - Coach's Edition</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -16,48 +16,54 @@
 
     <style>
         :root { --gold: #FFB81C; --black: #050505; --red: #ef4444; --green: #22c55e; }
-        body { background-color: var(--black); color: white; font-family: system-ui, sans-serif; }
+        body { background-color: var(--black); color: white; font-family: system-ui, -apple-system, sans-serif; }
         
         .bento-card { 
-            background: rgba(30, 30, 30, 0.6); 
-            border: 1px solid rgba(255, 255, 255, 0.1); 
+            background: rgba(25, 25, 25, 0.8); 
+            border: 1px solid rgba(255, 255, 255, 0.08); 
             border-radius: 16px; 
-            padding: 1.5rem; 
+            padding: 1.25rem; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
         
-        .nav-btn { font-size: 11px; font-weight: 800; text-transform: uppercase; padding: 10px 16px; border-radius: 99px; cursor: pointer; border: 1px solid transparent; }
-        .active-nav { background-color: var(--gold); color: black; }
-        .inactive-nav { background: rgba(255,255,255,0.1); color: #aaa; }
+        .nav-btn { font-size: 11px; font-weight: 800; text-transform: uppercase; padding: 10px 16px; border-radius: 99px; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; }
+        .active-nav { background-color: var(--gold); color: black; box-shadow: 0 0 15px rgba(255, 184, 28, 0.3); }
+        .inactive-nav { background: rgba(255,255,255,0.05); color: #888; }
+        .inactive-nav:hover { background: rgba(255,255,255,0.1); color: white; }
 
-        .court-svg { width: 100%; display: block; margin: 0 auto; touch-action: manipulation; }
-        .zone { cursor: pointer; transition: 0.2s; opacity: 0.3; stroke: rgba(255,255,255,0.5); stroke-width: 0.5; fill: transparent; }
+        .court-svg { width: 100%; display: block; margin: 0 auto; touch-action: manipulation; filter: drop-shadow(0 0 8px rgba(255,184,28,0.1)); }
+        .zone { cursor: pointer; transition: 0.2s; opacity: 0.2; stroke: rgba(255,255,255,0.4); stroke-width: 0.8; fill: transparent; }
         .zone:hover { opacity: 0.6; fill: var(--gold); }
-        .zone-label { font-size: 3px; font-weight: 900; fill: rgba(255,255,255,0.7); pointer-events: none; text-anchor: middle; }
         
-        .stat-input { background: #111; border: 1px solid #444; color: white; padding: 5px; text-align: center; border-radius: 4px; width: 100%; }
+        .stat-input { background: #111; border: 1px solid #333; color: white; padding: 4px; text-align: center; border-radius: 6px; width: 100%; font-weight: bold; }
+        .stat-input:focus { border-color: var(--gold); outline: none; }
         
-        /* Error Display Styles */
-        #error-display { display: none; padding: 20px; background: #300; border: 2px solid red; color: white; position: fixed; top: 0; left: 0; width: 100%; z-index: 9999; }
+        /* Play Tracker Styles */
+        .play-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .eff-badge { font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 4px; background: #333; color: #aaa; }
+        .eff-high { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+        .eff-low { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+
+        #error-display { display: none; padding: 20px; background: #300; border-bottom: 2px solid red; color: white; position: fixed; top: 0; left: 0; width: 100%; z-index: 9999; }
     </style>
 </head>
 <body>
     <div id="error-display"></div>
-
     <div id="root">
-        <div style="height: 100vh; display: flex; align-items: center; justify-content: center; color: #FFB81C; font-weight: bold; font-size: 24px;">
-            SYSTEM BOOTING... <br/><span style="font-size: 14px; color: #666; margin-top: 10px;">If this stays on screen, check your internet connection.</span>
+        <div style="height: 100vh; display: flex; align-items: center; justify-content: center; color: #FFB81C; font-weight: bold; font-size: 24px; animation: pulse 2s infinite;">
+            LOADING PLAYBOOK...
         </div>
     </div>
 
     <script>
-        window.onerror = function(message, source, lineno, colno, error) {
+        window.onerror = function(msg, src, line) {
             document.getElementById('error-display').style.display = 'block';
-            document.getElementById('error-display').innerHTML = `<strong>CRASH DETECTED:</strong><br/>${message}<br/><small>${source}:${lineno}</small>`;
+            document.getElementById('error-display').innerHTML = `<strong>ERROR:</strong> ${msg} <br/><small>${src}:${line}</small>`;
         };
     </script>
 
     <script type="text/babel">
-        // --- 1. SAFE CONFIGURATION ---
+        // --- CONFIG & UTILS ---
         const ROSTER = [
             {id: 5, name: "Natasha Mistry", pos: "PG"}, {id: 3, name: "Mikayla Sanders", pos: "PG"}, 
             {id: 22, name: "Christina Lisack", pos: "PG/G"}, {id: 1, name: "Brittney Tang", pos: "G"},
@@ -71,62 +77,63 @@
         const ZONES = ['paint', 'mid_l', 'mid_r', 'mid_c', 'corn_l', 'corn_r', 'wing_l', 'wing_r', 'top'];
         const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','to'];
 
-        // Safe Firebase Init
         let db = null;
         try {
             const firebaseConfig = { apiKey: "AIzaSyA5H5SsumWG7bym_0EZ7jOlfWeswpSauhk", projectId: "eagles-stats", appId: "1:386723096734:web:b50e343c703983e838b38f" };
-            if(window.firebase) {
-                firebase.initializeApp(firebaseConfig);
-                db = firebase.firestore();
-                console.log("Firebase Connected");
-            } else {
-                throw new Error("Firebase library not loaded");
-            }
-        } catch (e) {
-            console.error("Database Offline Mode:", e);
-        }
+            if(window.firebase) { firebase.initializeApp(firebaseConfig); db = firebase.firestore(); }
+        } catch (e) { console.warn("Offline Mode"); }
 
-        // --- 2. COMPONENTS ---
+        // --- COMPONENTS ---
         function App() {
             const [view, setView] = React.useState('clipboard');
             const [games, setGames] = React.useState([]);
             const [loading, setLoading] = React.useState(true);
-            const [error, setError] = React.useState(null);
 
-            // New Game State
+            // -- GAME STATE --
             const [gameMeta, setGameMeta] = React.useState({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0, venue: 'Home' });
             const [playerStats, setPlayerStats] = React.useState({});
-            // Initialize shotMap safely
-            const [shotMap, setShotMap] = React.useState({ 
-                eagles: ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}), 
-                opp: ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}) 
-            });
+            const [shotMap, setShotMap] = React.useState({ eagles: ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}), opp: {} });
+            
+            // -- PLAY TRACKING STATE --
+            // Default plays include Transition and Broken Play
+            const [playStats, setPlayStats] = React.useState([
+                { id: 'trans', name: 'TRANSITION', att: 0, made: 0 },
+                { id: 'broken', name: 'BROKEN PLAY', att: 0, made: 0 },
+                { id: 'motion', name: 'Motion Offense', att: 0, made: 0 }
+            ]);
+            const [newPlayName, setNewPlayName] = React.useState('');
+
+            // -- UI STATE --
             const [shotMode, setShotMode] = React.useState('make');
             const [editId, setEditId] = React.useState(null);
 
-            // Load Data
             React.useEffect(() => {
-                if (!db) {
+                if (!db) { setLoading(false); return; }
+                const unsub = db.collection('games').orderBy('date', 'desc').onSnapshot(snap => {
+                    setGames(snap.docs.map(d => ({ id: d.id, ...d.data() })));
                     setLoading(false);
-                    return;
-                }
-                try {
-                    const unsub = db.collection('games').orderBy('date', 'desc').onSnapshot(snap => {
-                        setGames(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                        setLoading(false);
-                    }, (err) => {
-                        console.error(err);
-                        setLoading(false); // Stop loading even if error
-                    });
-                    return () => unsub();
-                } catch(e) {
-                    setLoading(false);
-                }
+                }, () => setLoading(false));
+                return () => unsub();
             }, []);
 
+            // Playbook Logic
+            const handlePlayUpdate = (index, isMake) => {
+                const newPlays = [...playStats];
+                newPlays[index].att += 1; // Always increment attempt
+                if (isMake) newPlays[index].made += 1; // Only increment made if scored
+                setPlayStats(newPlays);
+            };
+
+            const addNewPlay = () => {
+                if (!newPlayName.trim()) return;
+                setPlayStats([...playStats, { id: Date.now(), name: newPlayName, att: 0, made: 0 }]);
+                setNewPlayName('');
+            };
+
+            // Saving Logic
             const saveGame = async () => {
-                if(!db) return alert("Offline Mode: Cannot save to cloud.");
-                if (!gameMeta.opp) return alert("Please enter an Opponent Name.");
+                if(!db) return alert("Offline: Cannot save.");
+                if (!gameMeta.opp) return alert("Enter Opponent Name.");
                 
                 let tScore = 0;
                 const stats = ROSTER.map(p => {
@@ -140,7 +147,8 @@
                     ...gameMeta, 
                     teamScore: tScore, 
                     stats, 
-                    shotMap, 
+                    shotMap,
+                    playStats, // Saving the playbook data
                     result: tScore > gameMeta.oppScore ? 'W' : 'L',
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp() 
                 };
@@ -148,150 +156,206 @@
                 try {
                     if (editId) await db.collection('games').doc(editId).update(payload);
                     else await db.collection('games').add(payload);
-                    alert("Saved!"); setEditId(null); setView('log');
-                } catch (e) { alert("Save Failed: " + e.message); }
+                    alert("Game & Playbook Saved!"); setEditId(null); setView('log');
+                } catch (e) { alert("Error: " + e.message); }
             };
 
-            const handleZoneClick = (zone, isMake) => {
-                // Defensive check to prevent crash if zone is missing
-                const current = shotMap.eagles[zone] || { m:0, x:0 };
-                setShotMap({
-                    ...shotMap,
-                    eagles: {
-                        ...shotMap.eagles,
-                        [zone]: { m: current.m + (isMake?1:0), x: current.x + (isMake?0:1) }
-                    }
-                });
-            };
-
-            if (loading) return <div className="p-10 text-gold text-2xl font-bold text-center">CONNECTING TO DATABASE...</div>;
+            if (loading) return <div className="text-center p-20 text-gold font-bold">LOADING DATABASE...</div>;
 
             return (
-                <div className="pb-20 max-w-7xl mx-auto p-2 md:p-6">
-                    {/* Header */}
-                    <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
-                        <h1 className="text-2xl font-black italic uppercase text-white">Eagles <span className="text-gold">Analytics</span></h1>
-                        <div className="flex gap-2">
+                <div className="pb-24 max-w-7xl mx-auto p-4">
+                    {/* NAV HEADER */}
+                    <header className="flex flex-col md:flex-row justify-between items-center mb-8 bg-zinc-900/80 backdrop-blur p-4 rounded-2xl border border-white/5 shadow-xl sticky top-2 z-50">
+                        <h1 className="text-2xl font-black italic uppercase tracking-tighter">Eagles <span className="text-gold">Command</span></h1>
+                        <nav className="flex gap-2 mt-4 md:mt-0">
                             {['clipboard', 'new', 'trends', 'log'].map(t => (
                                 <button key={t} onClick={() => setView(t)} className={`nav-btn ${view === t ? 'active-nav' : 'inactive-nav'}`}>{t}</button>
                             ))}
-                        </div>
-                    </div>
+                        </nav>
+                    </header>
 
-                    {/* VIEW: CLIPBOARD */}
+                    {/* VIEW: DASHBOARD */}
                     {view === 'clipboard' && (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div className="bento-card text-center">
-                                <div className="text-zinc-500 text-xs font-bold mb-1">RECORD</div>
-                                <div className="text-3xl font-black">{games.filter(g=>g.result==='W').length}-{games.filter(g=>g.result==='L').length}</div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-pop">
+                            <BentoCard label="Record" value={`${games.filter(g=>g.result==='W').length}-${games.filter(g=>g.result==='L').length}`} />
+                            <BentoCard label="PPG" value={games.length ? (games.reduce((a,b)=>a+b.teamScore,0)/games.length).toFixed(1) : '0'} color="text-gold" />
+                            <BentoCard label="Opp PPG" value={games.length ? (games.reduce((a,b)=>a+b.oppScore,0)/games.length).toFixed(1) : '0'} color="text-red-500" />
+                            
+                            {/* COACHES CORNER WIDGET */}
+                            <div className="col-span-1 md:col-span-3 bento-card border-l-4 border-blue-500">
+                                <h3 className="text-blue-400 font-black uppercase tracking-widest text-xs mb-4">Coach's Insight</h3>
+                                <div className="text-zinc-400 italic text-sm">
+                                    "Track <b>Transition</b> and <b>Broken Plays</b> separately. If your set play efficiency drops below 40%, switch to motion."
+                                </div>
                             </div>
-                            <div className="bento-card text-center">
-                                <div className="text-zinc-500 text-xs font-bold mb-1">PPG</div>
-                                <div className="text-3xl font-black text-gold">{games.length ? (games.reduce((a,b)=>a+b.teamScore,0)/games.length).toFixed(1) : '0.0'}</div>
-                            </div>
-                            {!db && <div className="col-span-2 md:col-span-4 bg-red-900/50 p-4 rounded text-center border border-red-500 font-bold">⚠️ OFFLINE MODE: Database not connected</div>}
                         </div>
                     )}
 
-                    {/* VIEW: NEW GAME */}
+                    {/* VIEW: NEW GAME / TRACKING */}
                     {view === 'new' && (
-                        <div className="space-y-6 animate-fade">
+                        <div className="space-y-6">
+                            {/* 1. Game Meta */}
                             <div className="bento-card grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div><label className="text-[10px] text-zinc-500 font-bold block mb-1">OPPONENT</label><input className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold uppercase" value={gameMeta.opp} onChange={e=>setGameMeta({...gameMeta, opp:e.target.value})} /></div>
-                                <div><label className="text-[10px] text-zinc-500 font-bold block mb-1">THEIR SCORE</label><input type="number" className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" value={gameMeta.oppScore} onChange={e=>setGameMeta({...gameMeta, oppScore:parseInt(e.target.value)||0})} /></div>
-                                <div><label className="text-[10px] text-zinc-500 font-bold block mb-1">DATE</label><input type="date" className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" value={gameMeta.date} onChange={e=>setGameMeta({...gameMeta, date:e.target.value})} /></div>
-                                <div><label className="text-[10px] text-zinc-500 font-bold block mb-1">VENUE</label><select className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" value={gameMeta.venue} onChange={e=>setGameMeta({...gameMeta, venue:e.target.value})}><option>Home</option><option>Away</option></select></div>
+                                <MetaInput label="Opponent" value={gameMeta.opp} onChange={e=>setGameMeta({...gameMeta, opp:e.target.value})} />
+                                <MetaInput label="Opp Score" type="number" value={gameMeta.oppScore} onChange={e=>setGameMeta({...gameMeta, oppScore:parseInt(e.target.value)||0})} />
+                                <MetaInput label="Date" type="date" value={gameMeta.date} onChange={e=>setGameMeta({...gameMeta, date:e.target.value})} />
+                                <div className="space-y-1"><label className="text-[9px] text-zinc-500 font-bold uppercase">Venue</label><select className="w-full bg-black border border-zinc-700 rounded p-2 text-sm font-bold text-white" value={gameMeta.venue} onChange={e=>setGameMeta({...gameMeta, venue:e.target.value})}><option>Home</option><option>Away</option></select></div>
                             </div>
 
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                {/* Shot Chart */}
-                                <div className="bento-card">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h3 className="font-bold text-gold">SHOT CHART</h3>
-                                        <div className="flex bg-black rounded p-1 border border-zinc-800">
-                                            <button onClick={()=>setShotMode('make')} className={`px-3 py-1 text-xs font-bold rounded uppercase ${shotMode==='make'?'bg-green-600 text-white':'text-zinc-500'}`}>Make</button>
-                                            <button onClick={()=>setShotMode('miss')} className={`px-3 py-1 text-xs font-bold rounded uppercase ${shotMode==='miss'?'bg-red-600 text-white':'text-zinc-500'}`}>Miss</button>
-                                        </div>
-                                    </div>
-                                    <InteractiveCourt data={shotMap.eagles} mode={shotMode} onClick={handleZoneClick} />
-                                </div>
-
-                                {/* Stats Table */}
-                                <div className="bento-card overflow-x-auto">
-                                    <table className="w-full text-xs">
-                                        <thead><tr className="text-zinc-500 border-b border-zinc-800"><th className="text-left p-2">PLAYER</th>{STAT_FIELDS.map(f=><th key={f} className="p-1 uppercase">{f.replace('fg','').replace('m','')}</th>)}<th className="text-gold p-1">PTS</th></tr></thead>
-                                        <tbody>
-                                            {ROSTER.map(p => {
-                                                const s = playerStats[p.name] || {};
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                                {/* 2. PLAYBOOK TRACKER (New Feature) */}
+                                <div className="lg:col-span-4 space-y-6">
+                                    <div className="bento-card h-full border-t-4 border-blue-500">
+                                        <h3 className="text-xl font-black italic uppercase text-white mb-1">Playbook Tracker</h3>
+                                        <p className="text-[10px] text-zinc-500 font-bold uppercase mb-6">Efficiency = Scored / Run</p>
+                                        
+                                        <div className="space-y-2 mb-6">
+                                            {playStats.map((p, i) => {
+                                                const pct = p.att > 0 ? Math.round((p.made/p.att)*100) : 0;
+                                                const isEff = pct >= 50;
                                                 return (
-                                                    <tr key={p.id} className="border-b border-white/5 hover:bg-white/5">
-                                                        <td className="p-2 font-bold whitespace-nowrap">{p.name}</td>
-                                                        {STAT_FIELDS.map(f => (
-                                                            <td key={f} className="p-1"><input type="number" className="stat-input" value={s[f]||''} onChange={e=>setPlayerStats({...playerStats, [p.name]: {...s, [f]: parseInt(e.target.value)||0}})} /></td>
-                                                        ))}
-                                                        <td className="p-2 text-gold font-bold text-center">{((s.fg2m||0)*2) + ((s.fg3m||0)*3) + (s.ftm||0)}</td>
-                                                    </tr>
+                                                    <div key={i} className="play-row">
+                                                        <div className="flex flex-col leading-tight">
+                                                            <span className="font-bold text-sm uppercase">{p.name}</span>
+                                                            <span className={`eff-badge w-fit mt-1 ${isEff ? 'eff-high' : 'eff-low'}`}>{pct}% Success ({p.made}/{p.att})</span>
+                                                        </div>
+                                                        <div className="text-center">
+                                                            {/* STOP BUTTON */}
+                                                            <button onClick={() => handlePlayUpdate(i, false)} className="bg-zinc-800 hover:bg-red-900/50 hover:text-red-400 text-zinc-400 border border-zinc-700 rounded-lg p-2 w-full transition-colors">
+                                                                <div className="text-xs font-black">STOP</div>
+                                                                <div className="text-[9px] opacity-60">0 Pts</div>
+                                                            </button>
+                                                        </div>
+                                                        <div className="text-center">
+                                                            {/* SCORE BUTTON */}
+                                                            <button onClick={() => handlePlayUpdate(i, true)} className="bg-zinc-800 hover:bg-green-900/50 hover:text-green-400 text-zinc-400 border border-zinc-700 rounded-lg p-2 w-full transition-colors">
+                                                                <div className="text-xs font-black">SCORE</div>
+                                                                <div className="text-[9px] opacity-60">+ Pts</div>
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                 );
                                             })}
-                                        </tbody>
-                                    </table>
+                                        </div>
+
+                                        <div className="flex gap-2 mt-4 pt-4 border-t border-white/5">
+                                            <input placeholder="New Play Name..." value={newPlayName} onChange={e=>setNewPlayName(e.target.value)} className="bg-black border border-zinc-700 rounded px-3 text-xs font-bold text-white flex-1" />
+                                            <button onClick={addNewPlay} className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase px-4 rounded transition">Add</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 3. SHOT CHART & ROSTER */}
+                                <div className="lg:col-span-8 space-y-6">
+                                    <div className="bento-card">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h3 className="font-black text-gold uppercase">Shot Chart</h3>
+                                            <div className="flex bg-zinc-900 rounded p-1">
+                                                <button onClick={()=>setShotMode('make')} className={`px-4 py-1 text-xs font-bold rounded uppercase ${shotMode==='make'?'bg-green-600 text-white':'text-zinc-500'}`}>Made (Green)</button>
+                                                <button onClick={()=>setShotMode('miss')} className={`px-4 py-1 text-xs font-bold rounded uppercase ${shotMode==='miss'?'bg-red-600 text-white':'text-zinc-500'}`}>Miss (Red)</button>
+                                            </div>
+                                        </div>
+                                        <InteractiveCourt data={shotMap.eagles} mode={shotMode} onClick={(z,m)=>{
+                                            const c = shotMap.eagles[z] || {m:0,x:0};
+                                            setShotMap({...shotMap, eagles:{...shotMap.eagles, [z]:{m:c.m+(m?1:0), x:c.x+(m?0:1)}}});
+                                        }} />
+                                    </div>
+                                    
+                                    <div className="bento-card overflow-x-auto">
+                                        <table className="w-full text-xs">
+                                            <thead>
+                                                <tr className="text-zinc-500 border-b border-zinc-800">
+                                                    <th className="p-2 text-left">PLAYER</th>
+                                                    {STAT_FIELDS.map(f=><th key={f} className="p-1 uppercase text-center">{f.replace('fg','').replace('m','')}</th>)}
+                                                    <th className="p-2 text-gold text-right">PTS</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {ROSTER.map(p => {
+                                                    const s = playerStats[p.name] || {};
+                                                    return (
+                                                        <tr key={p.id} className="border-b border-white/5 hover:bg-white/5">
+                                                            <td className="p-2 font-bold whitespace-nowrap">{p.name}</td>
+                                                            {STAT_FIELDS.map(f => (
+                                                                <td key={f} className="p-1"><input type="number" className="stat-input" value={s[f]||''} onChange={e=>setPlayerStats({...playerStats, [p.name]: {...s, [f]: parseInt(e.target.value)||0}})} /></td>
+                                                            ))}
+                                                            <td className="p-2 text-gold font-bold text-right">{((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0)}</td>
+                                                        </tr>
+                                                    )
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
-
-                            <button onClick={saveGame} className="w-full bg-gold text-black font-black uppercase py-4 rounded-xl text-lg hover:bg-white transition">Save Game Log</button>
+                            
+                            <button onClick={saveGame} className="w-full py-4 bg-gold hover:bg-white text-black font-black uppercase text-xl rounded-xl shadow-lg transition-all transform active:scale-95">Save Game Data</button>
                         </div>
                     )}
 
                     {/* VIEW: LOG */}
                     {view === 'log' && (
-                        <div className="space-y-4">
+                        <div className="grid gap-4">
                             {games.map(g => (
-                                <div key={g.id} className="bento-card flex justify-between items-center">
+                                <div key={g.id} className="bento-card flex flex-col md:flex-row justify-between items-center gap-4">
                                     <div>
-                                        <div className="text-xs text-zinc-500 font-bold">{g.date}</div>
-                                        <div className="text-xl font-black italic"><span className={g.result==='W'?'text-green-500':'text-red-500'}>{g.result}</span> vs {g.opp}</div>
-                                        <div className="text-sm">Score: {g.teamScore} - {g.oppScore}</div>
+                                        <div className="text-xs font-bold text-zinc-500 uppercase">{g.date} • {g.venue}</div>
+                                        <div className="text-2xl font-black italic"><span className={g.result==='W'?'text-green-500':'text-red-500'}>{g.result}</span> vs {g.opp}</div>
                                     </div>
+                                    {/* Playbook Summary in Log */}
+                                    {g.playStats && (
+                                        <div className="flex gap-2">
+                                            {g.playStats.slice(0,2).map(p=>(
+                                                <div key={p.id} className="bg-black border border-zinc-800 p-2 rounded text-center">
+                                                    <div className="text-[9px] text-zinc-500 uppercase font-bold">{p.name}</div>
+                                                    <div className="text-xs font-bold text-gold">{p.att>0?Math.round((p.made/p.att)*100):0}%</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                     <button onClick={()=>{
-                                        setEditId(g.id); 
-                                        setGameMeta({date:g.date, opp:g.opp, oppScore:g.oppScore, venue:g.venue});
-                                        const statsMap = {}; g.stats.forEach(s=>statsMap[s.name]=s);
-                                        setPlayerStats(statsMap);
-                                        setShotMap(g.shotMap || { eagles: ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}), opp:{} });
+                                        setEditId(g.id);
+                                        setGameMeta({date:g.date,opp:g.opp,oppScore:g.oppScore,venue:g.venue});
+                                        const sm={}; g.stats.forEach(s=>sm[s.name]=s); setPlayerStats(sm);
+                                        setShotMap(g.shotMap||{eagles:{},opp:{}});
+                                        setPlayStats(g.playStats||[]); // Load plays
                                         setView('new');
-                                    }} className="bg-zinc-800 px-4 py-2 rounded text-xs font-bold uppercase hover:bg-white hover:text-black">Edit</button>
+                                    }} className="px-4 py-2 bg-zinc-800 rounded text-xs font-bold uppercase hover:bg-white hover:text-black">Edit</button>
                                 </div>
                             ))}
-                            {games.length === 0 && <div className="text-center text-zinc-500 italic py-10">No games found.</div>}
                         </div>
                     )}
 
                     {/* VIEW: TRENDS */}
-                    {view === 'trends' && (
-                        <div className="bento-card h-64">
-                            <TrendChart games={games} />
-                        </div>
-                    )}
-
+                    {view === 'trends' && <div className="bento-card h-64"><TrendChart games={games}/></div>}
                 </div>
             );
         }
 
-        // --- 3. SUB-COMPONENTS ---
+        // --- SUB-COMPONENTS ---
+        function BentoCard({label, value, color}) {
+            return (
+                <div className="bento-card text-center">
+                    <div className="text-[10px] font-bold uppercase text-zinc-500 tracking-widest mb-1">{label}</div>
+                    <div className={`text-4xl font-black italic tracking-tighter ${color||'text-white'}`}>{value}</div>
+                </div>
+            );
+        }
+
+        function MetaInput({label, type="text", value, onChange}) {
+            return <div className="space-y-1"><label className="text-[9px] text-zinc-500 font-bold uppercase">{label}</label><input type={type} className="w-full bg-black border border-zinc-700 rounded p-2 text-sm font-bold text-white" value={value} onChange={onChange} /></div>;
+        }
+
         function InteractiveCourt({ data, onClick, mode }) {
             const getFill = (key) => {
-                const zone = data[key] || {m:0, x:0};
-                const total = zone.m + zone.x;
-                if(total === 0) return 'transparent';
-                const pct = zone.m / total;
-                if(pct >= 0.4) return 'rgba(34, 197, 94, 0.6)'; 
-                return 'rgba(239, 68, 68, 0.6)';
+                const z = data[key] || {m:0, x:0}, t = z.m + z.x;
+                if(t === 0) return 'transparent';
+                return (z.m/t) >= 0.4 ? 'rgba(34, 197, 94, 0.6)' : 'rgba(239, 68, 68, 0.6)';
             };
-
             return (
                 <div className="relative max-w-[350px] mx-auto select-none">
                     <svg viewBox="0 0 100 94" className="court-svg">
-                        <rect x="0" y="0" width="100" height="94" fill="#111" stroke="#333" strokeWidth="1"/>
+                        <rect width="100" height="94" fill="#111" stroke="#333"/>
                         <path d="M 35,94 L 35,55 L 65,55 L 65,94 Z" className="zone" fill={getFill('paint')} onClick={()=>onClick('paint', mode==='make')} />
                         <path d="M 10,94 L 10,15 Q 50,-15 90,15 L 90,94" fill="none" stroke="#555" strokeWidth="1" strokeDasharray="4,4" pointerEvents="none"/>
                         <path d="M 10,55 L 35,55 L 35,94 L 10,94 Z" className="zone" onClick={()=>onClick('mid_l', mode==='make')} fill={getFill('mid_l')} />
@@ -302,42 +366,36 @@
                         <path d="M 0,60 L 0,0 L 30,0 L 35,30 L 10,55 Z" className="zone" onClick={()=>onClick('wing_l', mode==='make')} fill={getFill('wing_l')} />
                         <path d="M 100,60 L 100,0 L 70,0 L 65,30 L 90,55 Z" className="zone" onClick={()=>onClick('wing_r', mode==='make')} fill={getFill('wing_r')} />
                         <path d="M 30,0 L 70,0 L 65,30 L 35,30 Z" className="zone" onClick={()=>onClick('top', mode==='make')} fill={getFill('top')} />
-                        <text x="50" y="80" className="zone-label">PAINT ({data.paint?.m||0}/{((data.paint?.m||0)+(data.paint?.x||0))})</text>
+                        <text x="50" y="85" className="zone-label">PAINT</text>
+                        <text x="50" y="20" className="zone-label">TOP</text>
                     </svg>
                 </div>
             );
         }
 
         function TrendChart({ games }) {
-            const canvasRef = React.useRef(null);
+            const ref = React.useRef(null);
             React.useEffect(() => {
-                if(!canvasRef.current || !games.length) return;
-                const ctx = canvasRef.current.getContext('2d');
+                if(!ref.current || !games.length) return;
                 const sorted = [...games].reverse();
-                const chart = new Chart(ctx, {
+                const chart = new Chart(ref.current.getContext('2d'), {
                     type: 'line',
                     data: {
                         labels: sorted.map(g => g.opp.substring(0,4)),
                         datasets: [
-                            { label: 'Us', data: sorted.map(g => g.teamScore), borderColor: '#FFB81C', tension: 0.3 },
-                            { label: 'Them', data: sorted.map(g => g.oppScore), borderColor: '#ef4444', tension: 0.3 }
+                            { label: 'Eagles', data: sorted.map(g => g.teamScore), borderColor: '#FFB81C', tension: 0.3 },
+                            { label: 'Opp', data: sorted.map(g => g.oppScore), borderColor: '#ef4444', tension: 0.3 }
                         ]
                     },
                     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: 'white' } } }, scales: { y: { grid: { color: '#333' } } } }
                 });
                 return () => chart.destroy();
             }, [games]);
-            if(!games.length) return <div className="h-full flex items-center justify-center text-zinc-500">Play a game to see trends!</div>;
-            return <canvas ref={canvasRef} />;
+            return games.length ? <canvas ref={ref} /> : <div className="h-full flex items-center justify-center text-zinc-500">No Data</div>;
         }
 
-        // --- 4. MOUNT ---
-        try {
-            const root = ReactDOM.createRoot(document.getElementById('root'));
-            root.render(<App />);
-        } catch(e) {
-            document.body.innerHTML = `<div style="color:red; padding:20px;">CRITICAL STARTUP ERROR: ${e.message}</div>`;
-        }
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
