@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eagles Girls Basketball Dashboard</title>
+    <title>Eagles Basketball Dashboard - Final</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -19,67 +19,32 @@
         .text-gold { color: var(--eagle-gold); }
         .border-gold { border-color: var(--eagle-gold); }
         input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-        
-        .stat-input { width: 45px; background: #111; border: 1px solid #333; border-radius: 4px; padding: 4px; text-align: center; color: white; font-size: 0.8rem; }
-        .stat-input:focus { border-color: var(--eagle-gold); outline: none; background: #222; }
-        
-        .nav-btn { font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 8px 16px; border-radius: 9999px; transition: all 0.2s; white-space: nowrap; }
-        .active-nav { background-color: var(--eagle-gold); color: black; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .stat-input { width: 45px; background: #111; border: 1px solid #333; border-radius: 4px; padding: 4px; text-align: center; color: white; }
+        .nav-btn { font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 8px 16px; border-radius: 9999px; transition: all 0.2s; }
+        .active-nav { background-color: var(--eagle-gold); color: black; }
         .inactive-nav { color: #9ca3af; }
-        .inactive-nav:hover { color: white; }
         
-        .court-container { 
-            position: relative; width: 100%; max-width: 500px; aspect-ratio: 50/47; 
-            background: #0d0d0d; border: 2px solid #333; margin: 0 auto; border-radius: 8px; overflow: hidden;
-            box-shadow: inset 0 0 50px rgba(0,0,0,0.8);
-        }
+        /* Basketball Court Styles */
+        .court-container { position: relative; width: 100%; max-width: 400px; aspect-ratio: 50/47; background: #0d0d0d; border: 2px solid #333; margin: 0 auto; border-radius: 8px; overflow: hidden; }
         .court-line { position: absolute; background: rgba(255,255,255,0.15); pointer-events: none; }
-        .baseline { bottom: 0; left: 0; width: 100%; height: 2px; }
-        .the-key { bottom: 0; left: 50%; transform: translateX(-50%); width: 24%; height: 30%; border: 2px solid rgba(255,255,255,0.15); border-bottom: none; }
-        .free-throw-circle { position: absolute; bottom: calc(42% - 24%); left: 50%; transform: translateX(-50%); width: 24%; aspect-ratio: 1; border: 2px solid rgba(255,255,255,0.15); border-radius: 50%; }
-        .three-point-arc { position: absolute; bottom: -42%; left: 7%; right: 7%; height: 84%; border: 2px solid rgba(255,255,255,0.15); border-radius: 50%; pointer-events: none; }
         .rim { bottom: 5%; left: 50%; transform: translateX(-50%); width: 6%; aspect-ratio: 1; border: 2px solid #e11d48; border-radius: 50%; position: absolute; }
-
-        .court-zone { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.2s; border-radius: 8px; z-index: 20; cursor: pointer; }
-        
-        .z-paint { bottom: 5%; left: 32%; width: 36%; height: 35%; }
-        .z-mid-l { bottom: 12%; left: 14%; width: 16%; height: 25%; }
-        .z-mid-r { bottom: 12%; right: 14%; width: 16%; height: 25%; }
-        .z-3-lc { bottom: 2%; left: 0.5%; width: 6%; height: 15%; }
-        .z-3-rc { bottom: 2%; right: 0.5%; width: 6%; height: 15%; }
-        .z-3-lw { bottom: 35%; left: 1%; width: 12%; height: 30%; }
-        .z-3-rw { bottom: 35%; right: 1%; width: 12%; height: 30%; }
-        .z-3-t { top: 5%; left: 25%; width: 50%; height: 25%; }
-
-        .heat-poor { background: rgba(239, 68, 68, 0.4); border: 1px solid #ef4444; }
-        .heat-avg { background: rgba(249, 115, 22, 0.4); border: 1px solid #f97316; }
-        .heat-good { background: rgba(234, 179, 8, 0.4); border: 1px solid #eab308; }
-        .heat-elite { background: rgba(34, 197, 94, 0.4); border: 1px solid #22c55e; }
-
-        .alert-badge { padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; margin-bottom: 0.5rem; border: 1px solid; }
-        .alert-success { background: #064e3b; color: #34d399; border-color: #065f46; }
-        .alert-warning { background: #450a0a; color: #f87171; border-color: #7f1d1d; }
-
-        .progress-bar { width: 100%; height: 8px; background: #111; border-radius: 4px; overflow: hidden; }
-        .progress-fill { height: 100%; background: var(--eagle-gold); transition: width 0.5s ease-out; }
-        
-        .log-card { background: #000; border: 1px solid #222; border-radius: 2rem; overflow: hidden; margin-bottom: 1.5rem; border-left: 10px solid var(--eagle-gold); }
-        .log-score { font-size: 2.5rem; font-weight: 900; font-style: italic; letter-spacing: -0.05em; line-height: 1; }
-        .log-result-box { width: 4.5rem; height: 4.5rem; border-radius: 1.25rem; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 900; }
+        .court-zone { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 20; cursor: pointer; border-radius: 4px; font-size: 10px; font-weight: bold; }
+        .z-paint { bottom: 5%; left: 32%; width: 36%; height: 35%; background: rgba(255,255,255,0.05); }
+        .z-3-t { top: 5%; left: 25%; width: 50%; height: 20%; background: rgba(255,255,255,0.05); }
     </style>
 </head>
-<body class="bg-gray-950">
+<body class="bg-gray-950 text-white">
     <div id="root"></div>
 
     <script type="text/babel">
+        // Firebase Configuration
         const firebaseConfig = {
             apiKey: "AIzaSyA5H5SsumWG7bym_0EZ7jOlfWeswpSauhk",
             authDomain: "eagles-stats.firebaseapp.com",
             projectId: "eagles-stats",
             storageBucket: "eagles-stats.firebasestorage.app",
             messagingSenderId: "386723096734",
-            appId: "1:386723096734:web:b50e343c703983e838b38f",
-            measurementId: "G-4SQEXFWE0W"
+            appId: "1:386723096734:web:b50e343c703983e838b38f"
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
@@ -96,73 +61,22 @@
         ];
 
         const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','blk','to'];
-        const SHOT_ZONES = ['paint', 'ml', 'mr', '3lc', '3lw', '3t', '3rw', '3rc'];
-        const TEAM_GOALS = [
-            { name: 'Win Conference', target: 10, type: 'wins' },
-            { name: 'Team PPG', target: 55, type: 'ppg' },
-            { name: 'Hold Opponents Under 50', target: 50, type: 'oppPPG' }
-        ];
-
-        let trendCharts = {};
-
-        const validateEntry = (playerName, field, value, currentStats) => {
-            const ps = currentStats[playerName] || {};
-            const val = parseInt(value) || 0;
-            if (['fg2m', 'fg3m', 'ftm'].includes(field)) {
-                const att = field.replace('m', 'a');
-                if (val > (ps[att] || 0) && (ps[att] || 0) > 0) {
-                    alert(`Error: ${field.toUpperCase()} exceeds ${att.toUpperCase()}`);
-                    return false;
-                }
-            }
-            if (['fg2a', 'fg3a', 'fta'].includes(field)) {
-                const made = field.replace('a', 'm');
-                if (val < (ps[made] || 0)) {
-                    alert(`Error: ${field.toUpperCase()} is less than ${made.toUpperCase()}`);
-                    return false;
-                }
-            }
-            return true;
-        };
-
-        const getTeamStatsHTML = (game) => {
-            let m=0, a=0, m3=0, a3=0, reb=0, ast=0, to=0, stl=0, blk=0;
-            game.stats.forEach(s => {
-                m += (s.fg2m||0)+(s.fg3m||0); a += (s.fg2a||0)+(s.fg3a||0);
-                m3 += (s.fg3m||0); a3 += (s.fg3a||0);
-                reb += (s.reb||0); ast += (s.ast||0); to += (s.to||0); stl += (s.stl||0); blk += (s.blk||0);
-            });
-            const fgp = a > 0 ? ((m/a)*100).toFixed(1) : '0';
-            const tpp = a3 > 0 ? ((m3/a3)*100).toFixed(1) : '0';
-            return `
-                <div class="stat-box"><div class="stat-label">FG%</div><div class="stat-value">${fgp}%</div><div>${m}/${a}</div></div>
-                <div class="stat-box"><div class="stat-label">3PT%</div><div class="stat-value">${tpp}%</div><div>${m3}/${a3}</div></div>
-                <div class="stat-box"><div class="stat-label">Rebounds</div><div class="stat-value">${reb}</div></div>
-                <div class="stat-box"><div class="stat-label">Assists</div><div class="stat-value">${ast}</div></div>
-                <div class="stat-box"><div class="stat-label">Turnovers</div><div class="stat-value">${to}</div></div>
-                <div class="stat-box"><div class="stat-label">Stocks</div><div class="stat-value">${stl+blk}</div></div>
-            `;
-        };
+        const SHOT_ZONES = ['paint', '3t']; 
 
         function App() {
             const [view, setView] = React.useState('entry');
             const [games, setGames] = React.useState([]);
             const [loading, setLoading] = React.useState(true);
+            
+            // State for Entry Form
+            const [gameHeader, setGameHeader] = React.useState({ date: '', opp: '', oppScore: 0, venue: 'Away' });
             const [playerStats, setPlayerStats] = React.useState({});
-            const [oppScore, setOppScore] = React.useState(0);
-            const [selectedProfile, setSelectedProfile] = React.useState('');
-            const [tacticFilter, setTacticFilter] = React.useState('all');
-            const [compareP1, setCompareP1] = React.useState('');
-            const [compareP2, setCompareP2] = React.useState('');
-            const [setPlayRows, setSetPlayRows] = React.useState([{ id: Date.now() }]);
-            const [editingGameId, setEditingGameId] = React.useState(null); // STEP 1: Edit State
-            const [shotMap, setShotMap] = React.useState({
-                eagles: SHOT_ZONES.reduce((a, z) => ({...a, [z]: {m:0, x:0}}), {}),
-                opp: SHOT_ZONES.reduce((a, z) => ({...a, [z]: {m:0, x:0}}), {})
-            });
-
+            const [shotMap, setShotMap] = React.useState({ paint: {m:0, x:0}, '3t': {m:0, x:0} });
+            const [setPlayRows, setSetPlayRows] = React.useState([{ name: '', run: 0, scored: 0, pts: 0 }]);
+            
+            // Refs for Charts
             const scoringRef = React.useRef(null);
-            const fgRef = React.useRef(null);
+            const trendCharts = React.useRef({});
 
             React.useEffect(() => {
                 auth.signInAnonymously();
@@ -175,208 +89,104 @@
                 return () => unsub();
             }, []);
 
-            const liveTotals = React.useMemo(() => {
-                let m = 0, a = 0, pts = 0;
-                Object.values(playerStats).forEach(p => {
-                    m += (p.fg2m || 0) + (p.fg3m || 0);
-                    a += (p.fg2a || 0) + (p.fg3a || 0);
-                    pts += ((p.fg2m || 0) * 2) + ((p.fg3m || 0) * 3) + (p.ftm || 0);
-                });
-                return { pts, pct: a > 0 ? ((m / a) * 100).toFixed(1) + '%' : '0.0%' };
-            }, [playerStats]);
-
-            const aggregates = React.useMemo(() => {
-                const data = {};
-                ROSTER.forEach(r => data[r.name] = { gp:0, pts:0, reb:0, ast:0, stl:0, blk:0, to:0, m3:0, a3:0, m2:0, a2:0, mft:0, aft:0, highs:{pts:0,reb:0} });
-                games.forEach(g => {
-                    g.stats.forEach(s => {
-                        const p = data[s.name]; if(!p) return;
-                        p.gp++; p.pts += (s.pts||0); p.reb += (s.reb||0); p.ast += (s.ast||0); p.stl += (s.stl||0); p.blk += (s.blk||0); p.to += (s.to||0);
-                        p.m3 += (s.fg3m||0); p.a3 += (s.fg3a||0); p.m2 += (s.fg2m||0); p.a2 += (s.fg2a||0); p.mft += (s.ftm||0); p.aft += (s.fta||0);
-                        if(s.pts > p.highs.pts) p.highs.pts = s.pts;
+            // Chart Rendering Logic
+            React.useEffect(() => {
+                if (view === 'summary' && games.length > 0 && scoringRef.current) {
+                    const ctx = scoringRef.current.getContext('2d');
+                    if (trendCharts.current.scoring) trendCharts.current.scoring.destroy();
+                    
+                    const sorted = [...games].reverse();
+                    trendCharts.current.scoring = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: sorted.map(g => g.opp),
+                            datasets: [
+                                { label: 'Eagles', data: sorted.map(g => g.teamScore), borderColor: '#FFB81C', tension: 0.1 },
+                                { label: 'Opponent', data: sorted.map(g => g.oppScore), borderColor: '#ef4444', tension: 0.1 }
+                            ]
+                        },
+                        options: { responsive: true, plugins: { legend: { labels: { color: 'white' } } } }
                     });
-                });
-                return data;
-            }, [games]);
-
-            const activeAlerts = React.useMemo(() => {
-                const alerts = []; if (games.length < 3) return alerts;
-                let streak = 0, st = games[0].result;
-                for(let g of games) { if(g.result === st) streak++; else break; }
-                if(streak >= 3) alerts.push({ type: st==='W'?'success':'warning', message: `${streak}-game ${st==='W'?'win':'loss'} streak` });
-                return alerts;
-            }, [games]);
-
-            const renderCharts = React.useCallback(() => {
-                if (games.length === 0 || view !== 'summary') return;
-                const sorted = [...games].reverse();
-                const labels = sorted.map(g => `${g.opp} (${g.date.slice(5)})`);
-                const opt = { responsive: true, maintainAspectRatio: false, plugins:{legend:{labels:{color:'#fff'}}} };
-
-                if(trendCharts.scoring) trendCharts.scoring.destroy();
-                trendCharts.scoring = new Chart(scoringRef.current, {
-                    type:'line', data:{labels, datasets:[{label:'Eagles', data:sorted.map(g=>g.teamScore), borderColor:'#FFB81C'},{label:'Opp', data:sorted.map(g=>g.oppScore), borderColor:'#ef4444'}]}, options:opt
-                });
-                if(trendCharts.fg) trendCharts.fg.destroy();
-                trendCharts.fg = new Chart(fgRef.current, {
-                    type:'line', data:{labels, datasets:[{label:'FG%', data:sorted.map(g=>{
-                        let m=0, a=0; g.stats.forEach(s=>{m+=(s.fg2m+s.fg3m); a+=(s.fg2a+s.fg3a)});
-                        return a>0?((m/a)*100).toFixed(1):0;
-                    }), borderColor:'#FFB81C'}]}, options:opt
-                });
-            }, [games, view]);
-
-            React.useEffect(() => { if(view === 'summary') setTimeout(renderCharts, 200); }, [view, renderCharts]);
-
-            const venueStats = React.useMemo(() => {
-                const home = games.filter(g => g.venue === 'Home');
-                const away = games.filter(g => g.venue === 'Away');
-                const calc = (arr) => ({
-                    rec: `${arr.filter(g=>g.result==='W').length}-${arr.filter(g=>g.result==='L').length}`,
-                    ppg: arr.length > 0 ? (arr.reduce((s,g)=>s+g.teamScore,0)/arr.length).toFixed(1) : "0.0"
-                });
-                return { home: calc(home), away: calc(away) };
-            }, [games]);
-
-            const tacticalData = React.useMemo(() => {
-                let filtered = tacticFilter === 'all' ? games : [games.find(g => g.cloudId === tacticFilter)].filter(Boolean);
-                const plays = {}, heat = SHOT_ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {});
-                filtered.forEach(g => {
-                    g.setPlays?.forEach(p => { 
-                        if(!plays[p.name]) plays[p.name] = { r:0, s:0, p:0 }; 
-                        plays[p.name].r += p.run; plays[p.name].s += p.scored; plays[p.name].p += p.pts; 
-                    });
-                    if(g.shotMap?.eagles) Object.entries(g.shotMap.eagles).forEach(([z, d]) => { if(heat[z]) { heat[z].m += (d.m||0); heat[z].x += (d.x||0); } });
-                });
-                return { sortedPlays: Object.entries(plays).map(([name, d]) => ({ name, ...d })).sort((a,b)=>(b.p/b.r)-(a.p/a.r)), heat };
-            }, [games, tacticFilter]);
-
-            // --- ADMIN & EDIT FUNCTIONS ---
-            const editGame = (gameId) => {
-                const game = games.find(g => g.cloudId === gameId);
-                if (!game) return;
-                setEditingGameId(gameId);
-                document.getElementById('gameDate').value = game.date;
-                document.getElementById('opponent').value = game.opp;
-                setOppScore(game.oppScore);
-                if (document.getElementById('venue')) document.getElementById('venue').value = game.venue;
-                const statsMap = {}; game.stats.forEach(s => statsMap[s.name] = { ...s });
-                setPlayerStats(statsMap);
-                if (game.setPlays && game.setPlays.length > 0) setSetPlayRows(game.setPlays.map((p, i) => ({ id: Date.now() + i, ...p })));
-                if (game.shotMap) setShotMap(game.shotMap);
-                setView('entry'); window.scrollTo(0, 0);
-            };
-
-            const cancelEdit = () => {
-                setEditingGameId(null); setPlayerStats({}); setOppScore(0);
-                setSetPlayRows([{ id: Date.now() }]);
-                document.getElementById('opponent').value = '';
-                document.getElementById('gameDate').value = '';
-                setView('log');
-            };
-
-            const exportToCSV = () => {
-                let c = "Date,Opponent,OppScore,Player,2PM,2PA,3PM,3PA,FTM,FTA,REB,AST,STL,BLK,TO,PTS,SetPlays_JSON,ShotMap_JSON\n";
-                games.forEach(g => {
-                    const sp = JSON.stringify(g.setPlays || []).replace(/"/g, '""');
-                    const sm = JSON.stringify(g.shotMap || {}).replace(/"/g, '""');
-                    g.stats.forEach(s => {
-                        c += `${g.date},${g.opp},${g.oppScore},${s.name},${s.fg2m||0},${s.fg2a||0},${s.fg3m||0},${s.fg3a||0},${s.ftm||0},${s.fta||0},${s.reb||0},${s.ast||0},${s.stl||0},${s.blk||0},${s.to||0},${s.pts||0},"${sp}","${sm}"\n`;
-                    });
-                });
-                const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([c], {type:'text/csv'})); a.download = 'Eagles_Cloud_Backup.csv'; a.click();
-            };
+                }
+            }, [view, games]);
 
             const saveGame = async () => {
-                const opp = document.getElementById('opponent').value.trim();
-                const gDate = document.getElementById('gameDate').value;
-                if (!gDate || !opp) return alert("Date and Opponent required");
-                let tPts = 0, hasStats = false;
+                if (!gameHeader.date || !gameHeader.opp) return alert("Date and Opponent required");
+                
+                let teamTotal = 0;
                 const stats = ROSTER.map(p => {
                     const s = playerStats[p.name] || {};
-                    if (Object.values(s).some(v => v > 0)) hasStats = true;
-                    const score = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
-                    tPts += score;
-                    return { ...p, ...s, pts: score };
+                    const pts = ((s.fg2m||0)*2) + ((s.fg3m||0)*3) + (s.ftm||0);
+                    teamTotal += pts;
+                    return { ...p, ...s, pts };
                 });
-                if (!hasStats && !confirm('No stats entered. Save?')) return;
+
                 const payload = {
-                    date: gDate, opp: opp.toUpperCase(), oppScore, teamScore: tPts,
-                    venue: document.getElementById('venue')?.value || 'Away',
-                    result: tPts > oppScore ? 'W' : 'L', stats, shotMap,
-                    setPlays: setPlayRows.map(r => {
-                        const row = document.getElementById(`row-${r.id}`);
-                        return { 
-                            name: row.querySelector('.set-name').value,
-                            run: parseInt(row.querySelector('.set-run').value)||0,
-                            scored: parseInt(row.querySelector('.set-scored').value)||0,
-                            pts: parseInt(row.querySelector('.set-pts').value)||0
-                        };
-                    }).filter(p => p.name),
+                    ...gameHeader,
+                    teamScore: teamTotal,
+                    result: teamTotal > gameHeader.oppScore ? 'W' : 'L',
+                    stats,
+                    shotMap,
+                    setPlays: setPlayRows.filter(r => r.name !== ''),
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 };
+
                 try {
-                    setLoading(true);
-                    if (editingGameId) {
-                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').doc(editingGameId).update(payload);
-                        alert("✅ Game Updated!");
-                    } else {
-                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').add(payload);
-                        alert("✅ Cloud Sync Success!");
-                    }
-                    setEditingGameId(null); setPlayerStats({}); setOppScore(0); setView('log');
-                } catch (e) { alert("Error"); } finally { setLoading(false); }
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').add(payload);
+                    alert("Game Synced to Cloud!");
+                    setView('log');
+                } catch (e) { alert("Error saving game"); }
             };
 
-            const exportGameReport = (game) => {
-                const w = window.open('', '_blank');
-                w.document.write(`<html><head><style>body{font-family:sans-serif;padding:40px;}.header{border-bottom:4px solid #FFB81C;text-align:center;}.score{font-size:32px;font-weight:900;margin:20px 0;text-align:center;}.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin:20px 0;}.stat-box{border:1px solid #FFB81C;padding:10px;text-align:center;}table{width:100%;border-collapse:collapse;}th{background:#FFB81C;padding:10px;}td{padding:10px;border-bottom:1px solid #eee;}</style></head><body><div class="header"><h1>EAGLES REPORT</h1><p>${game.date} vs ${game.opp}</p></div><div class="score">EAGLES ${game.teamScore} - ${game.opp} ${game.oppScore}</div><div class="stats-grid">${getTeamStatsHTML(game)}</div><table><thead><tr><th>Player</th><th>PTS</th><th>REB</th><th>AST</th><th>FG</th></tr></thead><tbody>${game.stats.map(s=>`<tr><td>${s.name}</td><td>${s.pts}</td><td>${s.reb}</td><td>${s.ast}</td><td>${(s.fg2m||0)+(s.fg3m||0)}/${(s.fg2a||0)+(s.fg3a||0)}</td></tr>`).join('')}</tbody></table></body></html>`);
-                w.document.close();
+            const clearCloudData = async () => {
+                if (confirm("Delete all data?")) {
+                    const snap = await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').get();
+                    snap.forEach(doc => doc.ref.delete());
+                }
             };
 
-            if (loading) return <div className="h-screen bg-black flex items-center justify-center text-gold font-black italic animate-pulse text-2xl uppercase">Syncing Eagles Cloud...</div>;
+            if (loading) return <div className="h-screen flex items-center justify-center text-gold font-black">LOADING EAGLES CLOUD...</div>;
 
             return (
-                <div className="min-h-screen text-white font-sans bg-gray-950">
-                    <header className="sticky top-0 z-50 bg-black border-b-4 border-gold p-4 shadow-2xl">
-                        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-6">
-                            <h1 className="text-3xl font-black italic uppercase tracking-tighter">Eagles <span className="text-gold">Dashboard</span></h1>
-                            <div className="flex gap-4 bg-gray-900 px-6 py-2 rounded-xl border border-gray-700">
-                                <div className="text-center text-xs uppercase font-bold text-gold">Eagles<br/>{liveTotals.pts}</div>
-                                <div className="text-center text-xs uppercase font-bold text-red-500">Opp<br/>{oppScore}</div>
-                            </div>
-                            <nav className="flex flex-wrap justify-center gap-1">
-                                {['entry', 'summary', 'tactics', 'compare', 'log', 'profiles', 'settings'].map(v => (
+                <div className="min-h-screen pb-20">
+                    <header className="bg-black border-b-4 border-gold p-4 sticky top-0 z-50">
+                        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                            <h1 className="text-2xl font-black italic italic">EAGLES <span className="text-gold">DASHBOARD</span></h1>
+                            <nav className="flex gap-2">
+                                {['entry', 'summary', 'log', 'settings'].map(v => (
                                     <button key={v} onClick={() => setView(v)} className={`nav-btn ${view === v ? 'active-nav' : 'inactive-nav'}`}>{v}</button>
                                 ))}
                             </nav>
                         </div>
                     </header>
 
-                    <main className="max-w-7xl mx-auto p-4 md:p-8">
-                        {activeAlerts.map((a, i) => <div key={i} className={`alert-badge alert-${a.type}`}>{a.message}</div>)}
-
+                    <main className="max-w-7xl mx-auto p-4">
+                        {/* ENTRY VIEW */}
                         {view === 'entry' && (
-                            <div className="space-y-8 animate-fadeIn">
-                                <div className="bg-black border border-gray-800 rounded-2xl p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
-                                    <input type="date" id="gameDate" className="bg-gray-900 border border-gray-700 p-3 rounded text-white" />
-                                    <input type="text" id="opponent" placeholder="Opponent" className="bg-gray-900 border border-gray-700 p-3 rounded text-white uppercase font-bold" />
-                                    <input type="number" placeholder="Opp Score" value={oppScore} onChange={(e)=>setOppScore(parseInt(e.target.value)||0)} className="bg-gray-900 border border-gray-700 p-3 rounded text-white font-black" />
-                                    <select id="venue" className="bg-gray-900 border border-gray-700 p-3 rounded text-white font-bold uppercase"><option value="Away">Away</option><option value="Home">Home</option></select>
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-900 p-4 rounded-xl">
+                                    <input type="date" className="bg-black p-2 rounded" onChange={e => setGameHeader({...gameHeader, date: e.target.value})} />
+                                    <input type="text" placeholder="Opponent" className="bg-black p-2 rounded" onChange={e => setGameHeader({...gameHeader, opp: e.target.value})} />
+                                    <input type="number" placeholder="Opp Score" className="bg-black p-2 rounded" onChange={e => setGameHeader({...gameHeader, oppScore: parseInt(e.target.value)||0})} />
+                                    <select className="bg-black p-2 rounded" onChange={e => setGameHeader({...gameHeader, venue: e.target.value})}>
+                                        <option value="Away">Away</option>
+                                        <option value="Home">Home</option>
+                                    </select>
                                 </div>
-                                
-                                <div className="bg-black border border-gray-800 rounded-2xl overflow-x-auto">
+
+                                <div className="bg-gray-900 rounded-xl overflow-x-auto">
                                     <table className="w-full text-xs">
-                                        <thead className="bg-gray-900 text-gold uppercase"><tr><th className="p-4">Player</th>{STAT_FIELDS.map(f=><th key={f} className="p-2">{f}</th>)}</tr></thead>
+                                        <thead className="text-gold uppercase bg-black">
+                                            <tr><th className="p-2">Player</th>{STAT_FIELDS.map(f => <th key={f}>{f}</th>)}</tr>
+                                        </thead>
                                         <tbody>
                                             {ROSTER.map(p => (
-                                                <tr key={p.id} className="border-b border-gray-900">
-                                                    <td className="p-4 font-bold">{p.name}</td>
+                                                <tr key={p.id} className="border-b border-gray-800">
+                                                    <td className="p-2 font-bold">{p.name}</td>
                                                     {STAT_FIELDS.map(f => (
-                                                        <td key={f} className="p-2 text-center">
-                                                            <input type="number" value={playerStats[p.name]?.[f] || 0} className="stat-input" onChange={e => {
-                                                                if(validateEntry(p.name, f, e.target.value, playerStats)) setPlayerStats({...playerStats, [p.name]:{...playerStats[p.name], [f]:parseInt(e.target.value)||0}});
-                                                            }} />
+                                                        <td key={f} className="p-1 text-center">
+                                                            <input type="number" className="stat-input" 
+                                                                onChange={e => setPlayerStats({...playerStats, [p.name]: {...playerStats[p.name], [f]: parseInt(e.target.value)||0}})} />
                                                         </td>
                                                     ))}
                                                 </tr>
@@ -384,67 +194,87 @@
                                         </tbody>
                                     </table>
                                 </div>
-                                <div className="flex gap-4">
-                                    <button onClick={saveGame} className="flex-1 bg-gold text-black py-8 rounded-3xl font-black text-3xl uppercase shadow-2xl">
-                                        {editingGameId ? 'Update Game' : 'Sync Record'}
-                                    </button>
-                                    {editingGameId && <button onClick={cancelEdit} className="px-8 bg-red-900 text-white rounded-3xl font-black uppercase">Cancel</button>}
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="bg-gray-900 p-4 rounded-xl text-center">
+                                        <h3 className="text-gold font-bold mb-4">SHOT TRACKER (Makes/Att)</h3>
+                                        <div className="court-container">
+                                            <div className="rim"></div>
+                                            <div className="court-zone z-paint border border-white/20" onClick={() => setShotMap({...shotMap, paint: {m: shotMap.paint.m+1, x: shotMap.paint.x+1}})}>
+                                                Paint: {shotMap.paint.m}/{shotMap.paint.x}
+                                            </div>
+                                            <div className="court-zone z-3-t border border-white/20" onClick={() => setShotMap({...shotMap, '3t': {m: shotMap['3t'].m+1, x: shotMap['3t'].x+1}})}>
+                                                Top 3: {shotMap['3t'].m}/{shotMap['3t'].x}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-gray-900 p-4 rounded-xl">
+                                        <h3 className="text-gold font-bold mb-4">SET PLAYS</h3>
+                                        {setPlayRows.map((row, idx) => (
+                                            <div key={idx} className="flex gap-2 mb-2">
+                                                <input placeholder="Play Name" className="bg-black p-1 rounded flex-1" onChange={e => {
+                                                    const newRows = [...setPlayRows]; newRows[idx].name = e.target.value; setSetPlayRows(newRows);
+                                                }} />
+                                                <input type="number" placeholder="Run" className="w-12 bg-black p-1 rounded" onChange={e => {
+                                                    const newRows = [...setPlayRows]; newRows[idx].run = parseInt(e.target.value); setSetPlayRows(newRows);
+                                                }} />
+                                            </div>
+                                        ))}
+                                        <button onClick={() => setSetPlayRows([...setPlayRows, {name:'', run:0, scored:0, pts:0}])} className="text-xs text-gold underline">+ Add Play</button>
+                                    </div>
+                                </div>
+
+                                <button onClick={saveGame} className="w-full bg-gold text-black p-6 rounded-xl font-black text-xl uppercase">Sync Game to Cloud</button>
+                            </div>
+                        )}
+
+                        {/* SUMMARY VIEW */}
+                        {view === 'summary' && (
+                            <div className="space-y-6">
+                                <div className="bg-gray-900 p-6 rounded-xl h-96">
+                                    <canvas ref={scoringRef}></canvas>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="bg-black border border-gold p-4 rounded-xl text-center">
+                                        <div className="text-xs text-gray-500">TOTAL GAMES</div>
+                                        <div className="text-2xl font-black">{games.length}</div>
+                                    </div>
+                                    <div className="bg-black border border-gold p-4 rounded-xl text-center">
+                                        <div className="text-xs text-gray-500">RECORD</div>
+                                        <div className="text-2xl font-black">{games.filter(g=>g.result==='W').length}W - {games.filter(g=>g.result==='L').length}L</div>
+                                    </div>
                                 </div>
                             </div>
                         )}
 
+                        {/* LOG VIEW */}
                         {view === 'log' && (
-                            <div className="space-y-6">
+                            <div className="space-y-4">
                                 {games.map(g => (
-                                    <div key={g.cloudId} className="log-card p-10 flex flex-col md:flex-row justify-between items-center">
-                                        <div className="flex items-center gap-10">
-                                            <div className="log-result-box bg-gray-950 border-2 border-gray-800 text-gold">{g.result}</div>
-                                            <div><div className="text-gray-500 font-black uppercase text-sm mb-1">{g.date}</div><div className="log-score uppercase tracking-tighter">EAGLES {g.teamScore}, {g.opp} {g.oppScore}</div></div>
+                                    <div key={g.cloudId} className="bg-gray-900 p-4 rounded-xl flex justify-between items-center border-l-4 border-gold">
+                                        <div>
+                                            <div className="text-xs text-gray-500 font-bold">{g.date}</div>
+                                            <div className="font-black">EAGLES {g.teamScore} - {g.opp} {g.oppScore}</div>
                                         </div>
-                                        <div className="flex gap-2">
-                                            <button onClick={()=>editGame(g.cloudId)} className="bg-gray-800 text-white px-4 py-2 rounded-xl font-black text-xs hover:bg-gold hover:text-black transition-all">Edit</button>
-                                            <button onClick={()=>exportGameReport(g)} className="text-gold border border-gold px-4 py-2 rounded-xl font-black text-xs">📄 Report</button>
-                                            <button onClick={()=>db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').doc(g.cloudId).delete()} className="text-red-500 border border-red-900 px-6 py-2 rounded-xl font-black text-xs">Delete</button>
-                                        </div>
+                                        <button onClick={() => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').doc(g.cloudId).delete()} className="text-red-500 text-xs font-bold">DELETE</button>
                                     </div>
                                 ))}
                             </div>
                         )}
-{/* --- SETTINGS / ADMIN VIEW --- */}
-{view === 'settings' && (
-    <div className="max-w-2xl mx-auto py-10 px-4 animate-fadeIn">
-        <div className="bg-black border border-gray-800 p-10 rounded-[2.5rem] shadow-2xl text-center border-t-4 border-t-gold">
-            <h2 className="text-3xl font-black text-gold uppercase italic mb-2">Cloud Control Panel</h2>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-8">Eagles Database Management</p>
-            
-            <div className="flex flex-col gap-4">
-                <button 
-                    onClick={exportToCSV} 
-                    className="w-full bg-gray-800 text-white p-6 rounded-2xl font-black uppercase text-sm hover:bg-gray-700 transition-all flex items-center justify-center gap-3"
-                >
-                    💾 Backup Cloud to CSV
-                </button>
-                
-                <label className="w-full bg-blue-900 text-white p-6 rounded-2xl font-black uppercase text-sm cursor-pointer hover:bg-blue-800 transition-all flex items-center justify-center gap-3">
-                    📥 Restore from Backup File
-                    <input type="file" className="hidden" onChange={handleImport} accept=".csv" />
-                </label>
-                
-                <div className="pt-8 mt-8 border-t border-gray-900">
-                    <button 
-                        onClick={clearCloudData} 
-                        className="w-full bg-red-950 text-red-500 border border-red-900 p-6 rounded-2xl font-black uppercase text-sm hover:bg-red-900 hover:text-white transition-all"
-                    >
-                        ⚠️ Purge All Cloud Data
-                    </button>
-                    <p className="text-[10px] text-gray-700 mt-4 uppercase font-bold">Warning: Purging cannot be undone.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-)}
-                        
-                        {/* Summary, Tactics, Compare, Profiles views remain as built previously */}
+
+                        {/* SETTINGS VIEW */}
+                        {view === 'settings' && (
+                            <div className="max-w-md mx-auto space-y-4">
+                                <button onClick={() => {
+                                    const csv = "Date,Opponent,Score\n" + games.map(g => `${g.date},${g.opp},${g.teamScore}`).join("\n");
+                                    const blob = new Blob([csv], {type:'text/csv'});
+                                    const url = window.URL.createObjectURL(blob);
+                                    const a = document.createElement('a'); a.href = url; a.download = 'eagles_backup.csv'; a.click();
+                                }} className="w-full bg-gray-800 p-4 rounded-xl font-bold uppercase">Backup to CSV</button>
+                                <button onClick={clearCloudData} className="w-full bg-red-900/20 text-red-500 border border-red-900 p-4 rounded-xl font-bold uppercase">Purge Cloud Data</button>
+                            </div>
+                        )}
                     </main>
                 </div>
             );
