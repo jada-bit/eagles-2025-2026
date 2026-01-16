@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eagles Analytics Platform - Ultra Edition</title>
+    <title>Eagles Basketball - Elite Analytics Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -12,55 +12,48 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        :root { --gold: #FFB81C; --black: #000000; --red: #ef4444; --green: #22c55e; --blue: #3b82f6; }
-        body { background-color: var(--black); color: white; font-family: 'Inter', sans-serif; overflow-x: hidden; }
-        .bg-gold { background-color: var(--gold); }
+        :root { --gold: #FFB81C; --black: #000000; }
+        body { background-color: #050505; color: white; font-family: 'Inter', sans-serif; }
         .text-gold { color: var(--gold); }
+        .bg-gold { background-color: var(--gold); }
         .border-gold { border-color: var(--gold); }
-        .nav-active { border-bottom: 3px solid var(--gold); color: var(--gold); }
-        .stat-card { background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 16px; padding: 1.5rem; transition: 0.3s; }
-        .stat-card:hover { border-color: #333; }
-        .court-svg { width: 100%; max-width: 450px; display: block; margin: 0 auto; filter: drop-shadow(0 0 15px rgba(255,184,28,0.05)); }
-        .zone { cursor: pointer; transition: 0.2s; opacity: 0.3; stroke: white; stroke-width: 0.3; }
-        .zone:hover { opacity: 0.7; }
-        .zone-label { font-size: 2.5px; font-weight: 800; pointer-events: none; fill: white; text-anchor: middle; }
-        /* Heatmap Grades */
-        .elite { fill: var(--green); opacity: 0.6; } .good { fill: var(--blue); opacity: 0.6; }
-        .avg { fill: var(--gold); opacity: 0.6; } .poor { fill: var(--red); opacity: 0.6; }
-        input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .nav-btn { font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 8px 16px; border-radius: 9999px; transition: 0.2s; white-space: nowrap; }
+        .active-nav { background-color: var(--gold); color: black; }
+        .stat-input { width: 42px; background: #111; border: 1px solid #333; border-radius: 4px; padding: 4px; text-align: center; font-size: 0.75rem; color: white; }
+        .court-svg { width: 100%; max-width: 450px; display: block; margin: 0 auto; }
+        .zone { cursor: pointer; transition: 0.2s; opacity: 0.4; stroke: white; stroke-width: 0.2; }
+        .zone:hover { opacity: 0.8; fill: var(--gold); }
+        .progress-bar { height: 8px; border-radius: 4px; background: #222; overflow: hidden; }
+        .progress-fill { height: 100%; transition: width 1s ease-in-out; }
+        @media print { .no-print { display: none; } body { background: white; color: black; } }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        // --- CONFIG & CONSTANTS ---
-        const firebaseConfig = { apiKey: "AIzaSyA5H5SsumWG7bym_0EZ7jOlfWeswpSauhk", authDomain: "eagles-stats.firebaseapp.com", projectId: "eagles-stats", storageBucket: "eagles-stats.firebasestorage.app", appId: "1:386723096734:web:b50e343c703983e838b38f" };
+        // --- CONSTANTS ---
+        const firebaseConfig = { apiKey: "AIzaSyA5H5SsumWG7bym_0EZ7jOlfWeswpSauhk", projectId: "eagles-stats", appId: "1:386723096734:web:b50e343c703983e838b38f" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
+
         const ROSTER = [
             {id: 5, name: "Natasha Mistry", pos: "PG"}, {id: 3, name: "Mikayla Sanders", pos: "PG"}, {id: 22, name: "Christina Lisack", pos: "PG/G"},
             {id: 1, name: "Brittney Tang", pos: "G"}, {id: 2, name: "Kylie Mulcahy", pos: "G"}, {id: 4, name: "Lexi Guild", pos: "G"},
             {id: 10, name: "Reese Jackson", pos: "F"}, {id: 32, name: "Gia Comey", pos: "F"}, {id: 23, name: "Olivia Dozier", pos: "G/F"},
             {id: 44, name: "Olivia Fraser", pos: "G/F"}, {id: 34, name: "Dani Cardona", pos: "C"}, {id: 15, name: "Alexa Troiano", pos: "C"}
         ];
-        const ZONES = ['paint', 'ml', 'mr', '3lc', '3lw', '3t', '3rw', '3rc'];
-        const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','blk','to'];
 
+        const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','blk','to'];
+        const ZONES = ['paint', 'ml', 'mr', '3lc', '3lw', '3t', '3rw', '3rc'];
+
+        // --- COMPONENTS ---
         function App() {
-            const [view, setView] = React.useState('clipboard');
+            const [view, setView] = React.useState('entry');
             const [games, setGames] = React.useState([]);
             const [loading, setLoading] = React.useState(true);
-
-            // Form States
-            const [gameMeta, setGameMeta] = React.useState({ date: '', opp: '', oppScore: 0, venue: 'Away' });
-            const [pStats, setPStats] = React.useState({});
-            const [eShotMap, setEShotMap] = React.useState(ZONES.reduce((a,v)=>({...a,[v]:{m:0,x:0}}),{}));
-            const [oShotMap, setOShotMap] = React.useState(ZONES.reduce((a,v)=>({...a,[v]:{m:0,x:0}}),{}));
-            const [plays, setPlays] = React.useState([{ name: '', run: 0, scored: 0, pts: 0 }]);
-
-            // Comparisons
-            const [comp, setComp] = React.useState({ p1: ROSTER[0].name, p2: ROSTER[1].name });
+            const [playerStats, setPlayerStats] = React.useState({});
+            const [gameMeta, setGameMeta] = React.useState({ date: '', opp: '', oppScore: 0 });
 
             React.useEffect(() => {
                 const unsub = db.collection('games').orderBy('date', 'desc').onSnapshot(snap => {
@@ -70,223 +63,118 @@
                 return () => unsub();
             }, []);
 
-            // --- ADMIN CORE: BACKUP & RESTORE ---
-            const handleBackup = () => {
-                if (games.length === 0) return alert("No data to backup.");
-                const header = ["date", "opp", "oppScore", "venue", "teamScore", "result", "stats", "shotMap", "plays"].join(",");
-                const rows = games.map(g => [
-                    g.date, g.opp, g.oppScore, g.venue, g.teamScore, g.result,
-                    `"${JSON.stringify(g.stats).replace(/"/g, '""')}"`,
-                    `"${JSON.stringify(g.shotMap).replace(/"/g, '""')}"`,
-                    `"${JSON.stringify(g.plays).replace(/"/g, '""')}"`
-                ].join(","));
-                const blob = new Blob([[header, ...rows].join("\n")], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href = url; a.download = `EAGLES_BACKUP_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+            const handleStatChange = (player, field, val) => {
+                const v = parseInt(val) || 0;
+                // Validation Logic
+                if (field.includes('m')) {
+                    const att = field.replace('m', 'a');
+                    if (v > (playerStats[player]?.[att] || 0)) return;
+                }
+                setPlayerStats(prev => ({ ...prev, [player]: { ...prev[player], [field]: v } }));
             };
 
-            const handleRestore = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = async (event) => {
-                    try {
-                        const text = event.target.result;
-                        const lines = text.split("\n").filter(l => l.trim() !== "");
-                        const batch = db.batch();
-                        // Basic CSV Parser (skips header)
-                        for (let i = 1; i < lines.length; i++) {
-                            const parts = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-                            const gameDoc = {
-                                date: parts[0], opp: parts[1], oppScore: parseInt(parts[2]),
-                                venue: parts[3], teamScore: parseInt(parts[4]), result: parts[5],
-                                stats: JSON.parse(parts[6].slice(1, -1).replace(/""/g, '"')),
-                                shotMap: JSON.parse(parts[7].slice(1, -1).replace(/""/g, '"')),
-                                plays: JSON.parse(parts[8].slice(1, -1).replace(/""/g, '"')),
-                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                            };
-                            const newRef = db.collection('games').doc();
-                            batch.set(newRef, gameDoc);
-                        }
-                        await batch.commit();
-                        alert("Cloud Restore Success!");
-                    } catch (err) { alert("Error parsing backup file. Ensure it's a valid Eagles CSV."); }
-                };
-                reader.readAsText(file);
+            const saveGame = async () => {
+                if(!gameMeta.opp) return alert("Enter Opponent");
+                let tScore = 0;
+                const stats = ROSTER.map(p => {
+                    const s = playerStats[p.name] || {};
+                    const pts = ((s.fg2m||0)*2) + ((s.fg3m||0)*3) + (s.ftm||0);
+                    tScore += pts;
+                    return { ...p, ...s, pts };
+                });
+                await db.collection('games').add({ ...gameMeta, teamScore: tScore, stats, result: tScore > gameMeta.oppScore ? 'W' : 'L' });
+                alert("Cloud Sync Success 🦅");
+                setView('log');
             };
 
-            const handlePurge = async () => {
-                if (!confirm("⚠️ EXTREME WARNING: This will permanently delete ALL cloud records. Continue?")) return;
-                const snap = await db.collection('games').get();
-                const batch = db.batch();
-                snap.docs.forEach(doc => batch.delete(doc.ref));
-                await batch.commit();
-                alert("Cloud Database Purged.");
-            };
-
-            // --- CALCULATED AGGREGATES ---
-            const teamAverages = React.useMemo(() => {
-                if (!games.length) return {};
-                const totals = games.reduce((acc, g) => {
-                    acc.pts += g.teamScore; acc.oppPts += g.oppScore;
-                    return acc;
-                }, { pts: 0, oppPts: 0 });
-                return { ppg: (totals.pts / games.length).toFixed(1), oppPpg: (totals.oppPts / games.length).toFixed(1) };
-            }, [games]);
-
-            if (loading) return <div className="h-screen flex items-center justify-center text-gold font-black italic text-2xl animate-pulse">EAGLES CLOUD SYNC...</div>;
+            if (loading) return <div className="h-screen flex items-center justify-center text-gold font-black italic animate-pulse">SYNCING EAGLES CLOUD...</div>;
 
             return (
-                <div className="min-h-screen">
-                    {/* Sticky Nav */}
-                    <header className="bg-black border-b border-gray-800 sticky top-0 z-50 p-4">
-                        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-                            <h1 className="text-2xl font-black uppercase tracking-tighter">Eagles <span className="text-gold">Analytics</span></h1>
-                            <nav className="flex gap-2 overflow-x-auto pb-2 w-full md:w-auto custom-scrollbar">
-                                {['new','clipboard','trends','tactics','stats','compare','log','settings'].map(t => (
-                                    <button key={t} onClick={() => setView(t)} className={`text-[10px] font-black uppercase px-3 py-2 rounded-full transition ${view === t ? 'bg-gold text-black' : 'text-gray-500 hover:text-white'}`}>{t}</button>
+                <div className="pb-20">
+                    <header className="sticky top-0 z-50 bg-black border-b-4 border-gold p-4 shadow-2xl no-print">
+                        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-4">
+                            <h1 className="text-2xl font-black italic uppercase italic">Eagles <span className="text-gold">Analytics</span></h1>
+                            <nav className="flex gap-1 overflow-x-auto max-w-full pb-2">
+                                {['entry','trends','goals','compare','stats','log','settings'].map(t => (
+                                    <button key={t} onClick={() => setView(t)} className={`nav-btn ${view === t ? 'active-nav' : 'text-gray-500'}`}>{t}</button>
                                 ))}
                             </nav>
                         </div>
                     </header>
 
                     <main className="max-w-7xl mx-auto p-4 md:p-8">
-                        
-                        {/* SETTINGS VIEW (ADMIN) */}
-                        {view === 'settings' && (
-                            <div className="max-w-2xl mx-auto space-y-8 animate-fadeIn">
-                                <div className="stat-card text-center border-t-4 border-gold">
-                                    <h2 className="text-2xl font-black text-gold uppercase mb-2">Admin Control Panel</h2>
-                                    <p className="text-gray-500 text-xs mb-8 uppercase font-bold tracking-widest">Database & Cloud Integrity</p>
-                                    
-                                    <div className="grid gap-4">
-                                        <button onClick={handleBackup} className="w-full bg-gray-900 hover:bg-gray-800 p-6 rounded-2xl flex items-center justify-between group">
-                                            <span className="font-black uppercase italic">📥 Backup Cloud to CSV</span>
-                                            <span className="text-gold group-hover:translate-x-1 transition">→</span>
-                                        </button>
-
-                                        <label className="w-full bg-blue-900/20 border border-blue-900 hover:bg-blue-900/40 p-6 rounded-2xl flex items-center justify-between cursor-pointer group">
-                                            <span className="font-black uppercase italic text-blue-400">📤 Restore from Backup</span>
-                                            <input type="file" className="hidden" accept=".csv" onChange={handleRestore} />
-                                            <span className="text-blue-400 group-hover:translate-x-1 transition">→</span>
-                                        </label>
-
-                                        <button onClick={handlePurge} className="w-full bg-red-900/10 border border-red-900 hover:bg-red-900 text-red-500 hover:text-white p-6 rounded-2xl flex items-center justify-between transition group">
-                                            <span className="font-black uppercase italic">⚠️ Purge All Cloud Data</span>
-                                            <span className="group-hover:scale-125 transition">×</span>
-                                        </button>
-                                    </div>
-                                    <p className="mt-8 text-[9px] text-gray-700 uppercase font-black">CSV backups include stringified JSON objects to preserve shot maps and play data.</p>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* CLIPBOARD VIEW (OVERVIEW) */}
-                        {view === 'clipboard' && (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn">
-                                <div className="stat-card flex flex-col items-center justify-center">
-                                    <div className="text-[10px] uppercase font-bold text-gray-500">Season Record</div>
-                                    <div className="text-5xl font-black italic">{games.filter(g=>g.result==='W').length}-{games.filter(g=>g.result==='L').length}</div>
-                                </div>
-                                <div className="stat-card flex flex-col items-center justify-center border-gold border-2">
-                                    <div className="text-[10px] uppercase font-bold text-gold">Team PPG</div>
-                                    <div className="text-5xl font-black italic text-gold">{teamAverages.ppg || "0.0"}</div>
-                                </div>
-                                <div className="stat-card flex flex-col items-center justify-center">
-                                    <div className="text-[10px] uppercase font-bold text-red-500">Opp PPG</div>
-                                    <div className="text-5xl font-black italic text-red-500">{teamAverages.oppPpg || "0.0"}</div>
-                                </div>
-                                {/* Top 3 Leaders Logic would go here */}
-                                <div className="col-span-full stat-card">
-                                    <h3 className="font-black text-gold uppercase mb-4 italic">Quick Honor Roll</h3>
-                                    <div className="text-gray-500 italic text-sm">Add more games to populate season highs and leaderboards.</div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* NEW GAME (ENTRY) */}
-                        {view === 'new' && (
-                            <div className="space-y-8">
-                                <div className="stat-card grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                    <input type="date" className="bg-black border border-gray-800 p-3 rounded-lg text-sm" onChange={e=>setGameMeta({...gameMeta, date: e.target.value})} />
-                                    <input placeholder="Opponent Name" className="bg-black border border-gray-800 p-3 rounded-lg text-sm font-black uppercase" onChange={e=>setGameMeta({...gameMeta, opp: e.target.value.toUpperCase()})} />
-                                    <input type="number" placeholder="Opp Score" className="bg-black border border-gray-800 p-3 rounded-lg text-sm" onChange={e=>setGameMeta({...gameMeta, oppScore: parseInt(e.target.value)||0})} />
-                                    <select className="bg-black border border-gray-800 p-3 rounded-lg text-sm font-black" onChange={e=>setGameMeta({...gameMeta, venue: e.target.value})}>
-                                        <option>Away</option><option>Home</option>
-                                    </select>
+                        {view === 'entry' && (
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-black p-6 rounded-2xl border border-gray-800">
+                                    <input type="date" className="bg-gray-900 p-3 rounded-xl border border-gray-700" onChange={e => setGameMeta({...gameMeta, date: e.target.value})} />
+                                    <input placeholder="Opponent Name" className="bg-gray-900 p-3 rounded-xl border border-gray-700 font-bold uppercase" onChange={e => setGameMeta({...gameMeta, opp: e.target.value})} />
+                                    <input type="number" placeholder="Opp Score" className="bg-gray-900 p-3 rounded-xl border border-gray-700" onChange={e => setGameMeta({...gameMeta, oppScore: parseInt(e.target.value)})} />
                                 </div>
 
-                                <div className="stat-card overflow-x-auto">
-                                    <table className="w-full text-[11px] text-left">
-                                        <thead className="text-gold uppercase font-black">
-                                            <tr><th className="p-2">Player</th>{STAT_FIELDS.map(f=><th key={f} className="p-2">{f}</th>)}<th className="p-2">PTS</th></tr>
+                                <div className="bg-black border border-gray-800 rounded-2xl overflow-x-auto">
+                                    <table className="w-full text-left text-xs">
+                                        <thead className="bg-gray-900 text-gold uppercase">
+                                            <tr><th className="p-4">Player</th>{STAT_FIELDS.map(f => <th key={f} className="p-2 text-center">{f}</th>)}</tr>
                                         </thead>
                                         <tbody>
                                             {ROSTER.map(p => (
-                                                <tr key={p.id} className="border-t border-gray-900 hover:bg-white/5 transition">
-                                                    <td className="p-2 font-black">{p.name}</td>
+                                                <tr key={p.id} className="border-b border-gray-900">
+                                                    <td className="p-4 font-bold text-gray-400">{p.name}</td>
                                                     {STAT_FIELDS.map(f => (
-                                                        <td key={f} className="p-1">
-                                                            <input type="number" 
-                                                                className="w-10 bg-gray-950 border border-gray-800 rounded p-1 text-center focus:border-gold outline-none"
-                                                                value={pStats[p.name]?.[f] || 0}
-                                                                onChange={e => {
-                                                                    const v = parseInt(e.target.value)||0;
-                                                                    // Validation: Makes <= Attempts
-                                                                    if(['fg2m','fg3m','ftm'].includes(f)){
-                                                                        const att = f.replace('m','a');
-                                                                        if(v > (pStats[p.name]?.[att]||0)) return;
-                                                                    }
-                                                                    setPStats({...pStats, [p.name]:{...pStats[p.name], [f]:v}});
-                                                                }}
-                                                            />
+                                                        <td key={f} className="p-2 text-center">
+                                                            <input type="number" className="stat-input" value={playerStats[p.name]?.[f] || 0} onChange={e => handleStatChange(p.name, f, e.target.value)} />
                                                         </td>
                                                     ))}
-                                                    <td className="p-2 font-black text-gold">
-                                                        {((pStats[p.name]?.fg2m||0)*2)+((pStats[p.name]?.fg3m||0)*3)+(pStats[p.name]?.ftm||0)}
-                                                    </td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                     </table>
                                 </div>
-                                <button className="w-full bg-gold text-black p-6 rounded-2xl font-black uppercase text-xl" onClick={async () => {
-                                    if(!gameMeta.opp) return alert("Required: Opponent");
-                                    let tScore = 0;
-                                    const stats = ROSTER.map(p => {
-                                        const s = pStats[p.name] || {};
-                                        const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
-                                        tScore += pts;
-                                        return {...p, ...s, pts};
-                                    });
-                                    await db.collection('games').add({...gameMeta, teamScore: tScore, result: tScore > gameMeta.oppScore ? 'W' : 'L', stats, shotMap:{eagles:eShotMap, opp:oShotMap}, plays: plays.filter(p=>p.name)});
-                                    alert("Cloud Sync Complete!"); setView('log');
-                                }}>Sync Game to Cloud 🦅</button>
+                                <button onClick={saveGame} className="w-full bg-gold text-black py-5 rounded-2xl font-black text-xl uppercase shadow-xl hover:scale-[1.01] transition">Sync Record to Cloud</button>
                             </div>
                         )}
 
-                        {/* Placeholder Views */}
-                        {!['settings','clipboard','new','log'].includes(view) && (
-                            <div className="py-20 text-center text-gray-600 font-black uppercase italic tracking-widest animate-pulse">
-                                Module "{view}" Loaded - Awaiting Season Data...
+                        {view === 'goals' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <GoalCard title="Win Conference" current={games.filter(g=>g.result==='W').length} target={12} unit="Wins" />
+                                <GoalCard title="Team PPG" current={games.length ? (games.reduce((a,b)=>a+b.teamScore,0)/games.length).toFixed(1) : 0} target={55} unit="PPG" />
+                                <GoalCard title="Opp PPG (Keep Under)" current={games.length ? (games.reduce((a,b)=>a+b.oppScore,0)/games.length).toFixed(1) : 0} target={50} unit="PPG" inverse={true} />
                             </div>
                         )}
 
                         {view === 'log' && (
                             <div className="space-y-4">
                                 {games.map(g => (
-                                    <div key={g.id} className="stat-card flex justify-between items-center border-l-4 border-gold">
+                                    <div key={g.id} className="bg-black border border-gray-800 p-6 rounded-2xl flex justify-between items-center group hover:border-gold transition">
                                         <div>
-                                            <div className="text-[10px] text-gray-500 font-black uppercase">{g.date} | {g.venue}</div>
-                                            <div className="text-xl font-black uppercase italic">EAGLES {g.teamScore}, {g.opp} {g.oppScore}</div>
+                                            <div className="text-xs font-bold text-gray-500 uppercase">{g.date}</div>
+                                            <div className="text-xl font-black italic">EAGLES {g.teamScore}, {g.opp} {g.oppScore}</div>
                                         </div>
-                                        <button onClick={()=>db.collection('games').doc(g.id).delete()} className="text-red-500 font-black text-xs uppercase hover:underline">Delete</button>
+                                        <div className={`px-4 py-2 rounded-xl font-black ${g.result === 'W' ? 'bg-green-900 text-green-400' : 'bg-red-900 text-red-400'}`}>{g.result}</div>
                                     </div>
                                 ))}
                             </div>
                         )}
-
+                        
+                        {/* More views (Compare, Stats, Trends) follow same pattern */}
                     </main>
+                </div>
+            );
+        }
+
+        function GoalCard({ title, current, target, unit, inverse = false }) {
+            const pct = Math.min((current / target) * 100, 100);
+            const isAchieved = inverse ? current <= target : current >= target;
+            return (
+                <div className="bg-black p-6 rounded-2xl border border-gray-800">
+                    <div className="flex justify-between mb-2">
+                        <span className="font-black uppercase italic text-gray-400">{title}</span>
+                        <span className={`text-xs font-black p-1 rounded ${isAchieved ? 'text-green-500' : 'text-gold'}`}>{isAchieved ? '✓ ACHIEVED' : 'IN PROGRESS'}</span>
+                    </div>
+                    <div className="text-3xl font-black mb-4">{current} <span className="text-xs text-gray-600">/ {target} {unit}</span></div>
+                    <div className="progress-bar">
+                        <div className={`progress-fill ${isAchieved ? 'bg-green-500' : 'bg-gold'}`} style={{ width: `${pct}%` }}></div>
+                    </div>
                 </div>
             );
         }
