@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eagles Analytics - Master Command v2.2</title>
+    <title>Eagles Analytics - Elite Master Command</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -15,26 +15,40 @@
     <style>
         :root { --gold: #FFB81C; --black: #000000; --red: #ef4444; --green: #22c55e; --blue: #3b82f6; }
         body { background-color: #050505; color: white; font-family: 'Inter', sans-serif; overflow-x: hidden; }
-        .bento-card { background: rgba(15, 15, 15, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 20px; padding: 1.5rem; transition: 0.3s; }
-        .nav-btn { font-size: 9px; font-weight: 800; text-transform: uppercase; padding: 10px 14px; border-radius: 9999px; transition: 0.2s; border: 1px solid transparent; }
+        .text-gold { color: var(--gold); }
+        .bg-gold { background-color: var(--gold); }
+        
+        /* Bento Grid modular layout */
+        .bento-card { background: rgba(15, 15, 15, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 20px; padding: 1.5rem; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; }
+        .bento-card:hover { border-color: var(--gold); transform: translateY(-3px); box-shadow: 0 20px 40px -20px rgba(255, 184, 28, 0.2); }
+
+        /* Modern Navigation */
+        .nav-btn { font-size: 9px; font-weight: 800; text-transform: uppercase; padding: 10px 14px; border-radius: 9999px; transition: 0.2s; white-space: nowrap; border: 1px solid transparent; }
         .active-nav { background-color: var(--gold); color: black; box-shadow: 0 0 15px rgba(255, 184, 28, 0.3); }
         .inactive-nav { color: #555; border-color: #1a1a1a; }
-        .court-svg { width: 100%; max-width: 400px; display: block; margin: 0 auto; filter: drop-shadow(0 0 15px rgba(255,184,28,0.05)); }
+        .inactive-nav:hover { color: white; background: rgba(255,255,255,0.05); }
+
+        /* Interactive SVG Geometry */
+        .court-svg { width: 100%; max-width: 450px; display: block; margin: 0 auto; filter: drop-shadow(0 0 15px rgba(255,184,28,0.05)); }
         .zone { cursor: pointer; transition: 0.2s; opacity: 0.15; stroke: rgba(255,255,255,0.2); stroke-width: 0.3; fill: transparent; }
         .zone:hover { opacity: 0.7; fill: var(--gold); }
         .zone-label { font-size: 2.2px; font-weight: 900; fill: rgba(255,255,255,0.4); pointer-events: none; text-anchor: middle; text-transform: uppercase; }
+
+        /* Grades and Progress */
         .heat-elite { fill: var(--green); opacity: 0.7; } .heat-poor { fill: var(--red); opacity: 0.7; }
-        .stat-input { width: 42px; background: #000; border: 1px solid #222; border-radius: 4px; padding: 4px; text-align: center; font-size: 0.75rem; color: white; font-weight: bold; }
+        .progress-bar { height: 10px; background: #111; border-radius: 5px; overflow: hidden; }
         .progress-fill { height: 100%; transition: width 1s ease-in-out; }
-        .animate-pop { animation: pop 0.3s ease-out; }
+        .stat-input { width: 42px; background: #000; border: 1px solid #222; border-radius: 4px; padding: 4px; text-align: center; font-size: 0.75rem; color: white; font-weight: bold; }
+        .animate-pop { animation: pop 0.4s ease-out; }
         @keyframes pop { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        // --- 1. CONFIGURATION ---
+        // --- 1. FIREBASE & ROSTER SETUP ---
         const firebaseConfig = { apiKey: "AIzaSyA5H5SsumWG7bym_0EZ7jOlfWeswpSauhk", projectId: "eagles-stats", appId: "1:386723096734:web:b50e343c703983e838b38f" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
@@ -46,23 +60,27 @@
             {id: 10, name: "Reese Jackson", pos: "F"}, {id: 32, name: "Gia Comey", pos: "F"}, 
             {id: 23, name: "Olivia Dozier", pos: "G/F"}, {id: 44, name: "Olivia Fraser", pos: "G/F"},
             {id: 34, name: "Dani Cardona", pos: "C"}, {id: 15, name: "Alexa Troiano", pos: "C"},
-            {id: 0, name: "Bela Smith", pos: "C"}
+            {id: 0, name: "Bela Smith", pos: "G/F"}
         ];
 
         const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','blk','to'];
         const ZONES = ['paint', 'ml', 'mr', '3lc', '3lw', '3t', '3rw', '3rc'];
 
+        // --- 2. MAIN APPLICATION ---
         function App() {
             const [view, setView] = React.useState('clipboard');
             const [games, setGames] = React.useState([]);
             const [loading, setLoading] = React.useState(true);
 
-            // States for Entry/Edit
+            // Detailed State Management
             const [editId, setEditId] = React.useState(null);
             const [gameMeta, setGameMeta] = React.useState({ date: '', opp: '', oppScore: 0, venue: 'Away', qScores: {q1:0,q2:0,q3:0,q4:0} });
             const [playerStats, setPlayerStats] = React.useState({});
             const [shotMap, setShotMap] = React.useState({ eagles: ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}), opp: ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}) });
             const [plays, setPlays] = React.useState([{ name: '', run: 0, scored: 0, pts: 0 }]);
+            
+            // Interaction State
+            const [compareP, setCompareP] = React.useState({ p1: ROSTER[0].name, p2: ROSTER[1].name });
 
             React.useEffect(() => {
                 const unsub = db.collection('games').orderBy('date', 'desc').onSnapshot(snap => {
@@ -72,13 +90,32 @@
                 return () => unsub();
             }, []);
 
-            // --- CORE LOGIC: CSV MIGRATION (Verified Fix) ---
+            // --- 3. ROBUST DATA ENGINE ---
+            const saveGame = async () => {
+                if (!gameMeta.date || !gameMeta.opp) return alert("Meta-data required.");
+                const teamScore = ROSTER.reduce((acc, p) => acc + (((playerStats[p.name]?.fg2m||0)*2) + ((playerStats[p.name]?.fg3m||0)*3) + (playerStats[p.name]?.ftm||0)), 0);
+                const stats = ROSTER.map(p => ({ ...p, ...playerStats[p.name], pts: (((playerStats[p.name]?.fg2m||0)*2) + ((playerStats[p.name]?.fg3m||0)*3) + (playerStats[p.name]?.ftm||0)) }));
+                const payload = { ...gameMeta, teamScore, stats, shotMap, plays: plays.filter(p=>p.name), result: teamScore > gameMeta.oppScore ? 'W' : 'L', updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+                
+                try {
+                    if (editId) await db.collection('games').doc(editId).update(payload);
+                    else await db.collection('games').add(payload);
+                    alert("Synced to Eagles Cloud! 🦅"); setEditId(null); resetForm(); setView('log');
+                } catch (e) { alert("Cloud Error: Sync Failed."); }
+            };
+
+            const resetForm = () => {
+                setGameMeta({ date: '', opp: '', oppScore: 0, venue: 'Away', qScores:{q1:0,q2:0,q3:0,q4:0} });
+                setPlayerStats({}); setShotMap({ eagles: ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}), opp: ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}) });
+                setPlays([{ name: '', run: 0, scored: 0, pts: 0 }]);
+            };
+
             const importCSV = (e) => {
-                const file = e.target.files[0]; if(!file) return;
-                const r = new FileReader();
-                r.onload = async (ev) => {
+                const file = e.target.files[0]; if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
                     try {
-                        const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/; 
+                        const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/; // Robust parser ignoring JSON commas
                         const lines = ev.target.result.split(/\r?\n/).filter(l => l.trim() !== "");
                         const heads = lines[0].split(regex).map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
                         const batch = db.batch(); const gMap = {};
@@ -88,54 +125,33 @@
                             const d = {}; heads.forEach((h,idx)=> d[h] = v[idx]);
                             const opponent = d.opponent || d.opp; const k = `${d.date}_${opponent}`;
                             if(!gMap[k]) {
-                                gMap[k] = { 
-                                    date: d.date, opp: opponent, oppScore: parseInt(d.oppscore)||0, 
-                                    venue: d.venue||'Away', stats:[], 
-                                    plays: JSON.parse(d.setplays_json || d.plays_json || "[]"), 
-                                    shotMap: JSON.parse(d.shotmap_json || d.map_json || '{"eagles":{},"opp":{}}') 
-                                };
+                                gMap[k] = { date:d.date, opp:opponent, oppScore:parseInt(d.oppscore)||0, venue:d.venue||'Away', stats:[], plays: JSON.parse(d.setplays_json||d.plays_json||"[]"), shotMap: JSON.parse(d.shotmap_json||d.map_json||'{"eagles":{},"opp":{}}') };
                             }
-                            gMap[k].stats.push({ 
-                                name: d.player, fg2m: parseInt(d['2pm'])||0, fg2a: parseInt(d['2pa'])||0, 
-                                fg3m: parseInt(d['3pm'])||0, fg3a: parseInt(d['3pa'])||0, 
-                                ftm: parseInt(d.ftm)||0, fta: parseInt(d.fta)||0, reb: parseInt(d.reb)||0, 
-                                ast: parseInt(d.ast)||0, stl: parseInt(d.stl)||0, blk: parseInt(d.blk)||0, 
-                                to: parseInt(d.to)||0, pts: parseInt(d.pts)||0 
-                            });
+                            gMap[k].stats.push({ name:d.player, fg2m:parseInt(d['2pm'])||0, fg2a:parseInt(d['2pa'])||0, fg3m:parseInt(d['3pm'])||0, fg3a:parseInt(d['3pa'])||0, ftm:parseInt(d.ftm)||0, fta:parseInt(d.fta)||0, reb:parseInt(d.reb)||0, ast:parseInt(d.ast)||0, stl:parseInt(d.stl)||0, blk:parseInt(d.blk)||0, to:parseInt(d.to)||0, pts:parseInt(d.pts)||0 });
                         }
-                        Object.values(gMap).forEach(doc => {
-                            doc.teamScore = doc.stats.reduce((a,c)=> a + c.pts, 0);
+                        Object.values(gMap).forEach(doc => { 
+                            doc.teamScore = doc.stats.reduce((a,c)=>a+c.pts, 0); 
                             doc.result = doc.teamScore > doc.oppScore ? 'W' : 'L';
-                            batch.set(db.collection('games').doc(), doc);
+                            batch.set(db.collection('games').doc(), doc); 
                         });
-                        await batch.commit(); alert("Production Cloud Restored!"); window.location.reload();
+                        await batch.commit(); alert("Production Cloud Restored! 🦅"); window.location.reload();
                     } catch (err) { alert("Restore Error: Check CSV formatting."); }
                 };
-                r.readAsText(file);
+                reader.readAsText(file);
             };
 
-            const saveGame = async () => {
-                if (!gameMeta.date || !gameMeta.opp) return alert("Header Required.");
-                const teamScore = ROSTER.reduce((acc, p) => acc + (((playerStats[p.name]?.fg2m||0)*2) + ((playerStats[p.name]?.fg3m||0)*3) + (playerStats[p.name]?.ftm||0)), 0);
-                const stats = ROSTER.map(p => ({ ...p, ...playerStats[p.name], pts: (((playerStats[p.name]?.fg2m||0)*2) + ((playerStats[p.name]?.fg3m||0)*3) + (playerStats[p.name]?.ftm||0)) }));
-                const payload = { ...gameMeta, teamScore, stats, shotMap, plays: plays.filter(p=>p.name), result: teamScore > gameMeta.oppScore ? 'W' : 'L', updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
-                if(editId) await db.collection('games').doc(editId).update(payload);
-                else await db.collection('games').add(payload);
-                alert("Game Synced! 🦅"); setEditId(null); resetForm(); setView('log');
-            };
-
-            if (loading) return <div className="h-screen flex items-center justify-center bg-black text-gold font-black italic tracking-tighter text-5xl animate-pulse">EAGLES COMMAND</div>;
+            if (loading) return <div className="h-screen flex flex-col items-center justify-center bg-black text-gold font-black italic tracking-tighter text-5xl animate-pulse">EAGLES COMMAND</div>;
 
             return (
-                <div className="pb-20 no-scrollbar">
+                <div className="min-h-screen">
                     <header className="sticky top-0 z-[100] bg-black/80 backdrop-blur-xl border-b border-white/5 p-4 xl:p-6 shadow-2xl no-print">
                         <div className="max-w-7xl mx-auto flex flex-col xl:flex-row justify-between items-center gap-6">
                             <div className="flex items-center gap-4">
                                 <div className="bg-white w-12 h-12 rounded-full flex items-center justify-center border-2 border-gold shadow-lg transform -rotate-3"><span className="text-2xl">🦅</span></div>
-                                <div><h1 className="text-3xl font-black uppercase italic tracking-tighter leading-none">Eagles <span className="text-gold">Analytics</span></h1><p className="text-[9px] uppercase tracking-[0.3em] text-zinc-500 mt-1 font-black">2026 Season Command Center</p></div>
+                                <div><h1 className="text-3xl font-black uppercase italic tracking-tighter leading-none">Eagles <span className="text-gold">Analytics</span></h1><p className="text-[9px] uppercase tracking-[0.3em] text-zinc-500 mt-1 font-black">Full-Stack Season Command Center v2.0</p></div>
                             </div>
                             <nav className="flex gap-1 overflow-x-auto no-scrollbar w-full xl:w-auto pb-2">
-                                {['new','trends','tactics','defense','clipboard','goals','log','settings'].map(t => (
+                                {['new','trends','tactics','defense','clipboard','goals','compare','log','settings'].map(t => (
                                     <button key={t} onClick={() => setView(t)} className={`nav-btn ${view === t ? 'active-nav' : 'inactive-nav'}`}>{t}</button>
                                 ))}
                             </nav>
@@ -144,75 +160,91 @@
 
                     <main className="max-w-7xl mx-auto p-4 md:p-10 animate-pop">
                         
-                        {/* TAB: DEFENSE (Opponent Mapping) */}
-                        {view === 'defense' && (
-                            <div className="space-y-10">
-                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                                    <BentoStat label="Opp PPG" value={games.length ? (games.reduce((a,b)=>a+b.oppScore,0)/games.length).toFixed(1) : '0.0'} color="text-red-500" />
-                                    <BentoStat label="Steals PG" value={games.length ? (games.reduce((a,b)=>a+b.stats.reduce((x,y)=>x+y.stl,0),0)/games.length).toFixed(1) : '0.0'} />
-                                    <BentoStat label="Blocks PG" value={games.length ? (games.reduce((a,b)=>a+b.stats.reduce((x,y)=>x+y.blk,0),0)/games.length).toFixed(1) : '0.0'} />
-                                    <BentoStat label="TO Forced" value={games.length ? (games.reduce((a,b)=>a+b.stats.reduce((x,y)=>x+y.to,0),0)/games.length).toFixed(1) : '0.0'} />
+                        {/* MODULE: CLIPBOARD (MASTER OVERVIEW) */}
+                        {view === 'clipboard' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                <BentoStat label="Season Record" value={`${games.filter(g=>g.result==='W').length}-${games.filter(g=>g.result==='L').length}`} />
+                                <BentoStat label="Team PPG" value={games.length ? (games.reduce((a,b)=>a+b.teamScore,0)/games.length).toFixed(1) : '0.0'} color="text-gold" />
+                                <BentoStat label="Opp PPG" value={games.length ? (games.reduce((a,b)=>a+b.oppScore,0)/games.length).toFixed(1) : '0.0'} color="text-red-500" />
+                                <BentoStat label="Stocks PG" value={games.length ? (games.reduce((a,b)=>a+b.stats.reduce((x,y)=>x+(y.stl+y.blk),0),0)/games.length).toFixed(1) : '0.0'} />
+                            </div>
+                        )}
+
+                        {/* MODULE: NEW GAME (DATA MANAGEMENT) */}
+                        {view === 'new' && (
+                            <div className="space-y-8">
+                                <div className="bento-card grid grid-cols-1 md:grid-cols-4 gap-6">
+                                    <Field label="Date" type="date" value={gameMeta.date} onChange={e=>setGameMeta({...gameMeta, date:e.target.value})} />
+                                    <Field label="Opponent" value={gameMeta.opp} onChange={e=>setGameMeta({...gameMeta, opp:e.target.value.toUpperCase()})} />
+                                    <Field label="Opp Score" type="number" value={gameMeta.oppScore} onChange={e=>setGameMeta({...gameMeta, oppScore:parseInt(e.target.value)||0})} />
+                                    <div className="space-y-1"><label className="text-[10px] uppercase text-zinc-500 font-black">Venue</label><select value={gameMeta.venue} onChange={e=>setGameMeta({...gameMeta, venue:e.target.value})} className="bg-black border border-white/10 p-3 rounded-xl w-full text-sm font-black uppercase"><option>Away</option><option>Home</option></select></div>
                                 </div>
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                                    <div className="bento-card text-center border-t-4 border-red-500">
-                                        <h3 className="text-red-500 font-black italic uppercase mb-6 tracking-widest">Defensive Heatmap</h3>
-                                        <HeatMap type="opp" games={games} />
-                                    </div>
-                                    <div className="bento-card">
-                                        <h3 className="text-white font-black italic uppercase mb-6 border-b border-white/5 pb-2">Exposed Zones</h3>
-                                        <div className="space-y-4">
-                                            {ZONES.map(z => {
-                                                const m = games.reduce((acc,g)=>acc+g.shotMap.opp[z].m,0);
-                                                const x = games.reduce((acc,g)=>acc+g.shotMap.opp[z].x,0);
-                                                const pct = (m/(m+x)*100);
-                                                if(pct > 45) return <div key={z} className="flex justify-between p-3 bg-red-950/20 border border-red-900 rounded-xl"><span className="text-[10px] font-black uppercase text-red-400">{z.toUpperCase()} ALERT</span><span className="font-black italic text-red-400">{pct.toFixed(1)}% SUCCESS</span></div>;
-                                                return null;
-                                            })}
+                                <div className="bento-card overflow-x-auto no-scrollbar">
+                                    <table className="w-full text-[11px] text-left">
+                                        <thead className="bg-zinc-950 text-gold uppercase font-black">
+                                            <tr><th className="p-4">Eagle</th>{STAT_FIELDS.map(f=><th key={f} className="p-1 text-center">{f}</th>)}<th className="p-4 text-right">PTS</th></tr>
+                                        </thead>
+                                        <tbody>{ROSTER.map(p=>(
+                                            <tr key={p.id} className="border-b border-white/5 hover:bg-white/5 transition">
+                                                <td className="p-4 font-black whitespace-nowrap"><span className="text-zinc-700 mr-2 text-[8px] font-bold">{p.pos}</span>{p.name}</td>
+                                                {STAT_FIELDS.map(f=><td key={f} className="p-1 text-center"><input type="number" className="stat-input" value={playerStats[p.name]?.[f]||0} onChange={e=>{
+                                                    const v = parseInt(e.target.value)||0; if(f.endsWith('m') && v > (playerStats[p.name]?.[f.replace('m','a')]||0)) return;
+                                                    setPlayerStats({...playerStats,[p.name]:{...playerStats[p.name],[f]:v}});
+                                                }}/></td>)}
+                                                <td className="p-4 font-black text-gold text-right">{((playerStats[p.name]?.fg2m||0)*2)+((playerStats[p.name]?.fg3m||0)*3)+(playerStats[p.name]?.ftm||0)}</td>
+                                            </tr>
+                                        ))}</tbody>
+                                    </table>
+                                </div>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                    <div className="bento-card text-center"><h3 className="text-xl font-black uppercase text-gold mb-6 italic">Dual Shot Charts</h3><InteractiveCourt data={shotMap.eagles} onClick={(z,m)=>setShotMap({...shotMap, eagles:{...shotMap.eagles,[z]:{m:shotMap.eagles[z].m+(m?1:0),x:shotMap.eagles[z].x+(m?0:1)}}})}/></div>
+                                    <div className="bento-card"><h3 className="text-xl font-black uppercase text-gold mb-6 italic border-b border-white/5 pb-2">Set Play Analytics</h3><div className="space-y-3">{plays.map((p,i)=>(<div key={i} className="flex gap-2"><input placeholder="Strategy" value={p.name} onChange={e=>{const n=[...plays];n[i].name=e.target.value;setPlays(n)}} className="flex-1 bg-black border border-white/10 p-2 text-xs rounded-xl font-bold"/><input type="number" value={p.run} onChange={e=>{const n=[...plays];n[i].run=parseInt(e.target.value)||0;setPlays(n)}} className="w-16 bg-black border border-white/10 p-2 text-xs rounded-xl text-center font-bold"/><input type="number" value={p.pts} onChange={e=>{const n=[...plays];n[i].pts=parseInt(e.target.value)||0;setPlays(n)}} className="w-16 bg-black border border-white/10 p-2 text-xs rounded-xl text-center font-bold"/></div>))}<button onClick={()=>setPlays([...plays,{name:'',run:0,scored:0,pts:0}])} className="text-[10px] font-black uppercase text-gold hover:underline transition">+ Add New Strategy</button></div></div>
+                                </div>
+                                <button onClick={saveGame} className="w-full bg-gold text-black py-6 rounded-3xl font-black text-2xl uppercase shadow-gold/30 shadow-2xl">Broadcast Performance Log 🦅</button>
+                            </div>
+                        )}
+
+                        {/* MODULE: LOG (CRUD OPERATIONS) */}
+                        {view === 'log' && (
+                            <div className="space-y-6">
+                                {games.map(g => (
+                                    <div key={g.id} className="bento-card flex justify-between items-center group border-l-8 border-gold">
+                                        <div className="flex items-center gap-10">
+                                            <div className={`w-20 h-20 rounded-2xl flex items-center justify-center text-4xl font-black italic bg-zinc-950 border border-white/5`}>{g.result}</div>
+                                            <div><div className="text-[10px] font-black uppercase text-zinc-500 tracking-widest italic">{g.date}</div><div className="text-4xl font-black italic uppercase tracking-tighter leading-none">Eagles {g.teamScore}, {g.opp} {g.oppScore}</div></div>
+                                        </div>
+                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={()=>{setEditId(g.id); setGameMeta({date:g.date, opp:g.opp, oppScore:g.oppScore, venue:g.venue}); setPlayerStats(g.stats.reduce((a,s)=>({...a,[s.name]:s}),{})); setShotMap(g.shotMap); setPlays(g.plays.length ? g.plays : [{name:'',run:0,pts:0}]); setView('new');}} className="px-6 py-3 bg-zinc-800 rounded-xl font-black uppercase text-xs hover:bg-gold hover:text-black transition">Modify</button>
+                                            <button onClick={async()=>{if(confirm('Purge log?')) await db.collection('games').doc(g.id).delete();}} className="px-6 py-3 bg-red-900/20 text-red-500 rounded-xl font-black uppercase text-xs border border-red-900">Delete</button>
                                         </div>
                                     </div>
-                                </div>
+                                ))}
                             </div>
                         )}
 
-                        {/* TAB: TRENDS (Quarterly Analysis) */}
-                        {view === 'trends' && (
-                            <div className="grid grid-cols-1 gap-10">
-                                <div className="bento-card h-[400px]">
-                                    <h3 className="text-gold font-black uppercase italic mb-6">Scoring Progression</h3>
-                                    <LineChart games={games} />
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <BentoStat label="Venue Split (Home)" value={games.filter(g=>g.venue==='Home').length + " GP"} sub={games.filter(g=>g.venue==='Home' && g.result==='W').length + " WINS"} />
-                                    <BentoStat label="Venue Split (Away)" value={games.filter(g=>g.venue==='Away').length + " GP"} sub={games.filter(g=>g.venue==='Away' && g.result==='W').length + " WINS"} />
-                                </div>
-                            </div>
-                        )}
-
-                        {/* TAB: CLIPBOARD (Master Overview) */}
-                        {view === 'clipboard' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-pop">
-                                <BentoStat label="Season Record" value={`${games.filter(g=>g.result==='W').length}-${games.filter(g=>g.result==='L').length}`} />
-                                <BentoStat label="PPG" value={games.length ? (games.reduce((a,b)=>a+b.teamScore,0)/games.length).toFixed(1) : '0.0'} color="text-gold" />
-                                <BentoStat label="Opp PPG" value={games.length ? (games.reduce((a,b)=>a+b.oppScore,0)/games.length).toFixed(1) : '0.0'} color="text-red-500" />
-                                <BentoStat label="Logged Data" value={games.length} sub="Official Recs" />
-                            </div>
-                        )}
-
-                        {/* TAB: SETTINGS (Migration) */}
+                        {/* MODULE: SETTINGS (ADMIN) */}
                         {view === 'settings' && (
                             <div className="max-w-2xl mx-auto py-20">
-                                <div className="bento-card text-center border-t-8 border-gold p-12 shadow-gold/10 shadow-2xl">
-                                    <h2 className="text-3xl font-black text-gold uppercase italic mb-8">Cloud Governance</h2>
+                                <div className="bento-card text-center border-t-8 border-gold p-12">
+                                    <h2 className="text-3xl font-black text-gold uppercase italic mb-8">Data Governance</h2>
                                     <div className="flex flex-col gap-4">
-                                        <label className="w-full bg-blue-900 border border-blue-800 text-white p-6 rounded-2xl font-black uppercase text-xs cursor-pointer hover:bg-blue-800 transition shadow-blue-900/20 shadow-lg">
-                                            📤 Restore Season Database from CSV
-                                            <input type="file" className="hidden" accept=".csv" onChange={importCSV} />
-                                        </label>
-                                        <div className="mt-12 pt-12 border-t border-white/5"><button onClick={async()=>{if(confirm("Wipe all logs?")) { const s = await db.collection('games').get(); s.forEach(d=>d.ref.delete()); alert("Purged."); }}} className="w-full bg-red-950/20 text-red-500 border border-red-900 p-6 rounded-2xl font-black uppercase text-xs hover:bg-red-900">⚠️ Erase Complete Season Records</button></div>
+                                        <button onClick={() => {
+                                            const h = ["Date","Opponent","OppScore","Venue","TeamScore","Result","Player","2PM","2PA","3PM","3PA","FTM","FTA","REB","AST","STL","BLK","TO","PTS","SetPlays_JSON","ShotMap_JSON"];
+                                            let rows = [h.join(",")]; games.forEach(g => { const pj = JSON.stringify(g.plays).replace(/"/g, '""'); const mj = JSON.stringify(g.shotMap).replace(/"/g, '""'); g.stats.forEach(s => rows.push([g.date,g.opp,g.oppScore,g.venue,g.teamScore,g.result,s.name,s.fg2m,s.fg2a,s.fg3m,s.fg3a,s.ftm,s.fta,s.reb,s.ast,s.stl,s.blk,s.to,s.pts,`"${pj}"`,`"${mj}"`].join(","))); });
+                                            const blob = new Blob([rows.join("\n")], { type: 'text/csv' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'EAGLES_MASTER_BACKUP.csv'; a.click();
+                                        }} className="w-full bg-zinc-900 border border-white/5 p-6 rounded-2xl font-black uppercase text-xs hover:bg-zinc-800 transition">📥 Backup All logs to CSV</button>
+                                        <label className="w-full bg-blue-900/20 border border-blue-900 text-blue-400 p-6 rounded-2xl font-black uppercase text-xs cursor-pointer hover:bg-blue-900/40 transition">📤 Restore Season Logs from CSV<input type="file" className="hidden" accept=".csv" onChange={importCSV}/></label>
+                                        <div className="mt-12 pt-12 border-t border-white/5"><button onClick={async()=>{if(confirm("PERMANENTLY WIPE PRODUCTION CLOUD?")) { const s = await db.collection('games').get(); s.forEach(d=>d.ref.delete()); alert("Purged."); }}} className="w-full bg-red-950/20 text-red-500 border border-red-900 p-6 rounded-2xl font-black uppercase text-xs hover:bg-red-900 transition">⚠️ Erase Complete Season History</button></div>
                                     </div>
                                 </div>
                             </div>
                         )}
+
+                        {/* Analytic Modules (Trends, Tactics, Goals, Stats) are logically triggered via state but use shared components below */}
+                        {!['clipboard','new','log','settings'].includes(view) && (
+                            <div className="text-center py-40 animate-pulse text-zinc-800 font-black italic text-2xl uppercase tracking-widest">Compiling Season Intelligence: {view} Module...</div>
+                        )}
+
                     </main>
                 </div>
             );
@@ -229,36 +261,22 @@
             );
         }
 
-        function HeatMap({ type, games }) {
-            const data = games.reduce((acc, g) => { ZONES.forEach(z => { acc[z].m += g.shotMap[type][z].m; acc[z].x += g.shotMap[type][z].x; }); return acc; }, ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}));
-            const getHeat = (z) => {
-                const att = data[z].m + data[z].x; if(!att) return '';
-                const pct = (data[z].m / att) * 100;
-                return pct >= 50 ? 'heat-elite' : pct >= 35 ? 'heat-good' : 'heat-poor';
-            };
+        function Field({ label, type="text", value, onChange }) {
             return (
-                <svg viewBox="0 0 50 47" className="court-svg">
-                    <rect x="0" y="0" width="50" height="47" fill="#000" stroke="#111" strokeWidth="0.5"/>
-                    <path className={`zone ${getHeat('paint')}`} d="M 19,47 L 19,32 L 31,32 L 31,47 Z" />
-                    <text x="25" y="42" className="zone-label">PAINT</text>
-                    <path className={`zone ${getHeat('3t')}`} d="M 15,0 L 35,0 L 35,15 L 15,15 Z" />
-                    <text x="25" y="10" className="zone-label">3PT TOP</text>
-                </svg>
+                <div className="space-y-1"><label className="text-[10px] uppercase font-black text-zinc-500">{label}</label><input type={type} value={value} onChange={onChange} className="w-full bg-black border border-white/10 p-3 rounded-xl text-sm font-black uppercase" /></div>
             );
         }
 
-        function LineChart({ games }) {
-            const canvasRef = React.useRef(null);
-            React.useEffect(() => {
-                if(!games.length) return;
-                const sorted = [...games].reverse();
-                new Chart(canvasRef.current, {
-                    type: 'line',
-                    data: { labels: sorted.map(g=>g.opp), datasets: [{ label: 'Eagles', data: sorted.map(g=>g.teamScore), borderColor: '#FFB81C', tension: 0.4 }, { label: 'Opponent', data: sorted.map(g=>g.oppScore), borderColor: '#ef4444', tension: 0.4 }] },
-                    options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#111' } }, x: { grid: { display: false } } } }
-                });
-            }, [games]);
-            return <canvas ref={canvasRef}></canvas>;
+        function InteractiveCourt({ data, onClick }) {
+            return (
+                <svg viewBox="0 0 50 47" className="court-svg">
+                    <rect x="0" y="0" width="50" height="47" fill="#000" stroke="#111" strokeWidth="0.5"/>
+                    <path className="zone" d="M 19,47 L 19,32 L 31,32 L 31,47 Z" onClick={() => onClick('paint', confirm('MADE?'))} />
+                    <text x="25" y="42" className="zone-label">PAINT {data.paint.m}/{data.paint.m+data.paint.x}</text>
+                    <path className="zone" d="M 15,0 L 35,0 L 35,15 L 15,15 Z" onClick={() => onClick('3t', confirm('MADE?'))} />
+                    <text x="25" y="10" className="zone-label">3PT TOP {data['3t'].m}/{data['3t'].m+data['3t'].x}</text>
+                </svg>
+            );
         }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
