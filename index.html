@@ -31,6 +31,8 @@
         .inactive-nav:hover { background: rgba(255,255,255,0.1); color: white; }
 
         .stat-input { background: #111; border: 1px solid #333; color: white; padding: 4px; text-align: center; border-radius: 6px; width: 100%; font-weight: bold; }
+        .stat-input:focus { border-color: var(--gold); outline: none; background: #222; }
+        
         .court-svg { width: 100%; display: block; margin: 0 auto; filter: drop-shadow(0 0 8px rgba(255,184,28,0.1)); }
         .zone { cursor: pointer; transition: 0.2s; opacity: 0.3; stroke: rgba(255,255,255,0.4); stroke-width: 0.8; fill: transparent; }
         .zone:hover { opacity: 0.6; stroke: white; }
@@ -121,6 +123,72 @@
                     });
                 } catch(e) { console.warn("Offline"); setLoading(false); }
             }, []);
+
+            // --- SMART VALIDATION HANDLERS ---
+            
+            // 1. Live Input Validation (Auto-corrects invalid math)
+            const updatePlayerStat = (player, field, value) => {
+                const safeVal = Math.max(0, parseInt(value) || 0);
+                const currentStats = playerStats[player] || {};
+                let updates = { [field]: safeVal };
+
+                // Auto-Correct: If Makes > Attempts, bump Attempts. If Attempts < Makes, bump Makes.
+                if (field.endsWith('m')) {
+                    const type = field.replace('m', ''); // fg2, fg3, ft
+                    const attKey = type + 'a';
+                    if (safeVal > (currentStats[attKey] || 0)) updates[attKey] = safeVal;
+                } else if (field.endsWith('a')) {
+                    const type = field.replace('a', '');
+                    const makeKey = type + 'm';
+                    if (safeVal < (currentStats[makeKey] || 0)) updates[makeKey] = safeVal;
+                }
+
+                setPlayerStats(prev => ({ ...prev, [player]: { ...prev[player], ...updates } }));
+            };
+
+            // 2. Pre-Save Logic Check
+            const validateAndSave = async () => {
+                // A. Required Fields
+                if (!gameMeta.opp || !gameMeta.opp.trim()) {
+                    alert("⛔ VALIDATION FAILED\n\nOpponent Name is required to save the game.");
+                    return;
+                }
+
+                // B. Set Play Logic Check
+                const invalidPlays = playStats.filter(p => p.made > p.att);
+                if (invalidPlays.length > 0) {
+                    alert(`⛔ LOGIC ERROR\n\nThe following plays have more Makes than Attempts:\n${invalidPlays.map(p => p.name).join(', ')}\nPlease fix before saving.`);
+                    return;
+                }
+
+                // C. Calculate Totals for Alerts
+                let totalScore = 0;
+                let warnings = [];
+                ROSTER.forEach(p => {
+                    const s = playerStats[p.name] || {};
+                    const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
+                    totalScore += pts;
+                    
+                    // Unusual Stat Detection
+                    if((s.stl || 0) >= 10) warnings.push(`⚠️ ${p.name}: ${s.stl} Steals (High)`);
+                    if((s.blk || 0) >= 10) warnings.push(`⚠️ ${p.name}: ${s.blk} Blocks (High)`);
+                    if((s.to || 0) >= 15) warnings.push(`⚠️ ${p.name}: ${s.to} Turnovers (High)`);
+                });
+
+                // D. Empty Game Check
+                if (totalScore === 0) {
+                    if (!confirm("⚠️ EMPTY GAME DETECTED\n\nTotal Team Score is 0.\nAre you sure you want to save a game with no scoring data?")) return;
+                }
+
+                // E. Unusual Stats Confirmation
+                if (warnings.length > 0) {
+                    const msg = "UNUSUAL STATS DETECTED:\n" + warnings.join('\n') + "\n\nAre you sure these numbers are correct?";
+                    if (!confirm(msg)) return;
+                }
+
+                // Proceed to Save
+                saveGame(totalScore);
+            };
 
             // --- DATA PROCESSORS ---
             const getClipboardData = () => {
@@ -257,7 +325,6 @@
                         const headers = rows[0].split(',');
                         let importedCount = 0;
                         
-                        // Simple CSV regex parser to handle quoted JSON strings
                         const parseCSVRow = (row) => {
                             const regex = /(?:,|\n|^)("(?:(?:"")*[^"]*)*"|[^",\n]*|(?:\n|$))/g;
                             const matches = []; 
@@ -305,22 +372,32 @@
                 alert("Database Purged.");
             };
 
-            // --- ACTIONS ---
-            const saveGame = async () => {
+            // --- SAVE ACTION ---
+            const saveGame = async (preCalcScore) => {
                 if(!db) return alert("Offline Mode");
-                if(!gameMeta.opp) return alert("Enter Opponent Name");
-                let tScore = 0;
+                
+                // Construct Data
+                let tScore = preCalcScore || 0;
+                if(!preCalcScore) { // If called directly without validation (fallback), calc score
+                    ROSTER.forEach(p => {
+                        const s = playerStats[p.name] || {};
+                        tScore += ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
+                    });
+                }
+                
                 const stats = ROSTER.map(p => {
                     const s = playerStats[p.name] || {};
                     const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
-                    tScore += pts;
                     return { ...p, ...s, pts };
                 });
+                
                 const payload = { ...gameMeta, teamScore: tScore, stats, shotMap, playStats, result: tScore>gameMeta.oppScore?'W':'L', updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+                
                 try {
                     if(editId) await db.collection('games').doc(editId).update(payload);
                     else await db.collection('games').add(payload);
-                    alert("Saved!"); setEditId(null); setView('log');
+                    alert("✅ Game Saved Successfully!"); 
+                    setEditId(null); setView('log');
                 } catch(e) { alert("Error: "+e.message); }
             };
 
@@ -395,7 +472,7 @@
                     {view === 'new' && (
                         <div className="space-y-6">
                             <div className="bento-card grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div className="space-y-1"><label className="text-[9px] font-bold text-zinc-500 uppercase">Opponent</label><input className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" value={gameMeta.opp} onChange={e=>setGameMeta({...gameMeta, opp:e.target.value})} /></div>
+                                <div className="space-y-1"><label className="text-[9px] font-bold text-zinc-500 uppercase">Opponent <span className="text-red-500">*</span></label><input className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" value={gameMeta.opp} onChange={e=>setGameMeta({...gameMeta, opp:e.target.value})} placeholder="Required..." /></div>
                                 <div className="space-y-1"><label className="text-[9px] font-bold text-zinc-500 uppercase">Opp Score</label><input type="number" className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" value={gameMeta.oppScore} onChange={e=>setGameMeta({...gameMeta, oppScore:parseInt(e.target.value)||0})} /></div>
                                 <div className="space-y-1"><label className="text-[9px] font-bold text-zinc-500 uppercase">Date</label><input type="date" className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" value={gameMeta.date} onChange={e=>setGameMeta({...gameMeta, date:e.target.value})} /></div>
                                 <div className="space-y-1"><label className="text-[9px] font-bold text-zinc-500 uppercase">Venue</label><select className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" value={gameMeta.venue} onChange={e=>setGameMeta({...gameMeta, venue:e.target.value})}><option>Home</option><option>Away</option></select></div>
@@ -409,10 +486,10 @@
                                 <div className="lg:col-span-8 bento-card">
                                     <div className="flex justify-between mb-4"><h3 className="font-black text-gold uppercase">Input</h3><div className="flex bg-black rounded border border-zinc-800 p-1"><button onClick={()=>setShotMode('make')} className={`px-3 py-1 text-[10px] font-black uppercase rounded ${shotMode==='make'?'bg-green-600 text-white':'text-zinc-500'}`}>Make</button><button onClick={()=>setShotMode('miss')} className={`px-3 py-1 text-[10px] font-black uppercase rounded ${shotMode==='miss'?'bg-red-600 text-white':'text-zinc-500'}`}>Miss</button></div></div>
                                     <InteractiveCourt data={shotMap.eagles} mode={shotMode} onClick={(z,m)=>{const c=shotMap.eagles[z]||{m:0,x:0};setShotMap({...shotMap,eagles:{...shotMap.eagles,[z]:{m:c.m+(m?1:0),x:c.x+(m?0:1)}}})}} />
-                                    <div className="overflow-x-auto mt-4"><table className="w-full text-xs"><thead><tr className="text-zinc-500 border-b border-zinc-800"><th className="p-2 text-left">PLAYER</th>{STAT_FIELDS.map(f=><th key={f} className="p-1 uppercase text-center">{f.replace('fg','').replace('m','')}</th>)}</tr></thead><tbody>{ROSTER.map(p=>{const s=playerStats[p.name]||{};return(<tr key={p.id} className="border-b border-white/5"><td className="p-2 font-bold whitespace-nowrap">{p.name}</td>{STAT_FIELDS.map(f=><td key={f} className="p-1"><input type="number" className="stat-input" value={s[f]||''} onChange={e=>setPlayerStats({...playerStats,[p.name]:{...s,[f]:parseInt(e.target.value)||0}})}/></td>)}</tr>)})}</tbody></table></div>
+                                    <div className="overflow-x-auto mt-4"><table className="w-full text-xs"><thead><tr className="text-zinc-500 border-b border-zinc-800"><th className="p-2 text-left">PLAYER</th>{STAT_FIELDS.map(f=><th key={f} className="p-1 uppercase text-center">{f.replace('fg','').replace('m','')}</th>)}</tr></thead><tbody>{ROSTER.map(p=>{const s=playerStats[p.name]||{};return(<tr key={p.id} className="border-b border-white/5"><td className="p-2 font-bold whitespace-nowrap">{p.name}</td>{STAT_FIELDS.map(f=><td key={f} className="p-1"><input type="number" className="stat-input" value={s[f]||''} onChange={e=>updatePlayerStat(p.name, f, e.target.value)}/></td>)}</tr>)})}</tbody></table></div>
                                 </div>
                             </div>
-                            <button onClick={saveGame} className="w-full py-4 bg-gold hover:bg-white text-black font-black uppercase text-xl rounded-xl shadow-lg transition-all">Save Game</button>
+                            <button onClick={validateAndSave} className="w-full py-4 bg-gold hover:bg-white text-black font-black uppercase text-xl rounded-xl shadow-lg transition-all">Save Game</button>
                         </div>
                     )}
 
