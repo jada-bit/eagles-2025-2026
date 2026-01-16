@@ -229,6 +229,82 @@
                 return alerts;
             };
 
+            // --- ADMIN ACTIONS ---
+            const exportData = () => {
+                if(!games.length) return alert("No data to export.");
+                const headers = ['date', 'opp', 'teamScore', 'oppScore', 'result', 'venue', 'stats', 'shotMap', 'playStats'];
+                const csvContent = "data:text/csv;charset=utf-8," 
+                    + [headers.join(','), ...games.map(g => headers.map(h => {
+                        let val = g[h];
+                        if (typeof val === 'object') { val = JSON.stringify(val).replace(/"/g, '""'); return `"${val}"`; }
+                        return `"${val}"`;
+                    }).join(','))].join('\n');
+                const link = document.createElement("a");
+                link.setAttribute("href", encodeURI(csvContent));
+                link.setAttribute("download", `eagles_backup_${new Date().toISOString().split('T')[0]}.csv`);
+                document.body.appendChild(link);
+                link.click();
+            };
+
+            const importData = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    try {
+                        const text = event.target.result;
+                        const rows = text.split('\n');
+                        const headers = rows[0].split(',');
+                        let importedCount = 0;
+                        
+                        // Simple CSV regex parser to handle quoted JSON strings
+                        const parseCSVRow = (row) => {
+                            const regex = /(?:,|\n|^)("(?:(?:"")*[^"]*)*"|[^",\n]*|(?:\n|$))/g;
+                            const matches = []; 
+                            let match;
+                            while(match = regex.exec(row)) {
+                                let val = match[1];
+                                if(val.startsWith('"') && val.endsWith('"')) {
+                                    val = val.substring(1, val.length-1).replace(/""/g, '"');
+                                }
+                                if(match[0].startsWith(',')) matches.push(val);
+                                else if (matches.length === 0) matches.push(val);
+                            }
+                            return matches;
+                        };
+
+                        for (let i = 1; i < rows.length; i++) {
+                            if (!rows[i].trim()) continue;
+                            const vals = parseCSVRow(rows[i]);
+                            const payload = {};
+                            headers.forEach((h, index) => {
+                                const key = h.trim();
+                                let val = vals[index];
+                                if (['stats','shotMap','playStats'].includes(key)) {
+                                    try { val = JSON.parse(val); } catch(e) { val = []; }
+                                }
+                                if(['teamScore','oppScore'].includes(key)) val = parseInt(val) || 0;
+                                payload[key] = val;
+                            });
+                            payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+                            await db.collection('games').add(payload);
+                            importedCount++;
+                        }
+                        alert(`Successfully restored ${importedCount} games!`);
+                    } catch (err) { alert("Error importing CSV: " + err.message); }
+                };
+                reader.readAsText(file);
+            };
+
+            const purgeData = async () => {
+                if(!confirm("⚠️ DANGER: ARE YOU SURE?\n\nThis will DELETE ALL GAMES from the cloud database.\nThis action cannot be undone.")) return;
+                const snap = await db.collection('games').get();
+                const batch = db.batch();
+                snap.docs.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+                alert("Database Purged.");
+            };
+
             // --- ACTIONS ---
             const saveGame = async () => {
                 if(!db) return alert("Offline Mode");
@@ -278,7 +354,7 @@
                             <h1 className="text-xl font-black italic uppercase">Eagles <span className="text-gold">Analytics</span></h1>
                         </div>
                         <nav className="flex gap-1 overflow-x-auto w-full md:w-auto pb-1 no-scrollbar">
-                            {['clipboard', 'new', 'tactics', 'stats', 'trends', 'profiles', 'log'].map(t => (
+                            {['clipboard', 'new', 'tactics', 'stats', 'trends', 'profiles', 'log', 'admin'].map(t => (
                                 <button key={t} onClick={()=>setView(t)} className={`nav-btn ${view===t?'active-nav':'inactive-nav'}`}>{t}</button>
                             ))}
                         </nav>
@@ -400,6 +476,36 @@
                     {/* --- VIEW: LOG --- */}
                     {view === 'log' && (
                         <div className="grid gap-4">{games.map(g=><div key={g.id} className="bento-card flex justify-between items-center"><div><div className="text-xs font-bold text-zinc-500">{g.date}</div><div className="text-xl font-black italic">{g.result} vs {g.opp}</div></div><button onClick={()=>{setEditId(g.id);setGameMeta({date:g.date,opp:g.opp,oppScore:g.oppScore,venue:g.venue});setPlayStats(g.playStats||[]);const sm={};g.stats.forEach(s=>sm[s.name]=s);setPlayerStats(sm);setShotMap(g.shotMap||{eagles:{},opp:{}});setView('new');}} className="bg-zinc-800 text-xs font-bold uppercase p-2 rounded hover:bg-white hover:text-black">Edit</button></div>)}</div>
+                    )}
+
+                    {/* --- VIEW: ADMIN --- */}
+                    {view === 'admin' && (
+                        <div className="space-y-6 animate-slideIn">
+                            <h2 className="text-2xl font-black italic uppercase text-gold">System Admin</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="bento-card hover:bg-zinc-900 transition flex flex-col items-center text-center">
+                                    <div className="text-4xl mb-4">📥</div>
+                                    <h3 className="font-bold text-lg mb-2">Backup Database</h3>
+                                    <p className="text-xs text-zinc-500 mb-4">Export all games, shots, and stats to a CSV file.</p>
+                                    <button onClick={exportData} className="w-full py-2 bg-blue-600 rounded font-bold uppercase text-xs hover:bg-blue-500">Download CSV</button>
+                                </div>
+                                <div className="bento-card hover:bg-zinc-900 transition flex flex-col items-center text-center">
+                                    <div className="text-4xl mb-4">📤</div>
+                                    <h3 className="font-bold text-lg mb-2">Restore Data</h3>
+                                    <p className="text-xs text-zinc-500 mb-4">Import games from a backup CSV file.</p>
+                                    <label className="w-full py-2 bg-zinc-700 rounded font-bold uppercase text-xs hover:bg-zinc-600 cursor-pointer">
+                                        Select File
+                                        <input type="file" accept=".csv" className="hidden" onChange={importData} />
+                                    </label>
+                                </div>
+                                <div className="bento-card hover:bg-red-900/10 border-red-900/50 flex flex-col items-center text-center">
+                                    <div className="text-4xl mb-4">🗑️</div>
+                                    <h3 className="font-bold text-lg mb-2 text-red-500">Purge Database</h3>
+                                    <p className="text-xs text-zinc-500 mb-4">Permanently delete all records from the cloud.</p>
+                                    <button onClick={purgeData} className="w-full py-2 bg-red-600 rounded font-bold uppercase text-xs hover:bg-red-500">Purge All</button>
+                                </div>
+                            </div>
+                        </div>
                     )}
                 </div>
             );
