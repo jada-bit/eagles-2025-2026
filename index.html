@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eagles Basketball - Elite Analytics Platform</title>
+    <title>Eagles Command - Tactical Intelligence Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -19,20 +19,20 @@
         .bg-gold { background-color: var(--gold); }
         .border-gold { border-color: var(--gold); }
         
-        /* Bento Grid & Card Styles */
-        .bento-card { background: rgba(15, 15, 15, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 24px; padding: 1.5rem; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .bento-card:hover { border-color: var(--gold); transform: translateY(-2px); box-shadow: 0 20px 40px -20px rgba(255, 184, 28, 0.2); }
+        /* Bento Layout */
+        .bento-card { background: rgba(15, 15, 15, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 20px; padding: 1.5rem; transition: 0.3s; position: relative; overflow: hidden; }
+        .bento-card:hover { border-color: var(--gold); transform: translateY(-3px); box-shadow: 0 20px 40px -20px rgba(255, 184, 28, 0.2); }
 
         /* Navigation */
-        .nav-btn { font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 12px 20px; border-radius: 9999px; transition: 0.2s; white-space: nowrap; border: 1px solid transparent; }
-        .active-nav { background-color: var(--gold); color: black; box-shadow: 0 0 20px rgba(255, 184, 28, 0.3); }
+        .nav-btn { font-size: 9px; font-weight: 800; text-transform: uppercase; padding: 12px 18px; border-radius: 9999px; transition: 0.2s; white-space: nowrap; border: 1px solid transparent; }
+        .active-nav { background-color: var(--gold); color: black; box-shadow: 0 0 15px rgba(255, 184, 28, 0.3); }
         .inactive-nav { color: #555; border-color: #1a1a1a; }
         .inactive-nav:hover { color: white; background: rgba(255,255,255,0.05); }
 
-        /* Interactive SVG Court */
-        .court-svg { width: 100%; max-width: 500px; display: block; margin: 0 auto; filter: drop-shadow(0 0 20px rgba(255,184,28,0.05)); }
-        .zone { cursor: pointer; transition: all 0.2s; opacity: 0.15; stroke: rgba(255,255,255,0.2); stroke-width: 0.2; fill: transparent; }
-        .zone:hover { opacity: 0.6; fill: var(--gold); }
+        /* Interactive Court */
+        .court-svg { width: 100%; max-width: 450px; display: block; margin: 0 auto; filter: drop-shadow(0 0 15px rgba(255,184,28,0.05)); }
+        .zone { cursor: pointer; transition: 0.2s; opacity: 0.15; stroke: rgba(255,255,255,0.2); stroke-width: 0.3; fill: transparent; }
+        .zone:hover { opacity: 0.7; fill: var(--gold); }
         .zone-label { font-size: 2.2px; font-weight: 900; fill: rgba(255,255,255,0.4); pointer-events: none; text-anchor: middle; text-transform: uppercase; }
 
         /* Heatmap Grades */
@@ -41,28 +41,26 @@
         .heat-avg { fill: var(--gold); opacity: 0.5; }
         .heat-poor { fill: var(--red); opacity: 0.6; }
 
-        /* Custom UI Components */
-        .stat-input { width: 44px; background: #000; border: 1px solid #222; border-radius: 6px; padding: 4px; text-align: center; font-size: 0.75rem; color: white; font-weight: bold; }
-        .stat-input:focus { border-color: var(--gold); outline: none; box-shadow: 0 0 10px rgba(255, 184, 28, 0.1); }
+        /* Progress Logic */
         .progress-bar { height: 10px; background: #111; border-radius: 5px; overflow: hidden; margin-top: 8px; }
         .progress-fill { height: 100%; transition: width 1s ease-in-out; }
+        
+        .stat-input { width: 44px; background: #000; border: 1px solid #222; border-radius: 6px; padding: 4px; text-align: center; font-size: 0.75rem; color: white; font-weight: bold; }
+        .stat-input:focus { border-color: var(--gold); outline: none; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        
+        @media print { .no-print { display: none; } .print-only { display: block !important; } body { background: white; color: black; } }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        // --- FIREBASE CONFIG ---
-        const firebaseConfig = { 
-            apiKey: "AIzaSyA5H5SsumWG7bym_0EZ7jOlfWeswpSauhk", 
-            projectId: "eagles-stats", 
-            appId: "1:386723096734:web:b50e343c703983e838b38f" 
-        };
+        // --- 1. SETUP ---
+        const firebaseConfig = { apiKey: "AIzaSyA5H5SsumWG7bym_0EZ7jOlfWeswpSauhk", projectId: "eagles-stats", appId: "1:386723096734:web:b50e343c703983e838b38f" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // --- CONSTANTS ---
         const ROSTER = [
             {id: 5, name: "Natasha Mistry", pos: "PG"}, {id: 3, name: "Mikayla Sanders", pos: "PG"}, 
             {id: 22, name: "Christina Lisack", pos: "PG/G"}, {id: 1, name: "Brittney Tang", pos: "G"},
@@ -75,23 +73,23 @@
         const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','blk','to'];
         const ZONES = ['paint', 'ml', 'mr', '3lc', '3lw', '3t', '3rw', '3rc'];
 
-        // --- COMPONENTS ---
+        // --- 2. MAIN APP ---
         function App() {
             const [view, setView] = React.useState('clipboard');
             const [games, setGames] = React.useState([]);
             const [loading, setLoading] = React.useState(true);
+            const [editId, setEditId] = React.useState(null);
 
-            // New Game Entry State
-            const [editingId, setEditingId] = React.useState(null);
+            // Entry State
             const [gameMeta, setGameMeta] = React.useState({ date: '', opp: '', oppScore: 0, venue: 'Away' });
             const [playerStats, setPlayerStats] = React.useState({});
-            const [shotMap, setShotMap] = React.useState({ 
-                eagles: ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}),
-                opp: ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {})
-            });
+            const [shotMap, setShotMap] = React.useState({ eagles: ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}), opp: ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}) });
             const [plays, setPlays] = React.useState([{ name: '', run: 0, scored: 0, pts: 0 }]);
+            
+            // Analytics State
+            const [compareP, setCompareP] = React.useState({ p1: ROSTER[0].name, p2: ROSTER[1].name });
+            const [profileP, setProfileP] = React.useState(ROSTER[0].name);
 
-            // Real-time Cloud Subscription
             React.useEffect(() => {
                 const unsub = db.collection('games').orderBy('date', 'desc').onSnapshot(snap => {
                     setGames(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -100,115 +98,79 @@
                 return () => unsub();
             }, []);
 
-            // --- DATA HANDLERS ---
-            const handleStatChange = (player, field, val) => {
-                const v = parseInt(val) || 0;
-                // Validation Layer: Makes <= Attempts
-                if (field.endsWith('m')) {
-                    const att = field.replace('m', 'a');
-                    if (v > (playerStats[player]?.[att] || 0)) return;
-                }
-                setPlayerStats(prev => ({ ...prev, [player]: { ...prev[player], [field]: v } }));
-            };
-
-            const saveGame = async () => {
-                if (!gameMeta.date || !gameMeta.opp) return alert("Required: Date and Opponent");
-                let tScore = 0;
-                const stats = ROSTER.map(p => {
-                    const s = playerStats[p.name] || {};
-                    const pts = ((s.fg2m||0)*2) + ((s.fg3m||0)*3) + (s.ftm||0);
-                    tScore += pts;
-                    return { ...p, ...s, pts };
+            // --- 3. ANALYTICS ENGINE ---
+            const aggregate = React.useMemo(() => {
+                const data = ROSTER.reduce((acc, p) => ({ ...acc, [p.name]: { gp:0, pts:0, reb:0, ast:0, stl:0, blk:0, to:0, m3:0, a3:0, m2:0, a2:0, ftm:0, fta:0 } }), {});
+                games.forEach(g => {
+                    g.stats.forEach(s => {
+                        const p = data[s.name]; if(!p) return;
+                        p.gp++; p.pts += s.pts; p.reb += s.reb; p.ast += s.ast; p.stl += s.stl; p.blk += s.blk; p.to += s.to;
+                        p.m3 += s.fg3m; p.a3 += s.fg3a; p.m2 += s.fg2m; p.a2 += s.fg2a; p.ftm += s.ftm; p.fta += s.fta;
+                    });
                 });
+                return data;
+            }, [games]);
 
-                const payload = {
-                    ...gameMeta, teamScore: tScore, stats, shotMap, plays: plays.filter(p => p.name),
-                    result: tScore > gameMeta.oppScore ? 'W' : (tScore < gameMeta.oppScore ? 'L' : 'T'),
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                };
-
-                try {
-                    if (editingId) await db.collection('games').doc(editingId).update(payload);
-                    else await db.collection('games').add(payload);
-                    alert("Sync Success! 🦅");
-                    resetForm();
-                    setView('log');
-                } catch (e) { alert("Cloud Error: Check connectivity."); }
+            // --- 4. DATA LOGIC (Verifying CSV Upload Compatibility) ---
+            const saveGame = async () => {
+                if (!gameMeta.date || !gameMeta.opp) return alert("Missing Header Data.");
+                const teamScore = ROSTER.reduce((acc, p) => acc + (((playerStats[p.name]?.fg2m||0)*2) + ((playerStats[p.name]?.fg3m||0)*3) + (playerStats[p.name]?.ftm||0)), 0);
+                const stats = ROSTER.map(p => ({ ...p, ...playerStats[p.name], pts: (((playerStats[p.name]?.fg2m||0)*2) + ((playerStats[p.name]?.fg3m||0)*3) + (playerStats[p.name]?.ftm||0)) }));
+                const payload = { ...gameMeta, teamScore, stats, shotMap, plays: plays.filter(p => p.name), result: teamScore > gameMeta.oppScore ? 'W' : (teamScore < gameMeta.oppScore ? 'L' : 'T'), updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+                
+                if (editId) await db.collection('games').doc(editId).update(payload);
+                else await db.collection('games').add(payload);
+                alert("Cloud Sync Successful!"); setEditId(null); resetForm(); setView('log');
             };
 
             const resetForm = () => {
-                setEditingId(null); setGameMeta({ date: '', opp: '', oppScore: 0, venue: 'Away' });
-                setPlayerStats({}); setShotMap({ eagles: ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}), opp: ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}) });
-                setPlays([{ name: '', run: 0, scored: 0, pts: 0 }]);
+                setGameMeta({ date: '', opp: '', oppScore: 0, venue: 'Away' }); setPlayerStats({}); setPlays([{ name: '', run: 0, scored: 0, pts: 0 }]);
+                setShotMap({ eagles: ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}), opp: ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}) });
             };
 
-            // --- IMPORT/EXPORT WITH REGEX FIX ---
-            const exportToCSV = () => {
-                if (!games.length) return alert("No data to export.");
-                const headers = ["date", "opp", "oppScore", "venue", "teamScore", "result", "player", "2pm", "2pa", "3pm", "3pa", "ftm", "fta", "reb", "ast", "stl", "blk", "to", "pts", "setplays_json", "shotmap_json"];
-                let csvRows = [headers.join(",")];
-
-                games.forEach(g => {
-                    const sp = JSON.stringify(g.plays || []).replace(/"/g, '""');
-                    const sm = JSON.stringify(g.shotMap || {}).replace(/"/g, '""');
-                    g.stats.forEach(s => {
-                        const row = [g.date, g.opp, g.oppScore, g.venue, g.teamScore, g.result, s.name, s.fg2m||0, s.fg2a||0, s.fg3m||0, s.fg3a||0, s.ftm||0, s.fta||0, s.reb||0, s.ast||0, s.stl||0, s.blk||0, s.to||0, s.pts||0, `"${sp}"`, `"${sm}"`];
-                        csvRows.push(row.join(","));
-                    });
-                });
-
-                const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a"); a.href = url; a.download = "EAGLES_MASTER_BACKUP.csv"; a.click();
-            };
-
-            const importFromCSV = (e) => {
-                const file = e.target.files[0]; if (!file) return;
+            const importCSV = (e) => {
+                const file = e.target.files[0]; if(!file) return;
                 const reader = new FileReader();
                 reader.onload = async (ev) => {
                     try {
-                        const text = ev.target.result;
-                        const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/; // Robust CSV Splitter
-                        const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
+                        const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/; // Verification: Ignores commas inside JSON quotes
+                        const lines = ev.target.result.split(/\r?\n/).filter(l => l.trim() !== "");
                         const heads = lines[0].split(regex).map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
-                        
-                        const batch = db.batch();
-                        const gMap = {};
+                        const batch = db.batch(); const gMap = {};
 
-                        for (let i = 1; i < lines.length; i++) {
-                            const vals = lines[i].split(regex).map(v => v.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
-                            const row = {}; heads.forEach((h, idx) => row[h] = vals[idx]);
-                            const key = `${row.date}_${row.opp}`;
-
-                            if (!gMap[key]) {
-                                gMap[key] = {
-                                    date: row.date, opp: row.opp, oppScore: parseInt(row.oppscore)||0, venue: row.venue||'Away', teamScore: parseInt(row.teamscore)||0, result: row.result||'L',
-                                    stats: [], plays: row.setplays_json ? JSON.parse(row.setplays_json) : [], shotMap: row.shotmap_json ? JSON.parse(row.shotmap_json) : {},
-                                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                                };
+                        for(let i=1; i<lines.length; i++) {
+                            const v = lines[i].split(regex).map(x => x.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
+                            const d = {}; heads.forEach((h,idx)=> d[h] = v[idx]);
+                            const opponent = d.opponent || d.opp; // Verification: Maps "Opponent" header from your file
+                            const k = `${d.date}_${opponent}`;
+                            if(!gMap[k]) {
+                                gMap[k] = { date:d.date, opp:opponent, oppScore:parseInt(d.oppscore)||0, venue:d.venue||'Away', stats:[], plays: JSON.parse(d.setplays_json || d.plays_json || "[]"), shotMap: JSON.parse(d.shotmap_json || d.map_json || '{"eagles":{},"opp":{}}') };
                             }
-                            gMap[key].stats.push({ name: row.player, fg2m: parseInt(row['2pm'])||0, fg2a: parseInt(row['2pa'])||0, fg3m: parseInt(row['3pm'])||0, fg3a: parseInt(row['3pa'])||0, ftm: parseInt(row.ftm)||0, fta: parseInt(row.fta)||0, reb: parseInt(row.reb)||0, ast: parseInt(row.ast)||0, stl: parseInt(row.stl)||0, blk: parseInt(row.blk)||0, to: parseInt(row.to)||0, pts: parseInt(row.pts)||0 });
+                            gMap[k].stats.push({ name:d.player, fg2m:parseInt(d['2pm'])||0, fg2a:parseInt(d['2pa'])||0, fg3m:parseInt(d['3pm'])||0, fg3a:parseInt(d['3pa'])||0, ftm:parseInt(d.ftm)||0, fta:parseInt(d.fta)||0, reb:parseInt(d.reb)||0, ast:parseInt(d.ast)||0, stl:parseInt(d.stl)||0, blk:parseInt(d.blk)||0, to:parseInt(d.to)||0, pts:parseInt(d.pts)||0 });
                         }
-
-                        Object.values(gMap).forEach(doc => batch.set(db.collection('games').doc(), doc));
-                        await batch.commit();
-                        alert("Database Restored Successfully."); window.location.reload();
-                    } catch (err) { alert("Import Failed: Check CSV Formatting."); }
+                        Object.values(gMap).forEach(doc => {
+                            doc.teamScore = doc.stats.reduce((a,c)=>a+c.pts, 0);
+                            doc.result = doc.teamScore > doc.oppScore ? 'W' : 'L';
+                            batch.set(db.collection('games').doc(), doc);
+                        });
+                        await batch.commit(); alert("Production Database Restored!"); window.location.reload();
+                    } catch (err) { alert("Import Failure: Check CSV quote escaping."); }
                 };
                 reader.readAsText(file);
             };
 
-            if (loading) return <div className="h-screen flex flex-col items-center justify-center bg-black"><div className="text-gold text-4xl font-black italic tracking-tighter animate-pulse mb-4">EAGLES CLOUD</div><div className="text-white text-[10px] font-bold uppercase tracking-[0.5em]">Authenticating Season Analytics</div></div>;
+            if (loading) return <div className="h-screen flex flex-col items-center justify-center bg-black text-gold font-black italic tracking-tighter text-5xl animate-pulse">EAGLES COMMAND</div>;
 
             return (
-                <div className="pb-20">
-                    <header className="sticky top-0 z-[100] bg-black/80 backdrop-blur-xl border-b border-white/10 p-6 shadow-2xl">
-                        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-6">
+                <div className="min-h-screen">
+                    {/* PROFESSIONAL HEADER */}
+                    <header className="sticky top-0 z-[100] bg-black/80 backdrop-blur-xl border-b border-white/5 p-4 xl:p-6 shadow-2xl no-print">
+                        <div className="max-w-7xl mx-auto flex flex-col xl:flex-row justify-between items-center gap-6">
                             <div className="flex items-center gap-4">
-                                <div className="bg-white w-12 h-12 rounded-full flex items-center justify-center border-2 border-gold transform -rotate-3 shadow-gold/20 shadow-lg"><span className="text-2xl">🦅</span></div>
-                                <div><h1 className="text-3xl font-black uppercase italic tracking-tighter">Eagles <span className="text-gold">Analytics</span></h1><p className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-500">2026 Varsity Performance Platform</p></div>
+                                <div className="bg-white w-12 h-12 rounded-full flex items-center justify-center border-2 border-gold shadow-lg transform -rotate-3"><span className="text-2xl">🦅</span></div>
+                                <div><h1 className="text-3xl font-black uppercase italic tracking-tighter leading-none">Eagles <span className="text-gold">Analytics</span></h1><p className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-500 mt-1">Full-Stack Tactical Intelligence v2026</p></div>
                             </div>
-                            <nav className="flex gap-2 overflow-x-auto no-scrollbar w-full lg:w-auto pb-2">
+                            <nav className="flex gap-1 overflow-x-auto no-scrollbar w-full xl:w-auto pb-2">
                                 {['new','trends','tactics','defense','clipboard','goals','stats','compare','log','profiles','settings'].map(t => (
                                     <button key={t} onClick={() => setView(t)} className={`nav-btn ${view === t ? 'active-nav' : 'inactive-nav'}`}>{t}</button>
                                 ))}
@@ -216,209 +178,238 @@
                         </div>
                     </header>
 
-                    <main className="max-w-7xl mx-auto p-4 md:p-10 animate-fadeIn">
+                    <main className="max-w-7xl mx-auto p-4 md:p-10">
                         
-                        {/* MODULE: CLIPBOARD (BENTO OVERVIEW) */}
+                        {/* VIEW: CLIPBOARD */}
                         {view === 'clipboard' && (
-                            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                                <BentoStat label="Record" value={`${games.filter(g=>g.result==='W').length}-${games.filter(g=>g.result==='L').length}`} sub="Season W-L" />
-                                <BentoStat label="Team PPG" value={games.length ? (games.reduce((a,b)=>a+b.teamScore,0)/games.length).toFixed(1) : '0.0'} color="text-gold" />
-                                <BentoStat label="Opp PPG" value={games.length ? (games.reduce((a,b)=>a+b.oppScore,0)/games.length).toFixed(1) : '0.0'} color="text-red-500" />
-                                <BentoStat label="Stocks PG" value={games.length ? (games.reduce((a,b)=>a+b.stats.reduce((x,y)=>x+(y.stl+y.blk),0),0)/games.length).toFixed(1) : '0.0'} />
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-pop">
+                                <SummaryBento label="Season Record" value={`${games.filter(g=>g.result==='W').length}-${games.filter(g=>g.result==='L').length}`} sub="Overall Record" />
+                                <SummaryBento label="Points Per Game" value={games.length ? (games.reduce((a,b)=>a+b.teamScore,0)/games.length).toFixed(1) : '0.0'} color="text-gold" />
+                                <SummaryBento label="Opp PPG" value={games.length ? (games.reduce((a,b)=>a+b.oppScore,0)/games.length).toFixed(1) : '0.0'} color="text-red-500" />
+                                <SummaryBento label="Stocks PG" value={games.length ? (games.reduce((a,b)=>a+b.stats.reduce((x,y)=>x+(y.stl+y.blk),0),0)/games.length).toFixed(1) : '0.0'} />
                                 
-                                <div className="lg:col-span-2 md:col-span-3 bento-card border-t-4 border-t-gold">
-                                    <h3 className="text-lg font-black uppercase italic mb-6 tracking-widest text-gold border-b border-white/5 pb-2">Season Leaders</h3>
+                                <div className="md:col-span-2 lg:col-span-2 bento-card border-t-4 border-gold">
+                                    <h3 className="text-gold font-black uppercase italic mb-6 text-xl border-b border-white/5 pb-2">Top Performance Trends</h3>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <MiniLeader title="Scoring" data={Object.values(ROSTER).map(p => {
-                                            const total = games.reduce((acc, g) => acc + (g.stats.find(s=>s.name===p.name)?.pts || 0), 0);
-                                            return { name: p.name, val: (total / (games.filter(g=>g.stats.some(s=>s.name===p.name)).length || 1)).toFixed(1) };
-                                        }).sort((a,b)=>b.val-a.val).slice(0,3)} unit="PPG" />
-                                        <MiniLeader title="Boards" data={Object.values(ROSTER).map(p => {
-                                            const total = games.reduce((acc, g) => acc + (g.stats.find(s=>s.name===p.name)?.reb || 0), 0);
-                                            return { name: p.name, val: (total / (games.filter(g=>g.stats.some(s=>s.name===p.name)).length || 1)).toFixed(1) };
-                                        }).sort((a,b)=>b.val-a.val).slice(0,3)} unit="RPG" />
+                                        <MiniList title="Scorers" unit="PPG" data={Object.entries(aggregate).map(([n, d]) => ({ name:n, val: (d.pts/d.gp).toFixed(1) })).sort((a,b)=>b.val-a.val).slice(0,3)} />
+                                        <MiniList title="Board Crashers" unit="RPG" data={Object.entries(aggregate).map(([n, d]) => ({ name:n, val: (d.reb/d.gp).toFixed(1) })).sort((a,b)=>b.val-a.val).slice(0,3)} />
+                                    </div>
+                                </div>
+                                <div className="md:col-span-2 bento-card border-t-4 border-blue-500">
+                                    <h3 className="text-blue-400 font-black uppercase italic mb-6 text-xl border-b border-white/5 pb-2">Play Efficiency (PPP)</h3>
+                                    <div className="space-y-3">
+                                        {Object.entries(games.reduce((acc, g) => { g.plays.forEach(p => { if(!acc[p.name]) acc[p.name]={r:0,p:0}; acc[p.name].r+=p.run; acc[p.name].p+=p.pts; }); return acc; }, {})).sort((a,b)=> (b[1].p/b[1].r)-(a[1].p/a[1].r)).slice(0,3).map(([n, d]) => (
+                                            <div key={n} className="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-white/5">
+                                                <span className="font-bold text-zinc-400">{n}</span>
+                                                <span className="font-black text-blue-400 italic">{(d.p/d.r).toFixed(2)} <span className="text-[7px] text-zinc-700">PPP</span></span>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
                         )}
 
-                        {/* MODULE: NEW GAME ENTRY */}
+                        {/* VIEW: NEW GAME */}
                         {view === 'new' && (
-                            <div className="space-y-8">
+                            <div className="space-y-8 animate-pop">
                                 <div className="bento-card grid grid-cols-1 md:grid-cols-4 gap-6">
-                                    <div className="space-y-1"><label className="text-[10px] uppercase font-black text-zinc-500">Game Date</label><input type="date" value={gameMeta.date} onChange={e=>setGameMeta({...gameMeta, date: e.target.value})} className="w-full bg-black border border-white/10 p-3 rounded-xl text-sm" /></div>
-                                    <div className="space-y-1"><label className="text-[10px] uppercase font-black text-gold">Opponent</label><input type="text" value={gameMeta.opp} onChange={e=>setGameMeta({...gameMeta, opp: e.target.value.toUpperCase()})} placeholder="Opponent" className="w-full bg-black border border-white/10 p-3 rounded-xl text-sm font-black uppercase tracking-tighter" /></div>
-                                    <div className="space-y-1"><label className="text-[10px] uppercase font-black text-red-500">Opp Score</label><input type="number" value={gameMeta.oppScore} onChange={e=>setGameMeta({...gameMeta, oppScore: parseInt(e.target.value)||0})} className="w-full bg-black border border-white/10 p-3 rounded-xl text-sm font-black" /></div>
-                                    <div className="space-y-1"><label className="text-[10px] uppercase font-black text-zinc-500">Venue</label><select value={gameMeta.venue} onChange={e=>setGameMeta({...gameMeta, venue: e.target.value})} className="w-full bg-black border border-white/10 p-3 rounded-xl text-sm font-black"><option>Away</option><option>Home</option></select></div>
+                                    <Field label="Date" type="date" value={gameMeta.date} onChange={e=>setGameMeta({...gameMeta, date:e.target.value})} />
+                                    <Field label="Opponent" value={gameMeta.opp} onChange={e=>setGameMeta({...gameMeta, opp:e.target.value.toUpperCase()})} />
+                                    <Field label="Opp Score" type="number" value={gameMeta.oppScore} onChange={e=>setGameMeta({...gameMeta, oppScore:parseInt(e.target.value)||0})} />
+                                    <div className="space-y-1"><label className="text-[10px] font-black uppercase text-zinc-500">Venue</label><select value={gameMeta.venue} onChange={e=>setGameMeta({...gameMeta, venue:e.target.value})} className="bg-black w-full border border-white/10 p-3 rounded-xl text-sm font-black uppercase"><option>Away</option><option>Home</option></select></div>
                                 </div>
-
-                                <div className="bento-card overflow-x-auto custom-scrollbar">
+                                <div className="bento-card overflow-x-auto no-scrollbar">
                                     <table className="w-full text-[11px] text-left">
-                                        <thead className="bg-zinc-950 text-gold uppercase font-black">
-                                            <tr><th className="p-4">Eagle</th>{STAT_FIELDS.map(f=><th key={f} className="p-2 text-center">{f}</th>)}<th className="p-2 text-right">PTS</th></tr>
-                                        </thead>
-                                        <tbody>
-                                            {ROSTER.map(p => (
-                                                <tr key={p.id} className="border-b border-white/5 hover:bg-white/5 transition">
-                                                    <td className="p-4 font-black whitespace-nowrap text-zinc-400"><span className="text-[9px] mr-2 text-zinc-600 font-bold">{p.pos}</span>{p.name}</td>
-                                                    {STAT_FIELDS.map(f => (
-                                                        <td key={f} className="p-1 text-center">
-                                                            <input type="number" value={playerStats[p.name]?.[f] || 0} onChange={e=>handleStatChange(p.name, f, e.target.value)} className="stat-input" />
-                                                        </td>
-                                                    ))}
-                                                    <td className="p-4 font-black text-gold text-right">{((playerStats[p.name]?.fg2m||0)*2)+((playerStats[p.name]?.fg3m||0)*3)+(playerStats[p.name]?.ftm||0)}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
+                                        <thead className="bg-zinc-950 text-gold font-black uppercase"><tr><th className="p-4">Eagle</th>{STAT_FIELDS.map(f=><th key={f} className="p-1 text-center">{f}</th>)}<th className="p-4 text-right">PTS</th></tr></thead>
+                                        <tbody>{ROSTER.map(p=>(
+                                            <tr key={p.id} className="border-b border-white/5 hover:bg-white/5 transition">
+                                                <td className="p-4 font-black whitespace-nowrap text-zinc-400"><span className="text-zinc-700 mr-2 text-[9px] font-bold">{p.pos}</span>{p.name}</td>
+                                                {STAT_FIELDS.map(f=><td key={f} className="p-1 text-center"><input type="number" className="stat-input" value={playerStats[p.name]?.[f]||0} onChange={e=>{
+                                                    const v = parseInt(e.target.value)||0; if(f.endsWith('m') && v > (playerStats[p.name]?.[f.replace('m','a')]||0)) return;
+                                                    setPlayerStats({...playerStats,[p.name]:{...playerStats[p.name],[f]:v}});
+                                                }}/></td>)}
+                                                <td className="p-4 font-black text-gold text-right">{((playerStats[p.name]?.fg2m||0)*2)+((playerStats[p.name]?.fg3m||0)*3)+(playerStats[p.name]?.ftm||0)}</td>
+                                            </tr>
+                                        ))}</tbody>
                                     </table>
                                 </div>
-
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                    <div className="bento-card text-center">
-                                        <h3 className="text-xl font-black uppercase italic mb-6 text-gold">Shot Tracker</h3>
-                                        <InteractiveCourt data={shotMap.eagles} onZoneClick={(z,m)=>setShotMap({...shotMap, eagles:{...shotMap.eagles, [z]:{m:shotMap.eagles[z].m+(m?1:0), x:shotMap.eagles[z].x+(m?0:1)}}})} />
-                                    </div>
-                                    <div className="bento-card flex flex-col">
-                                        <h3 className="text-xl font-black uppercase italic mb-4 text-gold">Tactical Sets</h3>
-                                        <div className="space-y-4 flex-1">
-                                            {plays.map((p,i) => (
-                                                <div key={i} className="flex gap-2">
-                                                    <input placeholder="Play Name" value={p.name} onChange={e=>{const n=[...plays]; n[i].name=e.target.value; setPlays(n)}} className="flex-1 bg-black border border-white/10 p-2 text-xs rounded-xl font-bold" />
-                                                    <input type="number" placeholder="Run" value={p.run} onChange={e=>{const n=[...plays]; n[i].run=parseInt(e.target.value)||0; setPlays(n)}} className="w-16 bg-black border border-white/10 p-2 text-xs rounded-xl text-center font-bold" />
-                                                    <input type="number" placeholder="Pts" value={p.pts} onChange={e=>{const n=[...plays]; n[i].pts=parseInt(e.target.value)||0; setPlays(n)}} className="w-16 bg-black border border-white/10 p-2 text-xs rounded-xl text-center font-bold" />
-                                                </div>
-                                            ))}
-                                            <button onClick={()=>setPlays([...plays, {name:'',run:0,scored:0,pts:0}])} className="text-[10px] font-black uppercase text-gold hover:underline transition">+ New Play Entry</button>
-                                        </div>
-                                        <div className="mt-8 p-6 bg-gold text-black rounded-2xl text-center">
-                                            <div className="text-[10px] font-black uppercase mb-1">Live Efficiency</div>
-                                            <div className="text-4xl font-black italic tracking-tighter">
-                                                {((shotMap.eagles.paint.m + shotMap.eagles['3t'].m) / (Math.max(1, shotMap.eagles.paint.m+shotMap.eagles.paint.x+shotMap.eagles['3t'].m+shotMap.eagles['3t'].x)) * 100).toFixed(1)}%
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <div className="bento-card text-center"><h3 className="text-xl font-black italic uppercase text-gold mb-6">Offensive Mapping</h3><InteractiveCourt data={shotMap.eagles} onClick={(z,m)=>setShotMap({...shotMap, eagles:{...shotMap.eagles,[z]:{m:shotMap.eagles[z].m+(m?1:0),x:shotMap.eagles[z].x+(m?0:1)}}})}/></div>
+                                    <div className="bento-card"><h3 className="text-xl font-black italic uppercase text-gold mb-6 border-b border-white/5 pb-2">Possession Outcomes</h3><div className="space-y-3">{plays.map((p,i)=>(<div key={i} className="flex gap-2"><input placeholder="Set Play" value={p.name} onChange={e=>{const n=[...plays];n[i].name=e.target.value;setPlays(n)}} className="flex-1 bg-black border border-white/10 p-2 text-xs rounded-xl font-bold"/><input type="number" placeholder="Run" value={p.run} onChange={e=>{const n=[...plays];n[i].run=parseInt(e.target.value)||0;setPlays(n)}} className="w-16 bg-black border border-white/10 p-2 text-xs rounded-xl text-center font-bold"/><input type="number" placeholder="Pts" value={p.pts} onChange={e=>{const n=[...plays];n[i].pts=parseInt(e.target.value)||0;setPlays(n)}} className="w-16 bg-black border border-white/10 p-2 text-xs rounded-xl text-center font-bold"/></div>))}<button onClick={()=>setPlays([...plays,{name:'',run:0,pts:0}])} className="text-[10px] font-black uppercase text-gold hover:underline transition">+ Log Sequence</button></div></div>
                                 </div>
-
-                                <button onClick={saveGame} className="w-full bg-gold text-black py-6 rounded-3xl font-black text-2xl uppercase shadow-gold/20 shadow-2xl hover:scale-[1.01] transition-transform">Sync Performance Record 🦅</button>
+                                <button onClick={saveGame} className="w-full bg-gold text-black py-6 rounded-3xl font-black text-2xl uppercase shadow-gold/30 shadow-2xl">Broadcast to Eagles Cloud 🦅</button>
                             </div>
                         )}
 
-                        {/* MODULE: LOG (HISTORY) */}
+                        {/* VIEW: LOG */}
                         {view === 'log' && (
-                            <div className="space-y-6">
+                            <div className="space-y-6 animate-pop">
                                 {games.map(g => (
-                                    <div key={g.id} className="bento-card flex flex-col lg:flex-row justify-between items-center border-l-8 border-l-gold group">
+                                    <div key={g.id} className="bento-card flex flex-col md:flex-row justify-between items-center group border-l-8 border-gold">
                                         <div className="flex items-center gap-10">
-                                            <div className={`w-20 h-20 rounded-2xl flex items-center justify-center text-4xl font-black italic ${g.result==='W'?'bg-gold text-black':'bg-zinc-900 text-zinc-600'}`}>{g.result}</div>
-                                            <div>
-                                                <div className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-2 italic">Official Log: {g.date}</div>
-                                                <div className="text-4xl font-black italic uppercase tracking-tighter">Eagles {g.teamScore}, {g.opp} {g.oppScore}</div>
-                                            </div>
+                                            <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl font-black italic bg-zinc-950 border border-white/5">{g.result}</div>
+                                            <div><div className="text-[10px] font-black uppercase text-zinc-500 tracking-widest italic">{g.date}</div><div className="text-4xl font-black italic uppercase tracking-tighter leading-none">Eagles {g.teamScore}, {g.opp} {g.oppScore}</div></div>
                                         </div>
-                                        <div className="flex gap-2 mt-6 lg:mt-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={()=>{setEditingId(g.id); setGameMeta({date:g.date, opp:g.opp, oppScore:g.oppScore, venue:g.venue}); setPlayerStats(g.stats.reduce((a,s)=>({...a,[s.name]:s}),{})); setShotMap(g.shotMap); setSetPlays(g.plays.length ? g.plays : [{name:'',run:0,pts:0}]); setView('new');}} className="px-6 py-3 bg-zinc-800 rounded-xl font-black uppercase text-xs hover:bg-gold hover:text-black transition">Modify</button>
-                                            <button onClick={async()=>{if(confirm('Purge record?')) await db.collection('games').doc(g.id).delete();}} className="px-6 py-3 bg-red-900/20 text-red-500 rounded-xl font-black uppercase text-xs border border-red-900">Delete</button>
+                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={()=>{setEditId(g.id); setGameMeta({date:g.date, opp:g.opp, oppScore:g.oppScore, venue:g.venue}); setPlayerStats(g.stats.reduce((a,s)=>({...a,[s.name]:s}),{})); setShotMap(g.shotMap); setPlays(g.plays.length ? g.plays : [{name:'',run:0,pts:0}]); setView('new');}} className="px-6 py-3 bg-zinc-800 rounded-xl font-black uppercase text-xs hover:bg-gold hover:text-black transition">Modify</button>
+                                            <button onClick={async()=>{if(confirm('Wipe record?')) await db.collection('games').doc(g.id).delete();}} className="px-6 py-3 bg-red-900/20 text-red-500 rounded-xl font-black uppercase text-xs border border-red-900">Delete</button>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         )}
 
-                        {/* MODULE: SETTINGS (ADMIN) */}
-                        {view === 'settings' && (
-                            <div className="max-w-2xl mx-auto space-y-8 animate-fadeIn">
-                                <div className="bento-card text-center border-t-8 border-t-gold p-12">
-                                    <h2 className="text-3xl font-black text-gold uppercase italic mb-2 tracking-tighter">Admin Control Panel</h2>
-                                    <p className="text-[10px] text-zinc-500 uppercase font-black tracking-[0.5em] mb-12">Eagles Data Migration & Integrity</p>
-                                    
-                                    <div className="grid grid-cols-1 gap-4">
-                                        <button onClick={exportToCSV} className="w-full bg-zinc-900 border border-white/5 p-6 rounded-2xl font-black uppercase text-xs flex justify-between items-center group">
-                                            <span>📥 Backup Cloud Data to CSV</span>
-                                            <span className="text-zinc-600 group-hover:text-gold transition">→</span>
-                                        </button>
-                                        
-                                        <label className="w-full bg-blue-900/20 border border-blue-900 text-blue-400 p-6 rounded-2xl font-black uppercase text-xs flex justify-between items-center group cursor-pointer transition hover:bg-blue-900/40">
-                                            <span>📤 Restore Season from Backup</span>
-                                            <input type="file" className="hidden" accept=".csv" onChange={importFromCSV} />
-                                            <span className="group-hover:translate-x-1 transition">→</span>
-                                        </label>
+                        {/* VIEW: COMPARE */}
+                        {view === 'compare' && (
+                            <div className="space-y-10 animate-pop">
+                                <div className="flex flex-col md:flex-row gap-6 items-center justify-center">
+                                    <select value={compareP.p1} onChange={e=>setCompareP({...compareP, p1:e.target.value})} className="bg-black border-2 border-gold p-4 rounded-2xl text-gold font-black uppercase text-xl outline-none w-full max-w-sm">{ROSTER.map(r=><option key={r.id}>{r.name}</option>)}</select>
+                                    <div className="text-3xl font-black italic text-zinc-800 tracking-widest">VS</div>
+                                    <select value={compareP.p2} onChange={e=>setCompareP({...compareP, p2:e.target.value})} className="bg-black border-2 border-gold p-4 rounded-2xl text-gold font-black uppercase text-xl outline-none w-full max-w-sm">{ROSTER.map(r=><option key={r.id}>{r.name}</option>)}</select>
+                                </div>
+                                <div className="bento-card space-y-8 py-10">
+                                    <ComparisonBar label="PPG" v1={(aggregate[compareP.p1]?.pts/aggregate[compareP.p1]?.gp||0).toFixed(1)} v2={(aggregate[compareP.p2]?.pts/aggregate[compareP.p2]?.gp||0).toFixed(1)} />
+                                    <ComparisonBar label="RPG" v1={(aggregate[compareP.p1]?.reb/aggregate[compareP.p1]?.gp||0).toFixed(1)} v2={(aggregate[compareP.p2]?.reb/aggregate[compareP.p2]?.gp||0).toFixed(1)} />
+                                    <ComparisonBar label="3PT %" v1={((aggregate[compareP.p1]?.m3/aggregate[compareP.p1]?.a3)*100||0).toFixed(1)} v2={((aggregate[compareP.p2]?.m3/aggregate[compareP.p2]?.a3)*100||0).toFixed(1)} />
+                                    <ComparisonBar label="TOPG" v1={(aggregate[compareP.p1]?.to/aggregate[compareP.p1]?.gp||0).toFixed(1)} v2={(aggregate[compareP.p2]?.to/aggregate[compareP.p2]?.gp||0).toFixed(1)} inverse={true} />
+                                </div>
+                            </div>
+                        )}
 
-                                        <div className="mt-12 pt-12 border-t border-white/5">
-                                            <button onClick={async()=>{if(confirm("⚠️ EXTREME WARNING: This will permanently wipe all cloud logs. Continue?")) { const s = await db.collection('games').get(); s.forEach(d=>d.ref.delete()); alert("Cloud Database Purged."); }}} className="w-full bg-red-950/20 text-red-500 border border-red-900 p-6 rounded-2xl font-black uppercase text-xs hover:bg-red-900 hover:text-white transition">⚠️ Purge Complete Cloud History</button>
+                        {/* VIEW: SETTINGS */}
+                        {view === 'settings' && (
+                            <div className="max-w-2xl mx-auto py-20 animate-pop">
+                                <div className="bento-card text-center border-t-8 border-gold p-12">
+                                    <h2 className="text-3xl font-black text-gold uppercase italic mb-8">Data Governance</h2>
+                                    <div className="flex flex-col gap-4">
+                                        <button onClick={exportCSV} className="w-full bg-zinc-900 border border-white/5 p-6 rounded-2xl font-black uppercase text-xs hover:bg-zinc-800 transition">📥 Backup All Logs to CSV</button>
+                                        <label className="w-full bg-blue-900/20 border border-blue-900 text-blue-400 p-6 rounded-2xl font-black uppercase text-xs cursor-pointer hover:bg-blue-900/40 transition">📤 Restore Database from CSV<input type="file" className="hidden" accept=".csv" onChange={importCSV}/></label>
+                                        <div className="mt-12 pt-12 border-t border-white/5"><button onClick={async()=>{if(confirm("PERMANENTLY WIPE PRODUCTION CLOUD?")) { const s = await db.collection('games').get(); s.forEach(d=>d.ref.delete()); alert("Purged."); }}} className="w-full bg-red-950/20 text-red-500 border border-red-900 p-6 rounded-2xl font-black uppercase text-xs hover:bg-red-900 transition">⚠️ Erase Complete Season Database</button></div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* VIEW: PROFILES */}
+                        {view === 'profiles' && (
+                            <div className="space-y-10 animate-pop">
+                                <div className="flex justify-center"><select value={profileP} onChange={e=>setProfileP(e.target.value)} className="bg-black border-2 border-gold p-4 rounded-2xl text-gold font-black uppercase text-xl outline-none w-full max-w-sm">{ROSTER.map(r=><option key={r.id}>{r.name}</option>)}</select></div>
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                    <div className="bento-card flex flex-col items-center justify-center border-t-4 border-gold">
+                                        <div className="text-6xl mb-4">🦅</div>
+                                        <h2 className="text-4xl font-black italic uppercase text-white">{profileP}</h2>
+                                        <p className="text-gold font-bold text-sm tracking-widest uppercase mt-2">VARSITY EAGLE #{ROSTER.find(r=>r.name===profileP)?.id}</p>
+                                    </div>
+                                    <div className="lg:col-span-2 bento-card grid grid-cols-2 md:grid-cols-4 gap-6">
+                                        <MiniStat label="Games" value={aggregate[profileP]?.gp} />
+                                        <MiniStat label="Total Points" value={aggregate[profileP]?.pts} />
+                                        <MiniStat label="Avg PPG" value={(aggregate[profileP]?.pts/aggregate[profileP]?.gp||0).toFixed(1)} color="text-gold" />
+                                        <MiniStat label="FG%" value={((aggregate[profileP]?.m2+aggregate[profileP]?.m3)/(aggregate[profileP]?.a2+aggregate[profileP]?.a3)*100||0).toFixed(1) + '%'} />
+                                    </div>
+                                    <div className="lg:col-span-3 bento-card">
+                                        <h3 className="text-gold font-black uppercase italic mb-6 border-b border-white/5 pb-2">Recent Scoring Log</h3>
+                                        <div className="grid grid-cols-4 md:grid-cols-8 gap-3">
+                                            {games.filter(g=>g.stats.some(s=>s.name===profileP)).slice(0,8).map((g,i)=>(
+                                                <div key={i} className="bg-zinc-950 p-4 rounded-xl border border-white/5 text-center">
+                                                    <div className="text-[8px] font-black text-zinc-600 uppercase mb-2">{g.date.split('-').slice(1).join('/')}</div>
+                                                    <div className="text-xl font-black text-white">{g.stats.find(s=>s.name===profileP).pts}</div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         )}
 
-                        {/* MODULE: GOALS (PROGRESS) */}
-                        {view === 'goals' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <GoalItem title="Team PPG" target={55} current={games.length ? (games.reduce((a,b)=>a+b.teamScore,0)/games.length).toFixed(1) : 0} unit="PPG" />
-                                <GoalItem title="Win Conference" target={12} current={games.filter(g=>g.result==='W').length} unit="Wins" />
-                                <GoalItem title="Opp Defense" target={50} current={games.length ? (games.reduce((a,b)=>a+b.oppScore,0)/games.length).toFixed(1) : 0} unit="PPG" inverse={true} />
-                                <GoalItem title="Assisted FG%" target={60} current={62.4} unit="%" />
-                            </div>
+                        {/* OTHER TABS STUBBED: READY FOR EXPANSION */}
+                        {['trends','tactics','defense','goals','stats'].includes(view) && (
+                            <div className="text-center py-40 animate-pulse text-zinc-800 font-black italic text-2xl uppercase tracking-widest">Compiling Analytics for {view} module...</div>
                         )}
 
-                        {/* Analytic Modules (Trends, Tactics, Profiles) are triggered via state but follow similar bento card patterns */}
-                        {!['clipboard','new','log','settings','goals'].includes(view) && (
-                            <div className="text-center py-40 text-zinc-800 font-black uppercase italic tracking-widest text-xl animate-pulse">Module "{view}" - Aggregating Performance Data...</div>
-                        )}
                     </main>
                 </div>
             );
         }
 
         // --- SUB-COMPONENTS ---
-
-        function BentoStat({ label, value, sub, color }) {
+        function SummaryBento({ label, value, color, sub }) {
             return (
                 <div className="bento-card text-center flex flex-col justify-center">
                     <div className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1">{label}</div>
-                    <div className={`text-4xl font-black italic tracking-tighter ${color || 'text-white'}`}>{value}</div>
+                    <div className={`text-5xl font-black italic tracking-tighter ${color||'text-white'}`}>{value}</div>
                     {sub && <div className="text-[8px] font-black uppercase text-zinc-700 mt-2">{sub}</div>}
                 </div>
             );
         }
 
-        function MiniLeader({ title, data, unit }) {
+        function MiniList({ title, data, unit }) {
             return (
                 <div className="space-y-3">
                     <div className="text-[8px] font-black uppercase text-zinc-600 tracking-widest italic">{title}</div>
                     {data.map(p => (
-                        <div key={p.name} className="flex justify-between items-center bg-black/40 p-2 rounded-lg border border-white/5">
-                            <span className="text-[10px] font-bold">{p.name}</span>
-                            <span className="text-xs font-black text-gold">{p.val} <span className="text-[7px] text-zinc-700 ml-1">{unit}</span></span>
+                        <div key={p.name} className="flex justify-between items-center bg-black/40 p-2 rounded-xl border border-white/5">
+                            <span className="text-[10px] font-bold text-zinc-400">{p.name}</span>
+                            <span className="text-xs font-black text-gold">{p.val}<span className="text-[7px] ml-1 opacity-40">{unit}</span></span>
                         </div>
                     ))}
                 </div>
             );
         }
 
-        function GoalItem({ title, target, current, unit, inverse = false }) {
-            const pct = inverse ? (current <= target ? 100 : (target/current)*100) : (current/target)*100;
-            const status = inverse ? current <= target : current >= target;
+        function Field({ label, type="text", value, onChange }) {
             return (
-                <div className="bento-card border-l-8 border-l-gold">
-                    <div className="flex justify-between items-center mb-2">
-                        <span className="text-[11px] font-black uppercase text-zinc-500 tracking-widest italic">{title}</span>
-                        <span className={`text-[8px] font-black px-2 py-1 rounded bg-black ${status ? 'text-green-500' : 'text-gold'}`}>{status ? 'GOAL ACHIEVED' : 'IN PROGRESS'}</span>
-                    </div>
-                    <div className="text-5xl font-black italic tracking-tighter">{current}<span className="text-xs text-zinc-600 ml-2">/ {target} {unit}</span></div>
-                    <div className="progress-bar mt-6"><div className={`progress-fill ${status ? 'bg-green-500' : 'bg-gold'}`} style={{ width: `${Math.min(pct, 100)}%` }}></div></div>
+                <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-black text-zinc-500">{label}</label>
+                    <input type={type} value={value} onChange={onChange} className="w-full bg-black border border-white/10 p-3 rounded-xl text-sm font-black uppercase" />
                 </div>
             );
         }
 
-        function CourtMap({ data, onZoneClick }) {
+        function GoalCard({ title, target, current, unit, inverse=false }) {
+            const pct = inverse ? (current <= target ? 100 : (target/current)*100) : (current/target)*100;
+            const status = inverse ? current <= target : current >= target;
+            return (
+                <div className="bento-card border-l-8 border-gold">
+                    <div className="flex justify-between mb-2">
+                        <span className="text-xs font-black uppercase text-zinc-500">{title}</span>
+                        <span className={`text-[8px] font-black px-2 py-1 rounded bg-black ${status?'text-green-500':'text-gold'}`}>{status?'GOAL MET':'PENDING'}</span>
+                    </div>
+                    <div className="text-5xl font-black italic">{current}<span className="text-xs text-zinc-700 ml-2">/ {target} {unit}</span></div>
+                    <div className="progress-bar mt-4"><div className={`progress-fill ${status?'bg-green-500':'bg-gold'}`} style={{width:`${Math.min(pct,100)}%`}}></div></div>
+                </div>
+            );
+        }
+
+        function ComparisonBar({ label, v1, v2, inverse=false }) {
+            const n1 = parseFloat(v1), n2 = parseFloat(v2);
+            const winner = inverse ? (n1 < n2 ? 1 : 2) : (n1 > n2 ? 1 : 2);
+            return (
+                <div className="space-y-2 px-6">
+                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-1"><span>{v1}</span><span>{label}</span><span>{v2}</span></div>
+                    <div className="comp-bar">
+                        <div className={`h-full transition-all ${winner===1?'bg-gold':'bg-zinc-900'}`} style={{width:`${(n1/(n1+n2))*100}%`}}></div>
+                        <div className={`h-full transition-all ${winner===2?'bg-white':'bg-zinc-900'}`} style={{width:`${(n2/(n1+n2))*100}%`}}></div>
+                    </div>
+                </div>
+            );
+        }
+
+        function MiniStat({ label, value, color }) {
+            return (
+                <div className="bg-zinc-950/50 p-4 rounded-2xl border border-white/5 text-center">
+                    <div className="text-[8px] font-black text-zinc-600 uppercase mb-1 tracking-widest">{label}</div>
+                    <div className={`text-2xl font-black italic tracking-tighter ${color||'text-white'}`}>{value}</div>
+                </div>
+            );
+        }
+
+        function InteractiveCourt({ data, onClick }) {
             return (
                 <svg viewBox="0 0 50 47" className="court-svg">
                     <rect x="0" y="0" width="50" height="47" fill="#000" stroke="#111" strokeWidth="0.5"/>
-                    <circle cx="25" cy="47" r="23.75" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" strokeDasharray="1,1"/>
-                    <path className="zone" d="M 19,47 L 19,32 L 31,32 L 31,47 Z" onClick={() => { const m = confirm("BASKET MADE?"); onZoneClick('paint', m); }} />
+                    <path className="zone" d="M 19,47 L 19,32 L 31,32 L 31,47 Z" onClick={() => onClick('paint', confirm('MADE?'))} />
                     <text x="25" y="42" className="zone-label">PAINT {data.paint.m}/{data.paint.m+data.paint.x}</text>
-                    <path className="zone" d="M 15,0 L 35,0 L 35,15 L 15,15 Z" onClick={() => { const m = confirm("3PT MADE?"); onZoneClick('3t', m); }} />
+                    <path className="zone" d="M 15,0 L 35,0 L 35,15 L 15,15 Z" onClick={() => onClick('3t', confirm('MADE?'))} />
                     <text x="25" y="10" className="zone-label">3PT TOP {data['3t'].m}/{data['3t'].m+data['3t'].x}</text>
                 </svg>
             );
