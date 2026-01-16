@@ -610,8 +610,99 @@
             }, [games, type]);
             return games.length ? <canvas ref={ref} /> : <div className="h-full flex items-center justify-center text-zinc-500 text-xs">No Data</div>;
         }
-        function InteractiveCourt({ data, onClick, mode }) { const getFill = (key) => { const z=data[key]||{m:0,x:0},t=z.m+z.x; if(t===0)return 'transparent'; return (z.m/t)>=0.4?'rgba(34,197,94,0.6)':'rgba(239,68,68,0.6)'; }; return (<div className="relative max-w-[350px] mx-auto select-none"><svg viewBox="0 0 100 94" className="court-svg"><rect width="100" height="94" fill="#111" stroke="#333"/><path d="M 35,94 L 35,55 L 65,55 L 65,94 Z" className="zone" fill={getFill('paint')} onClick={()=>onClick('paint',mode==='make')}/><path d="M 10,94 L 10,15 Q 50,-15 90,15 L 90,94" fill="none" stroke="#555" strokeWidth="1" strokeDasharray="4,4" pointerEvents="none"/><path d="M 10,55 L 35,55 L 35,94 L 10,94 Z" className="zone" onClick={()=>onClick('mid_l',mode==='make')} fill={getFill('mid_l')}/><path d="M 65,55 L 90,55 L 90,94 L 65,94 Z" className="zone" onClick={()=>onClick('mid_r',mode==='make')} fill={getFill('mid_r')}/><path d="M 35,55 L 35,30 L 65,30 L 65,55 Z" className="zone" onClick={()=>onClick('mid_c',mode==='make')} fill={getFill('mid_c')}/><path d="M 0,94 L 0,60 L 10,60 L 10,94 Z" className="zone" onClick={()=>onClick('corn_l',mode==='make')} fill={getFill('corn_l')}/><path d="M 90,94 L 90,60 L 100,60 L 100,94 Z" className="zone" onClick={()=>onClick('corn_r',mode==='make')} fill={getFill('corn_r')}/><path d="M 0,60 L 0,0 L 30,0 L 35,30 L 10,55 Z" className="zone" onClick={()=>onClick('wing_l',mode==='make')} fill={getFill('wing_l')}/><path d="M 100,60 L 100,0 L 70,0 L 65,30 L 90,55 Z" className="zone" onClick={()=>onClick('wing_r',mode==='make')} fill={getFill('wing_r')}/><path d="M 30,0 L 70,0 L 65,30 L 35,30 Z" className="zone" onClick={()=>onClick('top',mode==='make')} fill={getFill('top')}/><text x="50" y="85" className="zone-label" fill="white" fontSize="4">PAINT</text></svg></div>); }
-        function HeatMapCourt({ data }) { const getFill = (key) => { const z=data[key]||{m:0,x:0},t=z.m+z.x; if(t===0) return 'rgba(255,255,255,0.05)'; const pct=z.m/t; if(pct>=0.5)return 'rgba(34,197,94,0.7)'; if(pct>=0.4)return 'rgba(59,130,246,0.7)'; if(pct>=0.3)return 'rgba(234,179,8,0.7)'; return 'rgba(239,68,68,0.7)'; }; return (<div className="relative max-w-[350px] mx-auto select-none"><svg viewBox="0 0 100 94" className="court-svg"><rect width="100" height="94" fill="#000" stroke="#333"/><path d="M 35,94 L 35,55 L 65,55 L 65,94 Z" fill={getFill('paint')} stroke="black" strokeWidth="0.5" /><path d="M 10,94 L 10,15 Q 50,-15 90,15 L 90,94" fill="none" stroke="#444" strokeWidth="1" strokeDasharray="4,4" /><path d="M 10,55 L 35,55 L 35,94 L 10,94 Z" fill={getFill('mid_l')} stroke="black" strokeWidth="0.5"/><path d="M 65,55 L 90,55 L 90,94 L 65,94 Z" fill={getFill('mid_r')} stroke="black" strokeWidth="0.5"/><path d="M 35,55 L 35,30 L 65,30 L 65,55 Z" fill={getFill('mid_c')} stroke="black" strokeWidth="0.5"/><path d="M 0,94 L 0,60 L 10,60 L 10,94 Z" fill={getFill('corn_l')} stroke="black" strokeWidth="0.5"/><path d="M 90,94 L 90,60 L 100,60 L 100,94 Z" fill={getFill('corn_r')} stroke="black" strokeWidth="0.5"/><path d="M 0,60 L 0,0 L 30,0 L 35,30 L 10,55 Z" fill={getFill('wing_l')} stroke="black" strokeWidth="0.5"/><path d="M 100,60 L 100,0 L 70,0 L 65,30 L 90,55 Z" fill={getFill('wing_r')} stroke="black" strokeWidth="0.5"/><path d="M 30,0 L 70,0 L 65,30 L 35,30 Z" fill={getFill('top')} stroke="black" strokeWidth="0.5"/>{ZONES.map(z=>{const d=data[z]||{m:0,x:0},t=d.m+d.x;if(t<1)return null;const pct=Math.round((d.m/t)*100);const pos={paint:[50,80],mid_l:[22,75],mid_r:[78,75],mid_c:[50,45],corn_l:[5,80],corn_r:[95,80],wing_l:[15,30],wing_r:[85,30],top:[50,20]}[z];return <text key={z} x={pos[0]} y={pos[1]} fill="white" fontSize="3" fontWeight="900" textAnchor="middle">{pct}%</text>})}</svg></div>); }
+
+        // --- NEW SVG COURT COMPONENTS ---
+        function InteractiveCourt({ data, onClick, mode }) { 
+            const getFill = (key) => { const z=data[key]||{m:0,x:0},t=z.m+z.x; if(t===0)return 'transparent'; return (z.m/t)>=0.4?'rgba(34,197,94,0.6)':'rgba(239,68,68,0.6)'; }; 
+            return (
+                <div className="relative max-w-[350px] mx-auto select-none">
+                    <svg viewBox="0 0 100 100" className="court-svg">
+                        <rect width="100" height="100" fill="#111" stroke="#333" strokeWidth="2"/>
+                        
+                        {/* 3PT Line */}
+                        <path d="M 10,100 L 10,35 Q 50,-15 90,35 L 90,100" fill="none" stroke="white" strokeWidth="1"/>
+                        
+                        {/* Paint Area */}
+                        <path d="M 35,100 L 35,55 L 65,55 L 65,100" fill={getFill('paint')} stroke="white" strokeWidth="1" onClick={()=>onClick('paint',mode==='make')}/>
+                        
+                        {/* Free Throw Circle Top */}
+                        <path d="M 65,55 A 15,15 0 0,0 35,55" fill={getFill('paint')} stroke="white" strokeWidth="1" onClick={()=>onClick('paint',mode==='make')}/>
+                        
+                        {/* Free Throw Circle Bottom (Dashed) */}
+                        <path d="M 35,55 A 15,15 0 0,0 65,55" fill="transparent" stroke="white" strokeWidth="1" strokeDasharray="3,3" pointerEvents="none"/>
+                        
+                        {/* Center Circle (Half) */}
+                        <path d="M 35,0 A 15,15 0 0,0 65,0" fill="none" stroke="white" strokeWidth="1"/>
+                        
+                        {/* Tick Marks (Left) */}
+                        <line x1="33" y1="85" x2="35" y2="85" stroke="white" strokeWidth="1"/>
+                        <line x1="33" y1="75" x2="35" y2="75" stroke="white" strokeWidth="1"/>
+                        <line x1="33" y1="65" x2="35" y2="65" stroke="white" strokeWidth="1"/>
+                        <rect x="33" y="90" width="2" height="2" fill="white"/>
+
+                        {/* Tick Marks (Right) */}
+                        <line x1="65" y1="85" x2="67" y2="85" stroke="white" strokeWidth="1"/>
+                        <line x1="65" y1="75" x2="67" y2="75" stroke="white" strokeWidth="1"/>
+                        <line x1="65" y1="65" x2="67" y2="65" stroke="white" strokeWidth="1"/>
+                        <rect x="65" y="90" width="2" height="2" fill="white"/>
+                        
+                        {/* Hoop & Backboard */}
+                        <line x1="45" y1="92" x2="55" y2="92" stroke="white" strokeWidth="1"/>
+                        <circle cx="50" cy="88" r="2" fill="none" stroke="white" strokeWidth="1"/>
+
+                        {/* Click Zones (Invisible overlays) */}
+                        <path d="M 0,100 L 10,100 L 10,40 L 0,40 Z" className="zone" onClick={()=>onClick('corn_l',mode==='make')} fill={getFill('corn_l')}/>
+                        <path d="M 90,100 L 100,100 L 100,40 L 90,40 Z" className="zone" onClick={()=>onClick('corn_r',mode==='make')} fill={getFill('corn_r')}/>
+                        <path d="M 0,40 L 10,40 L 30,15 L 0,15 Z" className="zone" onClick={()=>onClick('wing_l',mode==='make')} fill={getFill('wing_l')}/>
+                        <path d="M 100,40 L 90,40 L 70,15 L 100,15 Z" className="zone" onClick={()=>onClick('wing_r',mode==='make')} fill={getFill('wing_r')}/>
+                        <path d="M 30,15 L 70,15 L 65,35 L 35,35 Z" className="zone" onClick={()=>onClick('top',mode==='make')} fill={getFill('top')}/>
+                        
+                        <path d="M 10,100 L 35,100 L 35,55 L 10,40 Z" className="zone" onClick={()=>onClick('mid_l',mode==='make')} fill={getFill('mid_l')}/>
+                        <path d="M 90,100 L 65,100 L 65,55 L 90,40 Z" className="zone" onClick={()=>onClick('mid_r',mode==='make')} fill={getFill('mid_r')}/>
+                        <path d="M 35,55 L 65,55 L 65,35 L 35,35 Z" className="zone" onClick={()=>onClick('mid_c',mode==='make')} fill={getFill('mid_c')}/>
+
+                        <text x="50" y="80" className="zone-label" fill="white" fontSize="4" textAnchor="middle" opacity="0.3">PAINT</text>
+                    </svg>
+                </div>
+            ); 
+        }
+
+        function HeatMapCourt({ data }) { 
+            const getFill = (key) => { const z=data[key]||{m:0,x:0},t=z.m+z.x; if(t===0) return 'rgba(255,255,255,0.05)'; const pct=z.m/t; if(pct>=0.5)return 'rgba(34,197,94,0.7)'; if(pct>=0.4)return 'rgba(59,130,246,0.7)'; if(pct>=0.3)return 'rgba(234,179,8,0.7)'; return 'rgba(239,68,68,0.7)'; }; 
+            return (
+                <div className="relative max-w-[350px] mx-auto select-none">
+                    <svg viewBox="0 0 100 100" className="court-svg">
+                        <rect width="100" height="100" fill="#111" stroke="#333" strokeWidth="2"/>
+                        <path d="M 10,100 L 10,35 Q 50,-15 90,35 L 90,100" fill="none" stroke="white" strokeWidth="1" strokeOpacity="0.3"/>
+                        <path d="M 35,100 L 35,55 L 65,55 L 65,100" fill={getFill('paint')} stroke="white" strokeWidth="1" strokeOpacity="0.3"/>
+                        <path d="M 65,55 A 15,15 0 0,0 35,55" fill={getFill('paint')} stroke="white" strokeWidth="1" strokeOpacity="0.3"/>
+                        
+                        <path d="M 0,100 L 10,100 L 10,40 L 0,40 Z" fill={getFill('corn_l')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
+                        <path d="M 90,100 L 100,100 L 100,40 L 90,40 Z" fill={getFill('corn_r')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
+                        <path d="M 0,40 L 10,40 L 30,15 L 0,15 Z" fill={getFill('wing_l')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
+                        <path d="M 100,40 L 90,40 L 70,15 L 100,15 Z" fill={getFill('wing_r')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
+                        <path d="M 30,15 L 70,15 L 65,35 L 35,35 Z" fill={getFill('top')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
+                        
+                        <path d="M 10,100 L 35,100 L 35,55 L 10,40 Z" fill={getFill('mid_l')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
+                        <path d="M 90,100 L 65,100 L 65,55 L 90,40 Z" fill={getFill('mid_r')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
+                        <path d="M 35,55 L 65,55 L 65,35 L 35,35 Z" fill={getFill('mid_c')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
+                        
+                        {/* Percentages Overlay */}
+                        {ZONES.map(z=>{
+                            const d=data[z]||{m:0,x:0},t=d.m+d.x;
+                            if(t<1)return null;
+                            const pct=Math.round((d.m/t)*100);
+                            const pos={
+                                paint:[50,75], mid_l:[22,75], mid_r:[78,75], mid_c:[50,45],
+                                corn_l:[5,80], corn_r:[95,80], wing_l:[15,25], wing_r:[85,25], top:[50,15]
+                            }[z];
+                            return <text key={z} x={pos[0]} y={pos[1]} fill="white" fontSize="4" fontWeight="900" textAnchor="middle" filter="drop-shadow(1px 1px 1px black)">{pct}%</text>
+                        })}
+                    </svg>
+                </div>
+            ); 
+        }
+
         function StatBox({label, val, color}) { return (<div className="bento-card text-center py-4"><div className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1">{label}</div><div className={`text-3xl font-black italic tracking-tighter ${color||'text-white'}`}>{val}</div></div>); }
         function HighBox({label, val}) { return (<div className="bg-black/40 border border-white/5 p-3 rounded-lg text-center"><div className="text-[9px] font-bold text-zinc-500 uppercase">{label}</div><div className="text-2xl font-black text-white">{val}</div></div>); }
         function SplitBar({label, make, att, pct}) { return (<div><div className="flex justify-between text-xs font-bold mb-1"><span className="text-zinc-400 uppercase">{label}</span><span>{make}/{att} <span className={`ml-1 ${pct>=50?'text-green-500':(pct<30?'text-red-500':'text-gold')}`}>({pct}%)</span></span></div><div className="h-2 bg-black rounded-full overflow-hidden border border-zinc-800"><div style={{width: `${pct}%`}} className={`h-full ${pct>=40?'bg-green-500':'bg-zinc-600'}`}></div></div></div>); }
