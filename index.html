@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eagles Basketball | Cloud Dashboard</title>
+    <title>Eagles Girls Basketball Dashboard</title>
     <!-- Core UI & Icons -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -11,7 +11,9 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Firebase Compat (Most stable for single-file GitHub Pages) -->
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Firebase Compat SDKs -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -20,50 +22,67 @@
         :root { --eagle-gold: #FFB81C; --eagle-black: #000000; }
         .bg-gold { background-color: var(--eagle-gold); }
         .text-gold { color: var(--eagle-gold); }
+        .border-gold { border-color: var(--eagle-gold); }
         input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         
-        .stat-input { width: 45px; background: #111; border: 1px solid #333; border-radius: 4px; padding: 6px; text-align: center; color: white; font-size: 0.9rem; font-weight: 800; }
+        .stat-input { width: 45px; background: #111; border: 1px solid #333; border-radius: 4px; padding: 4px; text-align: center; color: white; font-size: 0.8rem; }
         .stat-input:focus { border-color: var(--eagle-gold); outline: none; background: #222; }
         
-        /* Perfected Half-Court Geometry */
+        .sticky-col { position: sticky; left: 0; background-color: #000; z-index: 10; border-right: 2px solid #333; }
+        
+        .nav-btn { font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 8px 16px; border-radius: 9999px; transition: all 0.2s; white-space: nowrap; }
+        .active-nav { background-color: var(--eagle-gold); color: black; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .inactive-nav { color: #9ca3af; }
+        .inactive-nav:hover { color: white; }
+        
+        .clipboard-card { background: #0a0a0a; border: 1px solid #222; border-top: 4px solid var(--eagle-gold); }
+        .profile-stat-box { background: #111; border: 1px solid #222; padding: 1rem; border-radius: 0.75rem; text-align: center; }
+        .modal-overlay { background: rgba(0,0,0,0.9); backdrop-filter: blur(4px); }
+        
+        /* Realistic Half-Court Geometry - Baseline at Bottom */
         .court-container { 
-            position: relative; width: 100%; max-width: 480px; aspect-ratio: 50/47; 
-            background: #0d0d0d; border: 2px solid #333; margin: 0 auto; border-radius: 12px; overflow: hidden;
+            position: relative; width: 100%; max-width: 500px; aspect-ratio: 50/47; 
+            background: #0d0d0d; border: 2px solid #333; margin: 0 auto; border-radius: 8px; overflow: hidden;
             box-shadow: inset 0 0 50px rgba(0,0,0,0.8);
         }
         .court-line { position: absolute; background: rgba(255,255,255,0.15); pointer-events: none; }
         .baseline { bottom: 0; left: 0; width: 100%; height: 2px; }
         .the-key { bottom: 0; left: 50%; transform: translateX(-50%); width: 24%; height: 35%; border: 2px solid rgba(255,255,255,0.15); border-bottom: none; }
-        .free-throw-circle { position: absolute; bottom: 23.5%; left: 50%; transform: translateX(-50%); width: 24%; aspect-ratio: 1; border: 2px solid rgba(255,255,255,0.15); border-radius: 50%; }
+        .free-throw-circle { position: absolute; bottom: 23%; left: 50%; transform: translateX(-50%); width: 24%; aspect-ratio: 1; border: 2px solid rgba(255,255,255,0.15); border-radius: 50%; }
         
-        /* 3PT Arc: Peak Aligned with Circle Peak */
+        /* 3PT Geometry: Peak Aligned with Circle Peak */
         .three-point-arc { 
-            position: absolute; bottom: -35%; left: 7%; right: 7%; height: 71%; 
-            border: 2px solid rgba(255,255,255,0.25); border-radius: 50%; pointer-events: none; 
+            position: absolute; bottom: -35%; left: 7%; right: 7%; height: 70%; 
+            border: 2px solid rgba(255,255,255,0.15); border-radius: 50%; pointer-events: none;
         }
         .three-point-straight-l { bottom: 0; left: 7%; width: 2px; height: 12%; }
         .three-point-straight-r { bottom: 0; right: 7%; width: 2px; height: 12%; }
+        
+        .backboard { bottom: 8%; left: 50%; transform: translateX(-50%); width: 12%; height: 2px; background: rgba(255,255,255,0.4); }
         .rim { bottom: 5%; left: 50%; transform: translateX(-50%); width: 6%; aspect-ratio: 1; border: 2px solid #e11d48; border-radius: 50%; position: absolute; }
 
-        .court-zone { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.2s; border-radius: 8px; z-index: 20; }
+        /* Tactical Zones Overlay */
+        .court-zone { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.2s; border-radius: 8px; z-index: 20; cursor: pointer; }
+        .court-zone:hover { background: rgba(255, 184, 28, 0.1); outline: 1px solid var(--eagle-gold); }
+        
         .zone-label { font-size: 8px; font-weight: 900; color: #555; text-transform: uppercase; margin-bottom: 2px; pointer-events: none; }
-        .zone-input { width: 32px; font-size: 10px; background: black; border: 1px solid #444; color: white; text-align: center; border-radius: 3px; font-weight: bold; }
-
-        /* Tactical Zone Positioning */
+        .zone-input-group { display: flex; gap: 2px; align-items: center; }
+        .zone-input { width: 34px; font-size: 11px; background: black; border: 1px solid #444; color: white; text-align: center; border-radius: 3px; padding: 1px 0; font-weight: bold; }
+        
+        /* 8-Zone Mapping Logic */
         .z-paint { bottom: 5%; left: 32%; width: 36%; height: 30%; }
-        .z-ml { bottom: 12%; left: 16%; width: 14%; height: 25%; }
-        .z-mr { bottom: 12%; right: 16%; width: 14%; height: 25%; }
-        .z-3lc { bottom: 2%; left: 0.5%; width: 6%; height: 15%; }
-        .z-3rc { bottom: 2%; right: 0.5%; width: 6%; height: 15%; }
-        .z-3lw { bottom: 32%; left: 1%; width: 12%; height: 25%; }
-        .z-3rw { bottom: 32%; right: 1%; width: 12%; height: 25%; }
-        .z-3t { bottom: 46%; left: 30%; width: 40%; height: 20%; }
+        .z-mid-l { bottom: 12%; left: 14%; width: 16%; height: 25%; }
+        .z-mid-r { bottom: 12%; right: 14%; width: 16%; height: 25%; }
+        .z-3-lc { bottom: 2%; left: 0.5%; width: 6%; height: 15%; }
+        .z-3-rc { bottom: 2%; right: 0.5%; width: 6%; height: 15%; }
+        .z-3-lw { bottom: 35%; left: 1%; width: 12%; height: 30%; }
+        .z-3-rw { bottom: 35%; right: 1%; width: 12%; height: 30%; }
+        .z-3-t { top: 5%; left: 25%; width: 50%; height: 25%; }
 
-        /* Giant Game Log UI */
-        .log-card { background: #000; border: 1px solid #222; border-radius: 2.5rem; overflow: hidden; margin-bottom: 2rem; border-left: 10px solid var(--eagle-gold); }
-        .log-score-text { font-size: 3rem; font-weight: 900; font-style: italic; letter-spacing: -0.05em; color: white; line-height: 1; }
+        /* Giant Game Log Styles */
+        .log-card { background: #000; border: 1px solid #222; border-radius: 2rem; overflow: hidden; margin-bottom: 1.5rem; transition: all 0.3s; border-left: 10px solid var(--eagle-gold); }
+        .log-score { font-size: 2.5rem; font-weight: 900; font-style: italic; letter-spacing: -0.05em; line-height: 1; }
         .log-result-box { width: 4.5rem; height: 4.5rem; border-radius: 1.25rem; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 900; }
-        .clipboard-card { background: #080808; border: 1px solid #1a1a1a; border-top: 4px solid var(--eagle-gold); border-radius: 1.5rem; padding: 1.5rem; }
     </style>
 </head>
 <body class="bg-gray-950">
@@ -81,11 +100,11 @@
             measurementId: "G-4SQEXFWE0W"
         };
 
-        // Init Firebase
+        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
-        const appId = "eagles-stats-prod";
+        const appId = "eagles-hq-v100";
 
         const ROSTER = [
             {id: 5, name: "Natasha Mistry", pos: "PG"}, {id: 3, name: "Mikayla Sanders", pos: "PG"},
@@ -102,12 +121,15 @@
             { id: '3rw', label: '3R Wing' }, { id: '3rc', label: '3R Corner' }
         ];
 
+        const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','blk','to'];
+
         function App() {
             const [view, setView] = React.useState('entry');
             const [games, setGames] = React.useState([]);
             const [loading, setLoading] = React.useState(true);
             const [opponent, setOpponent] = React.useState('');
             const [oppScore, setOppScore] = React.useState(0);
+            const [gameDate, setGameDate] = React.useState(new Date().toISOString().split('T')[0]);
             const [playerStats, setPlayerStats] = React.useState({});
             const [shotMap, setShotMap] = React.useState({
                 eagles: SHOT_ZONES.reduce((acc, z) => ({ ...acc, [z.id]: { m: 0, x: 0 } }), {}),
@@ -121,7 +143,7 @@
                         const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
                         setGames(docs.sort((a, b) => new Date(b.date) - new Date(a.date)));
                         setLoading(false);
-                    }, err => console.error(err));
+                    });
                 return () => unsubscribe();
             }, []);
 
@@ -135,12 +157,11 @@
                     return { ...p, ...s, pts: score };
                 });
                 await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').add({
-                    date: new Date().toLocaleDateString(),
-                    opp: opponent, oppScore, teamScore, 
+                    date: gameDate, opp: opponent, oppScore, teamScore, 
                     result: teamScore > oppScore ? 'W' : 'L',
                     stats, shotMap
                 });
-                alert("Cloud Sync Successful!"); setOpponent(''); setPlayerStats({}); setView('log');
+                alert("Synced to Cloud!"); setOpponent(''); setPlayerStats({}); setView('log');
             };
 
             const aggregates = React.useMemo(() => {
@@ -158,75 +179,89 @@
                 return data;
             }, [games]);
 
-            const ZoneInput = ({ team, zoneId }) => (
-                <div className="flex gap-1 items-center">
-                    <input type="number" className="zone-input text-gold" placeholder="M" 
-                        onChange={e => {
-                            const val = parseInt(e.target.value) || 0;
-                            const newMap = JSON.parse(JSON.stringify(shotMap)); 
-                            newMap[team][zoneId].m = val; setShotMap(newMap);
-                        }} />
-                    <input type="number" className="zone-input text-white/40" placeholder="X" 
-                        onChange={e => {
-                            const val = parseInt(e.target.value) || 0;
-                            const newMap = JSON.parse(JSON.stringify(shotMap)); 
-                            newMap[team][zoneId].x = val; setShotMap(newMap);
-                        }} />
-                </div>
-            );
+            const leaders = React.useMemo(() => {
+                const list = Object.entries(aggregates).map(([n, d]) => ({ name: n, ...d }));
+                return {
+                    points: [...list].sort((a,b) => b.pts - a.pts).slice(0,3),
+                    ppg: [...list].filter(x => x.gp > 0).sort((a,b) => (b.pts/b.gp) - (a.pts/a.gp)).slice(0,3),
+                    rebounds: [...list].sort((a,b) => b.reb - a.reb).slice(0,3),
+                    rpg: [...list].filter(x => x.gp > 0).sort((a,b) => (b.reb/b.gp) - (a.reb/a.gp)).slice(0,3),
+                    ft: [...list].filter(x => x.aft > 0).sort((a,b) => (b.mft/b.aft) - (a.mft/a.aft)).slice(0,3),
+                    fg3: [...list].filter(x => x.a3 >= x.gp).sort((a,b) => (b.m3/b.a3) - (a.m3/a.a3)).slice(0,3)
+                };
+            }, [aggregates]);
 
             if (loading) return (
-                <div className="h-screen bg-black flex items-center justify-center text-gold font-black italic tracking-tighter text-2xl animate-pulse">
-                    SYNCING EAGLES CLOUD...
+                <div className="h-screen bg-black flex flex-col items-center justify-center">
+                    <div className="text-white text-5xl mb-4 italic font-black uppercase">EAGLES <span className="text-gold">HQ</span></div>
+                    <div className="text-gold text-lg font-black animate-pulse uppercase italic tracking-widest">Cloud Syncing...</div>
                 </div>
             );
 
             return (
-                <div className="min-h-screen bg-gray-950 text-white font-sans selection:bg-gold selection:text-black">
-                    <header className="bg-black border-b-4 border-gold p-6 flex justify-between items-center sticky top-0 z-50 shadow-2xl">
-                        <div className="flex items-center gap-4">
-                            <div className="bg-white w-10 h-10 rounded-xl flex items-center justify-center font-bold text-black border-2 border-gold shadow-lg rotate-3 text-2xl">🦅</div>
-                            <h1 className="text-2xl font-black italic uppercase tracking-tighter">Eagles <span className="text-gold">Cloud</span></h1>
+                <div className="min-h-screen bg-gray-950 text-white font-sans">
+                    {/* Header */}
+                    <header className="sticky top-0 z-50 bg-black border-b-4 border-gold p-4 md:p-6 shadow-2xl">
+                        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-6">
+                            <div className="flex items-center gap-4">
+                                <div className="bg-white w-12 h-12 rounded-full flex items-center justify-center border-2 border-gold shadow-lg transform -rotate-2">
+                                    <span className="text-2xl">🦅</span>
+                                </div>
+                                <div>
+                                    <h1 className="text-3xl font-black italic uppercase tracking-tighter leading-none">Eagles <span className="text-gold">Dashboard</span></h1>
+                                    <p className="text-[9px] text-gray-500 uppercase tracking-widest mt-1 font-bold tracking-tighter">Performance & Tactical Analytics</p>
+                                </div>
+                            </div>
+                            <nav className="flex flex-wrap justify-center gap-1 bg-gray-900 p-1 rounded-full border border-gray-800 overflow-x-auto max-w-full">
+                                {['entry', 'log', 'clipboard', 'summary'].map(v => (
+                                    <button 
+                                        key={v} 
+                                        onClick={() => setView(v)} 
+                                        className={`nav-btn ${view === v ? 'active-nav' : 'inactive-nav'}`}
+                                    >
+                                        {v === 'entry' ? 'New Game' : v === 'log' ? 'Season Log' : v === 'clipboard' ? 'Clipboard' : 'Season Stats'}
+                                    </button>
+                                ))}
+                            </nav>
                         </div>
-                        <nav className="flex gap-1 bg-gray-900 p-1 rounded-full border border-gray-800">
-                            {['entry', 'log', 'clipboard'].map(v => (
-                                <button key={v} onClick={() => setView(v)} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase transition-all ${view === v ? 'bg-gold text-black shadow-lg' : 'text-gray-500'}`}>{v}</button>
-                            ))}
-                        </nav>
                     </header>
 
                     <div className="max-w-7xl mx-auto p-4 md:p-8">
                         {view === 'entry' && (
                             <div className="space-y-8 animate-fadeIn">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="bg-black border border-gray-800 p-6 rounded-3xl shadow-xl">
-                                        <label className="text-[10px] font-black uppercase text-gold mb-2 block tracking-widest">Opponent</label>
-                                        <input type="text" value={opponent} onChange={e => setOpponent(e.target.value)} placeholder="TEAM NAME" className="w-full bg-gray-900 border border-gray-800 p-4 rounded-xl outline-none focus:border-gold font-bold uppercase" />
+                                <div className="bg-black border border-gray-800 rounded-2xl shadow-2xl overflow-hidden mb-8">
+                                    <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 bg-gray-900 border-b border-gray-800">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-gold font-bold uppercase tracking-widest">Game Date</label>
+                                            <input type="date" value={gameDate} onChange={e => setGameDate(e.target.value)} className="w-full bg-black border border-gray-700 p-3 rounded-lg text-white outline-none focus:border-gold text-sm" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-gold font-bold uppercase tracking-widest">Opponent Name</label>
+                                            <input type="text" value={opponent} onChange={e => setOpponent(e.target.value)} placeholder="Enter Opponent" className="w-full bg-black border border-gray-700 p-3 rounded-lg text-white outline-none focus:border-gold text-sm uppercase font-bold" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-red-500 font-bold uppercase tracking-widest">Opponent Score</label>
+                                            <input type="number" value={oppScore} onChange={e => setOppScore(e.target.value)} placeholder="Score" className="w-full bg-black border border-gray-700 p-3 rounded-lg text-white outline-none focus:border-red-500 text-sm font-black" />
+                                        </div>
                                     </div>
-                                    <div className="bg-black border border-gray-800 p-6 rounded-3xl shadow-xl">
-                                        <label className="text-[10px] font-black uppercase text-red-500 mb-2 block tracking-widest">Opponent Score</label>
-                                        <input type="number" value={oppScore} onChange={e => setOppScore(e.target.value)} placeholder="0" className="w-full bg-gray-900 border border-gray-700 p-4 rounded-xl outline-none focus:border-red-500 text-2xl font-black" />
-                                    </div>
-                                </div>
 
-                                <div className="bg-black border border-gray-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
                                     <div className="overflow-x-auto">
-                                        <table className="w-full text-left text-xs">
-                                            <thead className="bg-gray-900 text-gold uppercase border-b border-gray-800 font-black">
-                                                <tr>
-                                                    <th className="p-4 sticky left-0 bg-gray-900 z-30 border-r border-gray-800">Player</th>
+                                        <table className="w-full text-left">
+                                            <thead>
+                                                <tr className="bg-gray-950 text-gold text-[9px] uppercase border-b border-gray-800">
+                                                    <th className="p-4 sticky left-0 bg-black z-10 border-r border-gray-800">Player</th>
                                                     {['2PM','2PA','3PM','3PA','FTM','FTA','REB','AST','STL','BLK','TO'].map(h => <th key={h} className="p-2 text-center">{h}</th>)}
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {ROSTER.map(p => (
-                                                    <tr key={p.id} className="border-b border-gray-900 hover:bg-white/5 transition-colors">
-                                                        <td className="p-4 font-bold sticky left-0 bg-black border-r border-gray-800 whitespace-nowrap">
+                                                    <tr key={p.id} className="border-b border-gray-900 group hover:bg-white/5 transition-colors">
+                                                        <td className="p-4 font-bold text-gray-400 group-hover:text-white sticky left-0 bg-black z-10 whitespace-nowrap border-r border-gray-800">
                                                             <span className="text-gold text-[10px] mr-2">{p.pos}</span> {p.name}
                                                         </td>
-                                                        {['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','blk','to'].map(f => (
+                                                        {STAT_FIELDS.map(f => (
                                                             <td key={f} className="p-2 text-center">
-                                                                <input type="number" className="stat-input" onChange={e => setPlayerStats({...playerStats, [p.name]: {...playerStats[p.name], [f]: parseInt(e.target.value)||0}})} />
+                                                                <input type="number" className="stat-input" onChange={e => handleStatChange(p.name, f, e.target.value)} />
                                                             </td>
                                                         ))}
                                                     </tr>
@@ -237,30 +272,48 @@
                                 </div>
 
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                    <div className="bg-black border border-gray-800 p-8 rounded-[2.5rem] shadow-xl">
-                                        <p className="text-center text-[10px] uppercase font-black mb-6 tracking-widest text-gray-500">Eagles Shot Map Entry</p>
+                                    <div className="bg-black border border-gray-800 rounded-2xl p-8 shadow-xl text-center">
+                                        <p className="text-[10px] font-black uppercase text-white mb-6 italic tracking-widest bg-gray-900 py-3 rounded-xl">Eagles Chart: (M) Makes / (X) Misses</p>
                                         <div className="court-container">
                                             <div className="court-line baseline"></div><div className="court-line the-key"></div><div className="court-line free-throw-circle"></div><div className="court-line three-point-straight-l"></div><div className="court-line three-point-straight-r"></div><div className="three-point-arc"></div><div className="rim"></div>
-                                            {SHOT_ZONES.map(z => <div key={z.id} className={`court-zone z-${z.id}`}><span className="zone-label">{z.label}</span><ZoneInput team="eagles" zoneId={z.id} /></div>)}
+                                            {SHOT_ZONES.map(z => (
+                                                <div key={z.id} className={`court-zone z-${z.id}`}>
+                                                    <span className="zone-label">{z.label}</span>
+                                                    <div className="zone-input-group">
+                                                        <input type="number" className="zone-input text-gold" placeholder="M" onChange={e => {const nm={...shotMap}; nm.eagles[z.id].m=parseInt(e.target.value)||0; setShotMap(nm);}} />
+                                                        <span className="text-gray-600">/</span>
+                                                        <input type="number" className="zone-input text-white/50" placeholder="X" onChange={e => {const nm={...shotMap}; nm.eagles[z.id].x=parseInt(e.target.value)||0; setShotMap(nm);}} />
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
-                                    <div className="bg-black border border-gray-800 p-8 rounded-[2.5rem] shadow-xl">
-                                        <p className="text-center text-[10px] uppercase font-black mb-6 tracking-widest text-red-900">Opponent Shot Map Entry</p>
-                                        <div className="court-container border-red-900/30">
+                                    <div className="bg-black border border-gray-800 rounded-2xl p-8 shadow-xl text-center">
+                                        <p className="text-[10px] font-black uppercase text-red-500 mb-6 italic tracking-widest bg-red-950/20 py-3 rounded-xl">Opponent Chart: (M) Makes / (X) Misses</p>
+                                        <div className="court-container border-red-900/40">
                                             <div className="court-line baseline"></div><div className="court-line the-key"></div><div className="court-line free-throw-circle"></div><div className="court-line three-point-straight-l"></div><div className="court-line three-point-straight-r"></div><div className="three-point-arc"></div><div className="rim"></div>
-                                            {SHOT_ZONES.map(z => <div key={z.id} className={`court-zone z-${z.id}`}><span className="zone-label text-red-900">{z.label}</span><ZoneInput team="opp" zoneId={z.id} /></div>)}
+                                            {SHOT_ZONES.map(z => (
+                                                <div key={z.id} className={`court-zone z-${z.id}`}>
+                                                    <span className="zone-label text-red-900">{z.label}</span>
+                                                    <div className="zone-input-group">
+                                                        <input type="number" className="zone-input text-red-500" placeholder="M" onChange={e => {const nm={...shotMap}; nm.opp[z.id].m=parseInt(e.target.value)||0; setShotMap(nm);}} />
+                                                        <span className="text-gray-600">/</span>
+                                                        <input type="number" className="zone-input text-white/50" placeholder="X" onChange={e => {const nm={...shotMap}; nm.opp[z.id].x=parseInt(e.target.value)||0; setShotMap(nm);}} />
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 </div>
-                                <button onClick={saveGame} className="w-full bg-gold text-black py-10 rounded-3xl font-black text-4xl uppercase shadow-2xl hover:scale-[1.02] transition-transform">Save Game to Cloud</button>
+                                <button onClick={saveGame} className="w-full bg-gold text-black py-10 rounded-3xl font-black text-4xl uppercase shadow-2xl hover:scale-[1.02] transition-transform ring-8 ring-gold/10">Sync Game to Cloud</button>
                             </div>
                         )}
 
                         {view === 'log' && (
-                            <div className="space-y-6 animate-fadeIn">
-                                <h2 className="text-4xl font-black italic uppercase text-gold mb-10">Season History</h2>
+                            <div className="space-y-8 animate-fadeIn">
+                                <h2 className="text-5xl font-black italic uppercase text-gold tracking-tighter">Season Log</h2>
                                 {games.length === 0 ? (
-                                    <div className="py-40 text-center text-gray-700 uppercase font-black italic border-2 border-dashed border-gray-800 rounded-[3rem]">No Cloud Records Found.</div>
+                                    <div className="py-40 text-center text-gray-700 uppercase font-black italic border-2 border-dashed border-gray-800 rounded-[3rem]">No Records found.</div>
                                 ) : (
                                     games.map(g => (
                                         <div key={g.id} className="log-card p-10 flex flex-col lg:flex-row justify-between items-center gap-10">
@@ -268,12 +321,10 @@
                                                 <div className={`log-result-box bg-gray-950 border-2 border-gray-800 ${g.result === 'W' ? 'text-gold' : 'text-red-600'}`}>{g.result}</div>
                                                 <div>
                                                     <div className="text-base text-gray-500 font-black uppercase tracking-[0.4em] mb-2 italic">{g.date}</div>
-                                                    <div className="log-score-text uppercase">EAGLES {g.teamScore}, {g.opp} {g.oppScore}</div>
+                                                    <div className="log-score uppercase">EAGLES {g.teamScore}, {g.opp} {g.oppScore}</div>
                                                 </div>
                                             </div>
-                                            <button onClick={() => {if(confirm("Delete Game?")) db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').doc(g.id).delete();}} className="text-red-500 border border-red-900 p-6 rounded-2xl hover:bg-red-900 hover:text-white transition-all">
-                                                <lucide-icon name="trash-2"></lucide-icon> DELETE
-                                            </button>
+                                            <button onClick={() => {if(confirm("Delete Game?")) db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').doc(g.id).delete();}} className="text-red-500 border border-red-900 px-8 py-4 rounded-2xl hover:bg-red-900 hover:text-white transition-all uppercase font-black tracking-widest text-sm">Delete Game</button>
                                         </div>
                                     ))
                                 )}
@@ -281,41 +332,95 @@
                         )}
 
                         {view === 'clipboard' && (
-                            <div className="animate-fadeIn grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                <div className="clipboard-card">
-                                    <h3 className="text-lg font-black uppercase italic mb-4 text-gold border-b border-gray-900 pb-2">Top 3 Scorers</h3>
-                                    {Object.entries(aggregates).map(([n,d]) => ({n, ...d})).sort((a,b)=>b.pts-a.pts).slice(0,3).map((p, i) => (
-                                        <div key={i} className="flex justify-between p-2 mb-1 rounded bg-gray-900 border border-gray-800"><span className="text-xs font-bold">{p.n}</span><span className="font-black text-gold">{p.pts}</span></div>
-                                    ))}
-                                    <p className="text-[8px] uppercase font-black text-gray-600 mt-4">Average PPG</p>
-                                    {Object.entries(aggregates).map(([n,d]) => ({n, ...d})).filter(x=>x.gp>0).sort((a,b)=>(b.pts/b.gp)-(a.pts/a.gp)).slice(0,3).map((p, i) => (
-                                        <div key={i} className="flex justify-between p-1 border-b border-gray-900 text-[10px]"><span className="font-bold text-gray-400">{p.n}</span><span className="font-black">{(p.pts/p.gp).toFixed(1)}</span></div>
-                                    ))}
-                                </div>
-                                <div className="clipboard-card">
-                                    <h3 className="text-lg font-black uppercase italic mb-4 text-white border-b border-gray-900 pb-2">Top 3 Rebounders</h3>
-                                    {Object.entries(aggregates).map(([n,d]) => ({n, ...d})).sort((a,b)=>b.reb-a.reb).slice(0,3).map((p, i) => (
-                                        <div key={i} className="flex justify-between p-2 mb-1 rounded bg-gray-900 border border-gray-800"><span className="text-xs font-bold">{p.n}</span><span className="font-black text-white">{p.reb}</span></div>
-                                    ))}
-                                    <p className="text-[8px] uppercase font-black text-gray-600 mt-4">Average RPG</p>
-                                    {Object.entries(aggregates).map(([n,d]) => ({n, ...d})).filter(x=>x.gp>0).sort((a,b)=>(b.reb/b.gp)-(a.reb/a.gp)).slice(0,3).map((p, i) => (
-                                        <div key={i} className="flex justify-between p-1 border-b border-gray-900 text-[10px]"><span className="font-bold text-gray-400">{p.n}</span><span className="font-black">{(p.reb/p.gp).toFixed(1)}</span></div>
-                                    ))}
-                                </div>
-                                <div className="clipboard-card">
-                                    <h3 className="text-lg font-black uppercase italic mb-4 text-gold border-b border-gray-900 pb-2">Top 3 FT%</h3>
-                                    {Object.entries(aggregates).map(([n,d]) => ({n, ...d, pct:d.aft>0?(d.mft/d.aft)*100:0})).filter(x=>x.aft>0).sort((a,b)=>b.pct-a.pct).slice(0,3).map((p, i) => (
-                                        <div key={i} className="flex justify-between p-2 mb-1 rounded bg-gray-900 border border-gray-800">
-                                            <span className="text-xs font-bold">{p.n}</span>
-                                            <div className="text-right leading-none"><div className="font-black text-gold italic">{p.pct.toFixed(0)}%</div><div className="text-[7px] text-gray-600">{p.mft}/{p.aft}</div></div>
+                            <div className="animate-fadeIn space-y-8">
+                                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+                                    {[
+                                        {l: 'Record', v: `${games.filter(g => g.result === 'W').length}-${games.filter(g => g.result === 'L').length}`},
+                                        {l: 'Team PPG', v: games.length ? (games.reduce((a,b) => a + b.teamScore, 0) / games.length).toFixed(1) : 0},
+                                        {l: 'RPG', v: games.length ? (Object.values(aggregates).reduce((a,b) => a + b.reb, 0) / games.length).toFixed(1) : 0},
+                                        {l: 'Win %', v: games.length ? ((games.filter(g => g.result === 'W').length / games.length) * 100).toFixed(0) + '%' : '0%'}
+                                    ].map((m, i) => (
+                                        <div key={i} className="bg-black border border-gray-800 p-6 rounded-2xl text-center border-t-4 border-t-gold shadow-xl">
+                                            <div className="text-[10px] uppercase font-black text-gray-500 mb-1">{m.l}</div>
+                                            <div className="text-3xl font-black italic text-white">{m.v}</div>
                                         </div>
                                     ))}
                                 </div>
-                                <div className="clipboard-card">
-                                    <h3 className="text-lg font-black uppercase italic mb-4 text-white border-b border-gray-900 pb-2">Top 3 3PT%</h3>
-                                    {Object.entries(aggregates).map(([n,d]) => ({n, ...d, pct:d.a3>0?(d.m3/d.a3)*100:0})).filter(x=>x.a3>0).sort((a,b)=>b.pct-a.pct).slice(0,3).map((p, i) => (
-                                        <div key={i} className="flex justify-between p-2 mb-1 rounded bg-gray-900 border border-gray-800"><span className="text-xs font-bold">{p.n}</span><span className="font-black text-white">{p.pct.toFixed(1)}%</span></div>
-                                    ))}
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    <div className="clipboard-card">
+                                        <h3 className="text-lg font-black uppercase italic mb-4 text-gold border-b border-gray-900 pb-2">Top 3 Scorers</h3>
+                                        <div className="space-y-2">
+                                            <p className="text-[8px] uppercase font-black text-gray-600">Season Totals</p>
+                                            {leaders.points.map((p, i) => <div key={i} className="flex justify-between bg-gray-950 p-3 rounded mb-1 border border-gray-900"><span className="text-sm font-bold">{p.name}</span><span className="font-black text-gold">{p.pts}</span></div>)}
+                                            <p className="text-[8px] uppercase font-black text-gray-600 mt-4">Points Per Game</p>
+                                            {leaders.ppg.map((p, i) => <div key={i} className="flex justify-between p-2 text-xs border-b border-gray-900"><span className="font-bold text-gray-400">{p.name}</span><span className="font-black">{(p.pts/p.gp).toFixed(1)}</span></div>)}
+                                        </div>
+                                    </div>
+                                    <div className="clipboard-card">
+                                        <h3 className="text-lg font-black uppercase italic mb-4 text-white border-b border-gray-900 pb-2">Top 3 Boards</h3>
+                                        <div className="space-y-2">
+                                            <p className="text-[8px] uppercase font-black text-gray-600">Season Totals</p>
+                                            {leaders.rebounds.map((p, i) => <div key={i} className="flex justify-between bg-gray-950 p-3 rounded mb-1 border border-gray-900"><span className="text-sm font-bold">{p.name}</span><span className="font-black text-white">{p.reb}</span></div>)}
+                                            <p className="text-[8px] uppercase font-black text-gray-600 mt-4">Average RPG</p>
+                                            {leaders.rpg.map((p, i) => <div key={i} className="flex justify-between p-2 text-xs border-b border-gray-900"><span className="font-bold text-gray-400">{p.name}</span><span className="font-black">{(p.reb/p.gp).toFixed(1)}</span></div>)}
+                                        </div>
+                                    </div>
+                                    <div className="clipboard-card">
+                                        <h3 className="text-lg font-black uppercase italic mb-4 text-gold border-b border-gray-900 pb-2">Top 3 FT%</h3>
+                                        <div className="space-y-3">
+                                            {leaders.ft.map((p, i) => (
+                                                <div key={i} className="flex justify-between bg-gray-950 p-3 rounded border border-gray-900">
+                                                    <span className="text-sm font-bold">{p.name}</span>
+                                                    <div className="text-right leading-none"><div className="font-black text-gold italic text-base">{((p.mft/p.aft)*100).toFixed(0)}%</div><div className="text-[8px] text-gray-600 mt-1">{p.mft}/{p.aft}</div></div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="clipboard-card">
+                                        <h3 className="text-lg font-black uppercase italic mb-4 text-white border-b border-gray-900 pb-2">Efficiency (3PT)</h3>
+                                        <div className="space-y-3">
+                                            {leaders.fg3.map((p, i) => (
+                                                <div key={i} className="flex justify-between bg-gray-950 p-3 rounded border border-gray-900">
+                                                    <span className="text-sm font-bold">{p.name}</span>
+                                                    <div className="text-right leading-none"><div className="font-black text-white italic text-base">{((p.m3/p.a3)*100).toFixed(1)}%</div><div className="text-[8px] text-gray-600 mt-1">{p.m3}/{p.a3}</div></div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {view === 'summary' && (
+                            <div className="space-y-8 animate-fadeIn">
+                                <div className="bg-black border border-gray-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-xs">
+                                            <thead className="bg-gray-900 text-gold uppercase border-b border-gray-800">
+                                                <tr><th className="p-4 sticky left-0 bg-gray-900">Player</th><th>POS</th><th>GP</th><th>PPG</th><th>RPG</th><th>AST/G</th><th>STL/G</th><th>FT%</th><th>3PT%</th></tr>
+                                            </thead>
+                                            <tbody>
+                                                {Object.entries(aggregates).map(([name, d]) => {
+                                                    if(d.gp === 0) return null;
+                                                    const rP = ROSTER.find(r => r.name === name);
+                                                    return (
+                                                        <tr key={name} className="border-b border-gray-900 hover:bg-white/5">
+                                                            <td className="p-4 font-bold sticky left-0 bg-black text-gold">{name}</td>
+                                                            <td className="p-4 text-gray-500 font-bold">{rP?.pos}</td>
+                                                            <td className="p-4">{d.gp}</td>
+                                                            <td className="p-4 font-black">{(d.pts/d.gp).toFixed(1)}</td>
+                                                            <td className="p-4">{(d.reb/d.gp).toFixed(1)}</td>
+                                                            <td className="p-4 text-gray-400">{(Object.values(games).reduce((acc,g) => acc + (g.stats.find(s=>s.name===name)?.ast||0),0)/d.gp).toFixed(1)}</td>
+                                                            <td className="p-4 text-gray-400">{(Object.values(games).reduce((acc,g) => acc + (g.stats.find(s=>s.name===name)?.stl||0),0)/d.gp).toFixed(1)}</td>
+                                                            <td className="p-4">{d.aft > 0 ? ((d.mft/d.aft)*100).toFixed(0) + '%' : '-'}</td>
+                                                            <td className="p-4">{d.a3 > 0 ? ((d.m3/d.a3)*100).toFixed(1) + '%' : '-'}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
                         )}
