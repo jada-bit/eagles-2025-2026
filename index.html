@@ -3,11 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eagles Basketball | Cloud Dashboard</title>
+    <title>Eagles Basketball HQ</title>
+    <!-- CSS & Icons -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- React & Babel -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Firebase (Compat Version - Much more stable for single-file sites) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
     <style>
         :root { --eagle-gold: #FFB81C; }
         .bg-gold { background-color: var(--eagle-gold); }
@@ -33,44 +41,45 @@
         .three-point-straight-r { bottom: 0; right: 7%; width: 2px; height: 12%; }
         .rim { bottom: 5%; left: 50%; transform: translateX(-50%); width: 6%; aspect-ratio: 1; border: 2px solid #e11d48; border-radius: 50%; position: absolute; }
 
-        .court-zone { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.2s; border-radius: 8px; z-index: 20; }
+        .court-zone { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.2s; border-radius: 8px; z-index: 20; cursor: pointer; }
+        .court-zone:hover { background: rgba(255, 184, 28, 0.1); }
         .zone-label { font-size: 8px; font-weight: 900; color: #555; text-transform: uppercase; margin-bottom: 2px; pointer-events: none; }
         .zone-input { width: 32px; font-size: 10px; background: black; border: 1px solid #444; color: white; text-align: center; border-radius: 3px; font-weight: bold; }
 
         /* Geographic Zone Placements */
         .z-paint { bottom: 5%; left: 32%; width: 36%; height: 30%; }
-        .z-ml { bottom: 12%; left: 16%; width: 14%; height: 25%; }
-        .z-mr { bottom: 12%; right: 16%; width: 14%; height: 25%; }
+        .z-ml { bottom: 12%; left: 14%; width: 16%; height: 25%; }
+        .z-mr { bottom: 12%; right: 14%; width: 16%; height: 25%; }
         .z-3lc { bottom: 2%; left: 0.5%; width: 6%; height: 15%; }
         .z-3rc { bottom: 2%; right: 0.5%; width: 6%; height: 15%; }
-        .z-3lw { bottom: 32%; left: 1%; width: 12%; height: 25%; }
-        .z-3rw { bottom: 32%; right: 1%; width: 12%; height: 25%; }
-        .z-3t { bottom: 46%; left: 30%; width: 40%; height: 20%; }
+        .z-3lw { bottom: 35%; left: 1%; width: 12%; height: 30%; }
+        .z-3rw { bottom: 35%; right: 1%; width: 12%; height: 30%; }
+        .z-3t { top: 5%; left: 25%; width: 50%; height: 25%; }
+
         .log-card { background: #000; border: 1px solid #222; border-radius: 2.5rem; overflow: hidden; margin-bottom: 2rem; border-left: 8px solid var(--eagle-gold); }
+        .log-score-text { font-size: 3.5rem; font-weight: 900; font-style: italic; letter-spacing: -0.05em; line-height: 1; }
+        .clipboard-card { background: #080808; border: 1px solid #1a1a1a; border-top: 4px solid var(--eagle-gold); border-radius: 1.5rem; padding: 1.5rem; }
     </style>
 </head>
-<body>
+<body class="bg-gray-950">
     <div id="root"></div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, addDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
-
-        // --- PASTE YOUR CONFIG FROM STEP 4 HERE ---
+    <script type="text/babel">
+        // --- FIREBASE CONFIG (PLUGGED IN) ---
         const firebaseConfig = {
             apiKey: "AIzaSyA5H5SsumWG7bym_0EZ7jOlfWeswpSauhk",
-  authDomain: "eagles-stats.firebaseapp.com",
-  projectId: "eagles-stats",
-  storageBucket: "eagles-stats.firebasestorage.app",
-  messagingSenderId: "386723096734",
-  appId: "1:386723096734:web:b50e343c703983e838b38f",
-  measurementId: "G-4SQEXFWE0W"
+            authDomain: "eagles-stats.firebaseapp.com",
+            projectId: "eagles-stats",
+            storageBucket: "eagles-stats.firebasestorage.app",
+            messagingSenderId: "386723096734",
+            appId: "1:386723096734:web:b50e343c703983e838b38f",
+            measurementId: "G-4SQEXFWE0W"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
         const appId = "eagles-hq-v1";
 
         const ROSTER = [
@@ -101,16 +110,14 @@
             });
 
             React.useEffect(() => {
-                signInAnonymously(auth);
-                return onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        const q = collection(db, 'artifacts', appId, 'public', 'data', 'games');
-                        onSnapshot(q, (snapshot) => {
-                            setGames(snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => new Date(b.date) - new Date(a.date)));
-                            setLoading(false);
-                        });
-                    }
-                });
+                auth.signInAnonymously().catch(err => console.error("Auth failed:", err));
+                const unsubscribe = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games')
+                    .onSnapshot((snapshot) => {
+                        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                        setGames(docs.sort((a, b) => new Date(b.date) - new Date(a.date)));
+                        setLoading(false);
+                    });
+                return () => unsubscribe();
             }, []);
 
             const saveGame = async () => {
@@ -122,134 +129,170 @@
                     teamPts += pts;
                     return { ...p, ...s, pts };
                 });
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'games'), {
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').add({
                     date: new Date().toLocaleDateString(),
                     opp: opponent, oppScore, teamScore: teamPts, 
                     result: teamPts > oppScore ? 'W' : 'L',
                     stats, shotMap
                 });
-                alert("Synced!"); setOpponent(''); setPlayerStats({}); setView('log');
+                alert("Game Logged to Cloud!"); setOpponent(''); setPlayerStats({}); setView('log');
             };
 
-            if (loading) return <div className="h-screen bg-black flex items-center justify-center text-gold font-black italic">SYNCING CLOUD...</div>;
+            const ZoneInput = ({ team, zoneId }) => (
+                <div className="flex gap-1 items-center">
+                    <input type="number" className="zone-input" value={shotMap[team][zoneId].m} 
+                        onChange={e => {
+                            const val = parseInt(e.target.value) || 0;
+                            const newMap = JSON.parse(JSON.stringify(shotMap)); 
+                            newMap[team][zoneId].m = val; setShotMap(newMap);
+                        }} />
+                    <input type="number" className="zone-input" value={shotMap[team][zoneId].x} 
+                        onChange={e => {
+                            const val = parseInt(e.target.value) || 0;
+                            const newMap = JSON.parse(JSON.stringify(shotMap)); 
+                            newMap[team][zoneId].x = val; setShotMap(newMap);
+                        }} />
+                </div>
+            );
+
+            if (loading) return (
+                <div className="h-screen bg-black flex items-center justify-center text-gold font-black italic tracking-tighter text-2xl animate-pulse">
+                    SYNCING EAGLES CLOUD...
+                </div>
+            );
 
             return (
                 <div className="min-h-screen bg-gray-950 text-white font-sans">
                     <header className="bg-black border-b-4 border-gold p-6 flex justify-between items-center sticky top-0 z-50">
-                        <h1 className="text-2xl font-black italic uppercase">Eagles <span className="text-gold">Cloud</span></h1>
-                        <nav className="flex gap-2">
+                        <h1 className="text-2xl font-black italic uppercase tracking-tighter">Eagles <span className="text-gold">Cloud</span></h1>
+                        <nav className="flex gap-1 bg-gray-900 p-1 rounded-full border border-gray-800">
                             {['entry', 'log', 'clipboard'].map(v => (
-                                <button key={v} onClick={() => setView(v)} className={`px-4 py-1 rounded-full text-[10px] font-black uppercase ${view === v ? 'bg-gold text-black' : 'text-gray-500'}`}>{v}</button>
+                                <button key={v} onClick={() => setView(v)} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase transition-all ${view === v ? 'bg-gold text-black shadow-lg' : 'text-gray-500'}`}>{v}</button>
                             ))}
                         </nav>
                     </header>
 
                     <div className="max-w-7xl mx-auto p-4 md:p-8">
                         {view === 'entry' && (
-                            <div className="space-y-8">
+                            <div className="space-y-8 animate-fadeIn">
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div className="bg-black p-4 rounded-xl border border-gray-800"><label className="text-[10px] text-gold uppercase font-black block mb-1">Opponent</label><input type="text" value={opponent} onChange={e => setOpponent(e.target.value)} className="w-full bg-transparent outline-none font-bold uppercase" placeholder="NAME" /></div>
-                                    <div className="bg-black p-4 rounded-xl border border-gray-800"><label className="text-[10px] text-red-500 uppercase font-black block mb-1">Score</label><input type="number" value={oppScore} onChange={e => setOppScore(e.target.value)} className="w-full bg-transparent outline-none font-black text-xl" /></div>
+                                    <div className="bg-black p-4 rounded-xl border border-gray-800">
+                                        <label className="text-[10px] text-gold uppercase font-black block mb-1">Opponent</label>
+                                        <input type="text" value={opponent} onChange={e => setOpponent(e.target.value)} className="w-full bg-transparent outline-none font-bold uppercase" placeholder="Opponent Name" />
+                                    </div>
+                                    <div className="bg-black p-4 rounded-xl border border-gray-800">
+                                        <label className="text-[10px] text-red-500 uppercase font-black block mb-1">Opp Score</label>
+                                        <input type="number" value={oppScore} onChange={e => setOppScore(e.target.value)} className="w-full bg-transparent outline-none font-black text-xl" />
+                                    </div>
                                 </div>
-                                <div className="bg-black border border-gray-800 rounded-3xl overflow-x-auto">
+
+                                <div className="bg-black border border-gray-800 rounded-3xl overflow-x-auto shadow-2xl">
                                     <table className="w-full text-left text-xs">
                                         <thead className="bg-gray-900 text-gold uppercase">
-                                            <tr><th className="p-4 sticky left-0 bg-gray-900">Player</th><th>2PM</th><th>2PA</th><th>3PM</th><th>3PA</th><th>FTM</th><th>FTA</th><th>REB</th><th>AST</th></tr>
+                                            <tr><th className="p-4 sticky left-0 bg-gray-900 z-10 border-r border-gray-800">Player</th><th>2PM</th><th>2PA</th><th>3PM</th><th>3PA</th><th>FTM</th><th>FTA</th><th>REB</th><th>AST</th></tr>
                                         </thead>
                                         <tbody>
                                             {ROSTER.map(p => (
                                                 <tr key={p.id} className="border-b border-gray-900">
-                                                    <td className="p-3 font-bold sticky left-0 bg-black">{p.name}</td>
+                                                    <td className="p-3 font-bold sticky left-0 bg-black border-r border-gray-800 whitespace-nowrap">{p.name}</td>
                                                     {['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast'].map(f => (
-                                                        <td key={f} className="p-1"><input type="number" className="w-10 bg-gray-900 border border-gray-800 rounded p-1 text-center font-bold" onChange={e => setPlayerStats({...playerStats, [p.name]: {...playerStats[p.name], [f]: parseInt(e.target.value)||0}})} /></td>
+                                                        <td key={f} className="p-1"><input type="number" className="stat-input" onChange={e => setPlayerStats({...playerStats, [p.name]: {...playerStats[p.name], [f]: parseInt(e.target.value)||0}})} /></td>
                                                     ))}
                                                 </tr>
                                             ))}
                                         </tbody>
                                     </table>
                                 </div>
+
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                    <div className="bg-black p-6 rounded-3xl border border-gray-800">
-                                        <p className="text-center text-[10px] uppercase font-black mb-4">Eagles Shot Map</p>
+                                    <div className="bg-black p-8 rounded-[2.5rem] border border-gray-800 shadow-xl">
+                                        <p className="text-center text-[10px] uppercase font-black mb-6 tracking-widest text-gray-500">Eagles Shot Map</p>
                                         <div className="court-container">
                                             <div className="court-line baseline"></div><div className="court-line the-key"></div><div className="court-line free-throw-circle"></div><div className="court-line three-point-straight-l"></div><div className="court-line three-point-straight-r"></div><div className="three-point-arc"></div><div className="rim"></div>
                                             {SHOT_ZONES.map(z => <div key={z.id} className={`court-zone z-${z.id}`}>
                                                 <span className="zone-label">{z.label}</span>
-                                                <div className="flex gap-1">
-                                                    <input type="number" className="zone-input" onChange={e => {
-                                                        const nm = {...shotMap}; nm.eagles[z.id].m = parseInt(e.target.value)||0; setShotMap(nm);
-                                                    }} />
-                                                    <input type="number" className="zone-input" onChange={e => {
-                                                        const nm = {...shotMap}; nm.eagles[z.id].x = parseInt(e.target.value)||0; setShotMap(nm);
-                                                    }} />
-                                                </div>
+                                                <ZoneInput team="eagles" zoneId={z.id} />
                                             </div>)}
                                         </div>
                                     </div>
-                                    <div className="bg-black p-6 rounded-3xl border border-gray-800">
-                                        <p className="text-center text-[10px] uppercase font-black mb-4 text-red-500">Opponent Shot Map</p>
-                                        <div className="court-container border-red-900/40">
+                                    <div className="bg-black p-8 rounded-[2.5rem] border border-gray-800 shadow-xl">
+                                        <p className="text-center text-[10px] uppercase font-black mb-6 tracking-widest text-red-900">Opponent Shot Map</p>
+                                        <div className="court-container border-red-900/30">
                                             <div className="court-line baseline"></div><div className="court-line the-key"></div><div className="court-line free-throw-circle"></div><div className="court-line three-point-straight-l"></div><div className="court-line three-point-straight-r"></div><div className="three-point-arc"></div><div className="rim"></div>
                                             {SHOT_ZONES.map(z => <div key={z.id} className={`court-zone z-${z.id}`}>
                                                 <span className="zone-label">{z.label}</span>
-                                                <div className="flex gap-1">
-                                                    <input type="number" className="zone-input" onChange={e => {
-                                                        const nm = {...shotMap}; nm.opp[z.id].m = parseInt(e.target.value)||0; setShotMap(nm);
-                                                    }} />
-                                                    <input type="number" className="zone-input" onChange={e => {
-                                                        const nm = {...shotMap}; nm.opp[z.id].x = parseInt(e.target.value)||0; setShotMap(nm);
-                                                    }} />
-                                                </div>
+                                                <ZoneInput team="opp" zoneId={z.id} />
                                             </div>)}
                                         </div>
                                     </div>
                                 </div>
-                                <button onClick={saveGame} className="w-full bg-gold text-black py-8 rounded-3xl font-black text-3xl uppercase shadow-2xl">Sync to Cloud</button>
+                                <button onClick={saveGame} className="w-full bg-gold text-black py-8 rounded-3xl font-black text-3xl uppercase shadow-2xl hover:scale-[1.02] transition-transform">Sync Record to Cloud</button>
                             </div>
                         )}
 
                         {view === 'log' && (
                             <div className="space-y-6">
-                                {games.map(g => (
-                                    <div key={g.id} className="log-card p-10 flex flex-col md:flex-row justify-between items-center gap-10">
-                                        <div><p className="text-gold text-[10px] font-black uppercase mb-2 tracking-widest">{g.date}</p><p className="log-score-text uppercase">Eagles {g.teamScore}, {g.opp} {g.oppScore}</p></div>
-                                        <button onClick={() => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'games', g.id))} className="text-red-500 border border-red-900 p-4 rounded-xl hover:bg-red-900 hover:text-white transition-all"><Trash2 size={24} /></button>
-                                    </div>
-                                ))}
+                                <h2 className="text-4xl font-black italic uppercase text-gold mb-8">Season Records</h2>
+                                {games.length === 0 ? (
+                                    <div className="py-40 text-center text-gray-700 uppercase font-black italic tracking-widest border-2 border-dashed border-gray-900 rounded-3xl">No Records found.</div>
+                                ) : (
+                                    games.map(g => (
+                                        <div key={g.id} className="log-card p-10 flex flex-col md:flex-row justify-between items-center gap-10">
+                                            <div><p className="text-gold text-[10px] font-black uppercase mb-2 tracking-widest italic">{g.date}</p><p className="log-score-text uppercase">Eagles {g.teamScore}, {g.opp} {g.oppScore}</p></div>
+                                            <button onClick={() => { if(confirm("Delete game?")) db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').doc(g.id).delete() }} className="text-red-500 border border-red-900 p-4 rounded-xl hover:bg-red-900 hover:text-white transition-all">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                                            </button>
+                                        </div>
+                                    ))
+                                )}
                             </div>
                         )}
 
                         {view === 'clipboard' && (
-                            <div className="space-y-8 animate-fadeIn">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                    <div className="clipboard-card">
-                                        <h3 className="text-lg font-black uppercase italic mb-4 text-gold border-b border-gray-900 pb-2">Top 3 Scorers</h3>
-                                        {ROSTER.map(p => ({
-                                            name: p.name,
-                                            pts: games.reduce((acc, g) => acc + (g.stats.find(s => s.name === p.name)?.pts || 0), 0)
-                                        })).sort((a,b) => b.pts - a.pts).slice(0,3).map((p, i) => (
-                                            <div key={i} className="flex justify-between p-2 mb-1 rounded bg-gray-900 border border-gray-800"><span className="text-xs font-bold">{p.name}</span><span className="font-black text-gold">{p.pts}</span></div>
-                                        ))}
-                                    </div>
-                                    <div className="clipboard-card">
-                                        <h3 className="text-lg font-black uppercase italic mb-4 text-white border-b border-gray-900 pb-2">Top 3 Boards</h3>
-                                        {ROSTER.map(p => ({
-                                            name: p.name,
-                                            reb: games.reduce((acc, g) => acc + (g.stats.find(s => s.name === p.name)?.reb || 0), 0)
-                                        })).sort((a,b) => b.reb - a.reb).slice(0,3).map((p, i) => (
-                                            <div key={i} className="flex justify-between p-2 mb-1 rounded bg-gray-900 border border-gray-800"><span className="text-xs font-bold">{p.name}</span><span className="font-black text-white">{p.reb}</span></div>
-                                        ))}
-                                    </div>
-                                    <div className="clipboard-card">
-                                        <h3 className="text-lg font-black uppercase italic mb-4 text-gold border-b border-gray-900 pb-2">Top 3 FT%</h3>
-                                        {ROSTER.map(p => {
-                                            const m = games.reduce((acc, g) => acc + (g.stats.find(s => s.name === p.name)?.ftm || 0), 0);
-                                            const a = games.reduce((acc, g) => acc + (g.stats.find(s => s.name === p.name)?.fta || 0), 0);
-                                            return { name: p.name, m, a, pct: a > 0 ? (m/a)*100 : 0 };
-                                        }).filter(p => p.a > 0).sort((a,b) => b.pct - a.pct).slice(0,3).map((p, i) => (
-                                            <div key={i} className="flex justify-between p-2 mb-1 rounded bg-gray-900 border border-gray-800"><span className="text-xs font-bold">{p.name}</span><span className="font-black text-gold">{p.pct.toFixed(0)}%</span></div>
-                                        ))}
-                                    </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                <div className="clipboard-card">
+                                    <h3 className="text-lg font-black uppercase italic mb-4 text-gold border-b border-gray-900 pb-2">Top 3 Scorers</h3>
+                                    {ROSTER.map(p => ({
+                                        name: p.name,
+                                        pts: games.reduce((acc, g) => acc + (g.stats.find(s => s.name === p.name)?.pts || 0), 0)
+                                    })).sort((a,b) => b.pts - a.pts).slice(0,3).map((p, i) => (
+                                        <div key={i} className="flex justify-between p-2 mb-1 rounded bg-gray-950 border border-gray-800"><span className="text-xs font-bold">{p.name}</span><span className="font-black text-gold">{p.pts}</span></div>
+                                    ))}
+                                </div>
+                                <div className="clipboard-card">
+                                    <h3 className="text-lg font-black uppercase italic mb-4 text-white border-b border-gray-900 pb-2">Top 3 Boards</h3>
+                                    {ROSTER.map(p => ({
+                                        name: p.name,
+                                        reb: games.reduce((acc, g) => acc + (g.stats.find(s => s.name === p.name)?.reb || 0), 0)
+                                    })).sort((a,b) => b.reb - a.reb).slice(0,3).map((p, i) => (
+                                        <div key={i} className="flex justify-between p-2 mb-1 rounded bg-gray-950 border border-gray-800"><span className="text-xs font-bold">{p.name}</span><span className="font-black text-white">{p.reb}</span></div>
+                                    ))}
+                                </div>
+                                <div className="clipboard-card">
+                                    <h3 className="text-lg font-black uppercase italic mb-4 text-gold border-b border-gray-900 pb-2">Top 3 FT%</h3>
+                                    {ROSTER.map(p => {
+                                        const m = games.reduce((acc, g) => acc + (g.stats.find(s => s.name === p.name)?.ftm || 0), 0);
+                                        const a = games.reduce((acc, g) => acc + (g.stats.find(s => s.name === p.name)?.fta || 0), 0);
+                                        return { name: p.name, m, a, pct: a > 0 ? (m/a)*100 : 0 };
+                                    }).filter(p => p.a > 0).sort((a,b) => b.pct - a.pct).slice(0,3).map((p, i) => (
+                                        <div key={i} className="flex justify-between p-2 mb-1 rounded bg-gray-950 border border-gray-800">
+                                            <span className="text-xs font-bold">{p.name}</span>
+                                            <div className="text-right">
+                                                <div className="font-black text-gold italic">{p.pct.toFixed(0)}%</div>
+                                                <div className="text-[7px] text-gray-500">{p.m}/{p.a}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="clipboard-card">
+                                    <h3 className="text-lg font-black uppercase italic mb-4 text-white border-b border-gray-900 pb-2">Top 3 3PT%</h3>
+                                    {ROSTER.map(p => {
+                                        const m = games.reduce((acc, g) => acc + (g.stats.find(s => s.name === p.name)?.fg3m || 0), 0);
+                                        const a = games.reduce((acc, g) => acc + (g.stats.find(s => s.name === p.name)?.fg3a || 0), 0);
+                                        return { name: p.name, pct: a > 0 ? (m/a)*100 : 0 };
+                                    }).filter(p => p.pct > 0).sort((a,b) => b.pct - a.pct).slice(0,3).map((p, i) => (
+                                        <div key={i} className="flex justify-between p-2 mb-1 rounded bg-gray-950 border border-gray-800"><span className="text-xs font-bold">{p.name}</span><span className="font-black text-white">{p.pct.toFixed(1)}%</span></div>
+                                    ))}
                                 </div>
                             </div>
                         )}
@@ -259,7 +302,7 @@
         }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(React.createElement(App));
+        root.render(<App />);
     </script>
 </body>
 </html>
