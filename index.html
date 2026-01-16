@@ -4,16 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Eagles Girls Basketball Dashboard</title>
-    <!-- Core UI & Icons -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- React & Babel -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Firebase Compat SDKs -->
+    <!-- Firebase Compat SDKs (Best for single-file web apps) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -47,30 +40,34 @@
         }
         .court-line { position: absolute; background: rgba(255,255,255,0.15); pointer-events: none; }
         .baseline { bottom: 0; left: 0; width: 100%; height: 2px; }
-        .the-key { bottom: 0; left: 50%; transform: translateX(-50%); width: 24%; height: 35%; border: 2px solid rgba(255,255,255,0.15); border-bottom: none; }
-        .free-throw-circle { position: absolute; bottom: 23%; left: 50%; transform: translateX(-50%); width: 24%; aspect-ratio: 1; border: 2px solid rgba(255,255,255,0.15); border-radius: 50%; }
+        .the-key { bottom: 0; left: 50%; transform: translateX(-50%); width: 24%; height: 30%; border: 2px solid rgba(255,255,255,0.15); border-bottom: none; }
         
-        /* 3PT Geometry: Peak Aligned with Circle Peak */
+        /* FT Circle: Height defined by Top Peak (42%) */
+        .free-throw-circle { 
+            position: absolute; bottom: calc(42% - 24%); left: 50%; 
+            transform: translateX(-50%); width: 24%; aspect-ratio: 1; 
+            border: 2px solid rgba(255,255,255,0.15); border-radius: 50%; 
+        }
+        
+        /* 3PT Geometry: Rounder curve peaking at 42% */
         .three-point-arc { 
-            position: absolute; bottom: -35%; left: 7%; right: 7%; height: 70%; 
+            position: absolute; bottom: -42%; left: 7%; right: 7%; height: 84%; 
             border: 2px solid rgba(255,255,255,0.15); border-radius: 50%; pointer-events: none;
         }
-        .three-point-straight-l { bottom: 0; left: 7%; width: 2px; height: 12%; }
-        .three-point-straight-r { bottom: 0; right: 7%; width: 2px; height: 12%; }
+        .three-point-straight-l { bottom: 0; left: 7%; width: 2px; height: 10%; }
+        .three-point-straight-r { bottom: 0; right: 7%; width: 2px; height: 10%; }
         
         .backboard { bottom: 8%; left: 50%; transform: translateX(-50%); width: 12%; height: 2px; background: rgba(255,255,255,0.4); }
         .rim { bottom: 5%; left: 50%; transform: translateX(-50%); width: 6%; aspect-ratio: 1; border: 2px solid #e11d48; border-radius: 50%; position: absolute; }
 
-        /* Tactical Zones Overlay */
         .court-zone { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.2s; border-radius: 8px; z-index: 20; cursor: pointer; }
         .court-zone:hover { background: rgba(255, 184, 28, 0.1); outline: 1px solid var(--eagle-gold); }
-        
         .zone-label { font-size: 8px; font-weight: 900; color: #555; text-transform: uppercase; margin-bottom: 2px; pointer-events: none; }
         .zone-input-group { display: flex; gap: 2px; align-items: center; }
         .zone-input { width: 34px; font-size: 11px; background: black; border: 1px solid #444; color: white; text-align: center; border-radius: 3px; padding: 1px 0; font-weight: bold; }
         
-        /* 8-Zone Mapping Logic */
-        .z-paint { bottom: 5%; left: 32%; width: 36%; height: 30%; }
+        /* 8-Zone Mapping */
+        .z-paint { bottom: 5%; left: 32%; width: 36%; height: 35%; }
         .z-mid-l { bottom: 12%; left: 14%; width: 16%; height: 25%; }
         .z-mid-r { bottom: 12%; right: 14%; width: 16%; height: 25%; }
         .z-3-lc { bottom: 2%; left: 0.5%; width: 6%; height: 15%; }
@@ -79,17 +76,259 @@
         .z-3-rw { bottom: 35%; right: 1%; width: 12%; height: 30%; }
         .z-3-t { top: 5%; left: 25%; width: 50%; height: 25%; }
 
-        /* Giant Game Log Styles */
+        .filter-select { background: #111; border: 1px solid #333; font-size: 10px; color: #9ca3af; padding: 6px 12px; border-radius: 8px; outline: none; font-weight: 800; text-transform: uppercase; }
+        .filter-select:focus { border-color: var(--eagle-gold); color: white; }
+
         .log-card { background: #000; border: 1px solid #222; border-radius: 2rem; overflow: hidden; margin-bottom: 1.5rem; transition: all 0.3s; border-left: 10px solid var(--eagle-gold); }
         .log-score { font-size: 2.5rem; font-weight: 900; font-style: italic; letter-spacing: -0.05em; line-height: 1; }
         .log-result-box { width: 4.5rem; height: 4.5rem; border-radius: 1.25rem; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 900; }
     </style>
 </head>
-<body class="bg-gray-950">
-    <div id="root"></div>
+<body class="bg-gray-950 text-white font-sans min-h-screen">
 
-    <script type="text/babel">
-        // --- YOUR FIREBASE CONFIG ---
+    <div id="loading-screen" class="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center">
+        <div class="text-white text-6xl mb-4 italic font-black uppercase tracking-tighter">EAGLES <span class="text-gold">HQ</span></div>
+        <div class="text-gold text-lg font-black animate-pulse uppercase italic tracking-widest">Connecting to Cloud...</div>
+    </div>
+
+    <div class="max-w-7xl mx-auto pb-20">
+        <!-- Dashboard Header -->
+        <header class="sticky top-0 z-50 bg-black border-b-4 border-gold p-4 md:p-6 shadow-2xl">
+            <div class="flex flex-col lg:flex-row justify-between items-center gap-6">
+                <div class="flex items-center gap-4">
+                    <div class="bg-white w-12 h-12 rounded-full flex items-center justify-center border-2 border-gold shadow-lg transform -rotate-2">
+                        <span class="text-2xl">🦅</span>
+                    </div>
+                    <div>
+                        <h1 class="text-3xl font-black italic uppercase tracking-tighter leading-none">Eagles <span class="text-gold">Dashboard</span></h1>
+                        <p class="text-[9px] text-gray-500 uppercase tracking-widest mt-1 font-bold tracking-tighter">Performance & Tactical Analytics</p>
+                    </div>
+                </div>
+                <nav class="flex flex-wrap justify-center gap-1 bg-gray-900 p-1 rounded-full border border-gray-800 overflow-x-auto max-w-full">
+                    <button onclick="toggleView('entry')" id="nav-entry" class="nav-btn active-nav">New Game</button>
+                    <button onclick="toggleView('tactics')" id="nav-tactics" class="nav-btn inactive-nav">Tactics</button>
+                    <button onclick="toggleView('defense')" id="nav-defense" class="nav-btn inactive-nav">Defense</button>
+                    <button onclick="toggleView('clipboard')" id="nav-clipboard" class="nav-btn inactive-nav">Clipboard</button>
+                    <button onclick="toggleView('summary')" id="nav-summary" class="nav-btn inactive-nav">Season Stats</button>
+                    <button onclick="toggleView('log')" id="nav-log" class="nav-btn inactive-nav">Log</button>
+                    <button onclick="toggleView('profiles')" id="nav-profiles" class="nav-btn inactive-nav">Profiles</button>
+                    <button onclick="toggleView('settings')" id="nav-settings" class="nav-btn inactive-nav">Settings</button>
+                </nav>
+            </div>
+        </header>
+
+        <!-- GAME ENTRY -->
+        <main id="view-entry" class="p-4 md:p-8 animate-fadeIn">
+            <div class="bg-black border border-gray-800 rounded-2xl shadow-2xl overflow-hidden mb-8">
+                <div class="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 bg-gray-900 border-b border-gray-800">
+                    <div class="space-y-1">
+                        <label class="text-[10px] text-gold font-bold uppercase tracking-widest">Game Date</label>
+                        <input type="date" id="gameDate" class="w-full bg-black border border-gray-700 p-3 rounded-lg text-white outline-none focus:border-gold text-sm">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[10px] text-gold font-bold uppercase tracking-widest">Opponent Name</label>
+                        <input type="text" id="opponent" placeholder="Enter Opponent" class="w-full bg-black border border-gray-700 p-3 rounded-lg text-white outline-none focus:border-gold text-sm uppercase font-bold">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[10px] text-red-500 font-bold uppercase tracking-widest">Opponent Score</label>
+                        <input type="number" id="oppScore" placeholder="Score" class="w-full bg-black border border-gray-700 p-3 rounded-lg text-white outline-none focus:border-red-500 text-sm font-black">
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="bg-gray-950 text-gold text-[9px] uppercase border-b border-gray-800">
+                                <th class="p-4 sticky-col">Player</th>
+                                <th class="p-2 text-center">2PM</th><th class="p-2 text-center">2PA</th>
+                                <th class="p-2 text-center">3PM</th><th class="p-2 text-center">3PA</th>
+                                <th class="p-2 text-center">FTM</th><th class="p-2 text-center">FTA</th>
+                                <th class="p-2 text-center text-white">REB</th>
+                                <th class="p-2 text-center">AST</th><th class="p-2 text-center">STL</th>
+                                <th class="p-2 text-center text-white">BLK</th>
+                                <th class="p-2 text-center">TO</th><th class="p-2 text-center">FLS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rosterRows"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
+                <div class="bg-black border border-gray-800 rounded-2xl p-8 shadow-xl flex flex-col">
+                    <h3 class="text-xl font-black uppercase italic mb-2 text-gold">Set Play Tracker</h3>
+                    <div id="setPlayInputs" class="space-y-3 flex-1 mt-4">
+                        <div class="grid grid-cols-5 gap-2 text-[8px] uppercase font-bold text-gray-500 px-2">
+                            <div class="col-span-2">Play Name</div><div>RUN</div><div>SUCC</div><div>PTS</div>
+                        </div>
+                    </div>
+                    <button onclick="addSetPlayInput()" class="mt-6 text-[10px] uppercase font-black bg-gray-900 border border-gray-800 text-gold px-6 py-3 rounded-xl hover:bg-gold hover:text-black transition-all">+ New Set Play</button>
+                </div>
+
+                <div class="bg-gold text-black rounded-3xl p-8 shadow-2xl text-center flex flex-col justify-center border-b-8 border-black/20">
+                    <h3 class="text-xl font-black uppercase italic mb-6">Live Game Snapshot</h3>
+                    <div class="grid grid-cols-2 gap-8">
+                        <div>
+                            <div class="text-[10px] font-black uppercase opacity-60 mb-1 tracking-widest">Eagles Total</div>
+                            <div class="text-5xl font-black tracking-tighter" id="liveEaglesTotal">0/0</div>
+                            <div class="text-sm font-black opacity-80" id="liveEaglesPct">0.0%</div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] font-black uppercase opacity-60 mb-1 tracking-widest">Opponent Total</div>
+                            <div class="text-5xl font-black tracking-tighter" id="liveOppTotal">0/0</div>
+                            <div class="text-sm font-black opacity-80" id="liveOppPct">0.0%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                <div class="bg-black border border-gray-800 rounded-2xl p-8 shadow-xl text-center">
+                    <div class="court-container" id="eaglesShotMapInput">
+                        <div class="court-line baseline"></div><div class="court-line the-key"></div><div class="court-line free-throw-circle"></div><div class="three-point-arc"></div><div class="rim"></div>
+                        <div class="court-zone z-paint"><span class="zone-label">Paint</span><div class="zone-input-group"><input type="number" class="zone-input live-calc" data-team="eagles" data-zone="paint" data-type="m" value="0"><span>/</span><input type="number" class="zone-input live-calc" data-team="eagles" data-zone="paint" data-type="x" value="0"></div></div>
+                        <div class="court-zone z-3-lc"><span class="zone-label">3L CRN</span><div class="zone-input-group"><input type="number" class="zone-input live-calc" data-team="eagles" data-zone="3lc" data-type="m" value="0"><span>/</span><input type="number" class="zone-input live-calc" data-team="eagles" data-zone="3lc" data-type="x" value="0"></div></div>
+                        <div class="court-zone z-3-rc"><span class="zone-label">3R CRN</span><div class="zone-input-group"><input type="number" class="zone-input live-calc" data-team="eagles" data-zone="3rc" data-type="m" value="0"><span>/</span><input type="number" class="zone-input live-calc" data-team="eagles" data-zone="3rc" data-type="x" value="0"></div></div>
+                        <div class="court-zone z-3-lw"><span class="zone-label">3L WNG</span><div class="zone-input-group"><input type="number" class="zone-input live-calc" data-team="eagles" data-zone="3lw" data-type="m" value="0"><span>/</span><input type="number" class="zone-input live-calc" data-team="eagles" data-zone="3lw" data-type="x" value="0"></div></div>
+                        <div class="court-zone z-3-rw"><span class="zone-label">3R WNG</span><div class="zone-input-group"><input type="number" class="zone-input live-calc" data-team="eagles" data-zone="3rw" data-type="m" value="0"><span>/</span><input type="number" class="zone-input live-calc" data-team="eagles" data-zone="3rw" data-type="x" value="0"></div></div>
+                        <div class="court-zone z-3-t"><span class="zone-label">3 Top</span><div class="zone-input-group"><input type="number" class="zone-input live-calc" data-team="eagles" data-zone="3t" data-type="m" value="0"><span>/</span><input type="number" class="zone-input live-calc" data-team="eagles" data-zone="3t" data-type="x" value="0"></div></div>
+                        <div class="court-zone z-mid-l"><span class="zone-label">Mid L</span><div class="zone-input-group"><input type="number" class="zone-input live-calc" data-team="eagles" data-zone="ml" data-type="m" value="0"><span>/</span><input type="number" class="zone-input live-calc" data-team="eagles" data-zone="ml" data-type="x" value="0"></div></div>
+                        <div class="court-zone z-mid-r"><span class="zone-label">Mid R</span><div class="zone-input-group"><input type="number" class="zone-input live-calc" data-team="eagles" data-zone="mr" data-type="m" value="0"><span>/</span><input type="number" class="zone-input live-calc" data-team="eagles" data-zone="mr" data-type="x" value="0"></div></div>
+                    </div>
+                </div>
+                <div class="bg-black border border-gray-800 rounded-2xl p-8 shadow-xl text-center">
+                    <div class="court-container border-red-900/40" id="oppShotMapInput">
+                        <div class="court-line baseline"></div><div class="court-line the-key"></div><div class="court-line free-throw-circle"></div><div class="three-point-arc"></div><div class="rim"></div>
+                        <div class="court-zone z-paint"><span class="zone-label text-red-900">Paint</span><div class="zone-input-group"><input type="number" class="zone-input live-calc" data-team="opp" data-zone="paint" data-type="m" value="0"><span>/</span><input type="number" class="zone-input live-calc" data-team="opp" data-zone="paint" data-type="x" value="0"></div></div>
+                        <div class="court-zone z-3-lc"><span class="zone-label text-red-900">3L CRN</span><div class="zone-input-group"><input type="number" class="zone-input live-calc" data-team="opp" data-zone="3lc" data-type="m" value="0"><span>/</span><input type="number" class="zone-input live-calc" data-team="opp" data-zone="3lc" data-type="x" value="0"></div></div>
+                        <div class="court-zone z-3-rc"><span class="zone-label text-red-900">3R CRN</span><div class="zone-input-group"><input type="number" class="zone-input live-calc" data-team="opp" data-zone="3rc" data-type="m" value="0"><span>/</span><input type="number" class="zone-input live-calc" data-team="opp" data-zone="3rc" data-type="x" value="0"></div></div>
+                        <div class="court-zone z-3-lw"><span class="zone-label text-red-900">3L WNG</span><div class="zone-input-group"><input type="number" class="zone-input live-calc" data-team="opp" data-zone="3lw" data-type="m" value="0"><span>/</span><input type="number" class="zone-input live-calc" data-team="opp" data-zone="3lw" data-type="x" value="0"></div></div>
+                        <div class="court-zone z-3-rw"><span class="zone-label text-red-900">3R WNG</span><div class="zone-input-group"><input type="number" class="zone-input live-calc" data-team="opp" data-zone="3rw" data-type="m" value="0"><span>/</span><input type="number" class="zone-input live-calc" data-team="opp" data-zone="3rw" data-type="x" value="0"></div></div>
+                        <div class="court-zone z-3-t"><span class="zone-label text-red-900">3 Top</span><div class="zone-input-group"><input type="number" class="zone-input live-calc" data-team="opp" data-zone="3t" data-type="m" value="0"><span>/</span><input type="number" class="zone-input live-calc" data-team="opp" data-zone="3t" data-type="x" value="0"></div></div>
+                        <div class="court-zone z-mid-l"><span class="zone-label text-red-900">Mid L</span><div class="zone-input-group"><input type="number" class="zone-input live-calc" data-team="opp" data-zone="ml" data-type="m" value="0"><span>/</span><input type="number" class="zone-input live-calc" data-team="opp" data-zone="ml" data-type="x" value="0"></div></div>
+                        <div class="court-zone z-mid-r"><span class="zone-label text-red-900">Mid R</span><div class="zone-input-group"><input type="number" class="zone-input live-calc" data-team="opp" data-zone="mr" data-type="m" value="0"><span>/</span><input type="number" class="zone-input live-calc" data-team="opp" data-zone="mr" data-type="x" value="0"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-12 text-center">
+                <button onclick="saveGame()" class="bg-gold text-black px-24 py-6 rounded-2xl font-black text-2xl uppercase shadow-2xl hover:scale-[1.03] transition-transform ring-4 ring-gold/20">Sync Performance Log</button>
+            </div>
+        </main>
+
+        <!-- TACTICS VIEW -->
+        <main id="view-tactics" class="hidden p-4 md:p-8 space-y-8 animate-fadeIn">
+            <div class="flex flex-col md:flex-row justify-between items-end gap-4 mb-4">
+                <div>
+                    <h2 class="text-3xl font-black text-gold uppercase italic tracking-tighter">Offensive Tactics</h2>
+                </div>
+                <div class="flex flex-wrap gap-4">
+                    <select id="tacticGameFilter" onchange="renderTactics()" class="filter-select"></select>
+                    <select id="tacticZoneFilter" onchange="renderTactics()" class="filter-select">
+                        <option value="all">ALL SHOTS</option>
+                        <option value="inside">INSIDE</option>
+                        <option value="mid">MID-RANGE</option>
+                        <option value="outside">OUTSIDE</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-2 bg-black border border-gray-800 rounded-3xl p-8 shadow-xl">
+                    <div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead class="bg-gray-950 text-gray-500 uppercase font-black"><tr><th class="p-4">Play Name</th><th class="text-center">Poss</th><th class="text-center">Succ Rate</th><th class="text-center">PPP</th></tr></thead><tbody id="playEfficiencyBody"></tbody></table></div>
+                </div>
+                <div class="bg-black border border-gray-800 rounded-3xl p-8 shadow-xl text-center">
+                    <div class="court-container shadow-2xl" id="seasonEaglesHeatMap"></div>
+                </div>
+            </div>
+        </main>
+
+        <!-- DEFENSE VIEW -->
+        <main id="view-defense" class="hidden p-4 md:p-8 space-y-8 animate-fadeIn">
+            <div class="flex flex-col md:flex-row justify-between items-end gap-4 mb-4">
+                <h2 class="text-3xl font-black text-red-500 uppercase italic tracking-tighter">Defensive Scouting</h2>
+                <div class="flex gap-4">
+                    <select id="defenseGameFilter" onchange="renderDefense()" class="filter-select"></select>
+                    <select id="defenseZoneFilter" onchange="renderDefense()" class="filter-select"><option value="all">ALL SHOTS</option></select>
+                </div>
+            </div>
+            <div id="defensiveOverviewGrid" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="bg-black border border-gray-800 rounded-3xl p-8 shadow-xl text-center border-t-red-900">
+                    <div class="court-container border-red-900/40 shadow-2xl" id="seasonOppHeatMap"></div>
+                </div>
+                <div class="lg:col-span-2 bg-black border border-gray-800 rounded-3xl p-8 shadow-xl border-t-gold">
+                    <div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead class="bg-gray-950 text-gray-500 uppercase font-black tracking-widest"><tr><th class="p-4">Zone</th><th class="text-center">Opp. Success</th><th class="text-center">Opp. FG%</th><th class="text-center">Defensive Grade</th></tr></thead><tbody id="defensiveZoneBody"></tbody></table></div>
+                </div>
+            </div>
+        </main>
+
+        <!-- COACH'S CLIPBOARD -->
+        <main id="view-clipboard" class="hidden p-4 md:p-8 space-y-8 animate-fadeIn">
+            <div id="masterOverviewGrid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-8"></div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="clipboard-card p-6 rounded-2xl shadow-xl"><h3 class="text-lg font-black uppercase italic mb-4 text-gold tracking-widest border-b border-gray-900 pb-2">Top 3 Scorers</h3><div id="scoreLeaders" class="space-y-4"></div></div>
+                <div class="clipboard-card p-6 rounded-2xl shadow-xl"><h3 class="text-lg font-black uppercase italic mb-4 text-white tracking-widest border-b border-gray-900 pb-2">Top 3 Rebounders</h3><div id="reboundLeaders" class="space-y-4"></div></div>
+                <div class="clipboard-card p-6 rounded-2xl shadow-xl"><h3 class="text-lg font-black uppercase italic mb-4 text-gold tracking-widest border-b border-gray-900 pb-2">Efficiency Top 3</h3><div id="efficiencyLeaders" class="space-y-4"></div></div>
+                <div class="clipboard-card p-6 rounded-2xl shadow-xl"><h3 class="text-lg font-black uppercase italic mb-4 text-white tracking-widest border-b border-gray-900 pb-2">Free Throw Top 3</h3><div id="ftLeaders" class="space-y-4"></div></div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="clipboard-card p-6 rounded-2xl shadow-xl"><h3 class="text-lg font-black uppercase italic mb-4 text-white tracking-widest border-b border-gray-900 pb-2">Tactical Snapshot</h3><div id="tacticalSummary" class="space-y-4"></div></div>
+                <div class="clipboard-card p-6 rounded-2xl shadow-xl"><h3 class="text-lg font-black uppercase italic mb-4 text-gold tracking-widest border-b border-gray-900 pb-2">Season Records</h3><div id="honorRoll" class="space-y-4"></div></div>
+            </div>
+        </main>
+
+        <!-- SEASON SUMMARY -->
+        <main id="view-summary" class="hidden p-4 md:p-8 space-y-8 animate-fadeIn">
+            <div id="summary-header-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4 w-full"></div>
+            <div id="summaryTableArea" class="overflow-x-auto bg-black border border-gray-800 rounded-2xl shadow-xl"></div>
+        </main>
+
+        <!-- LOG -->
+        <main id="view-log" class="hidden p-4 md:p-8 space-y-6 animate-fadeIn">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
+                <h2 class="text-3xl font-black text-gold uppercase italic tracking-tighter">Season Log</h2>
+                <input type="text" id="logSearch" onkeyup="renderGameLog()" placeholder="Search Opponent..." class="bg-gray-900 border border-gray-800 p-4 rounded-xl text-sm text-white outline-none focus:border-gold md:w-80">
+            </div>
+            <div id="gameLogArea" class="space-y-8"></div>
+        </main>
+
+        <!-- PLAYER PROFILES -->
+        <main id="view-profiles" class="hidden p-4 md:p-8 space-y-8 animate-fadeIn">
+            <div class="flex justify-center mb-6">
+                <select id="profilePicker" onchange="renderPlayerProfile()" class="bg-gray-900 border-2 border-gold p-4 rounded-xl text-gold font-black uppercase text-lg outline-none max-w-sm w-full"><option value="">Select an Eagle</option></select>
+            </div>
+            <div id="playerProfileArea" class="space-y-8"></div>
+        </main>
+
+        <!-- SETTINGS -->
+        <main id="view-settings" class="hidden p-4 md:p-8 space-y-8 animate-fadeIn">
+            <div class="bg-black border border-gray-800 p-12 rounded-3xl max-w-2xl mx-auto shadow-2xl text-center">
+                <h2 class="text-2xl font-black text-gold uppercase italic mb-8 tracking-widest">Admin Control Panel</h2>
+                <div class="flex flex-wrap gap-4 justify-center">
+                    <button onclick="exportToCSV()" class="bg-gray-800 text-white px-8 py-4 rounded-xl font-black uppercase text-xs">Backup Cloud Database (CSV)</button>
+                    <label class="bg-blue-900 text-white px-8 py-4 rounded-xl font-black uppercase text-xs cursor-pointer">Restore Backup File<input type="file" class="hidden" onchange="handleImport(this)"></label>
+                    <button onclick="clearCloudData()" class="bg-red-900 text-white px-8 py-4 rounded-xl font-black uppercase text-xs">Purge Cloud Database</button>
+                </div>
+            </div>
+        </main>
+
+        <!-- EDIT MODAL -->
+        <div id="editModal" class="hidden fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-4">
+            <div class="bg-black border border-gray-800 w-full max-w-6xl rounded-3xl shadow-2xl flex flex-col max-h-[95vh]">
+                <div class="p-6 border-b border-gray-800 flex justify-between items-center bg-gray-900 rounded-t-3xl">
+                    <h2 class="text-xl font-black text-gold uppercase italic">Modify Record</h2>
+                    <button onclick="closeEditModal()" class="text-gray-500 hover:text-white text-2xl font-bold">&times;</button>
+                </div>
+                <div id="editModalBody" class="overflow-y-auto flex-1 p-6"></div>
+                <div class="p-6 bg-gray-900 border-t border-gray-800 flex justify-end gap-4 rounded-b-3xl">
+                    <button id="saveEditBtn" class="bg-gold text-black px-8 py-3 rounded-xl font-black uppercase text-sm">Update Cloud Statistics</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- FIREBASE CONFIG ---
         const firebaseConfig = {
             apiKey: "AIzaSyA5H5SsumWG7bym_0EZ7jOlfWeswpSauhk",
             authDomain: "eagles-stats.firebaseapp.com",
@@ -100,11 +339,12 @@
             measurementId: "G-4SQEXFWE0W"
         };
 
-        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
-        const appId = "eagles-hq-v100";
+        const appId = "eagles-hq-production-v1";
+        
+        let seasonHistory = [];
 
         const ROSTER = [
             {id: 5, name: "Natasha Mistry", pos: "PG"}, {id: 3, name: "Mikayla Sanders", pos: "PG"},
@@ -115,322 +355,267 @@
             {id: 34, name: "Dani Cardona", pos: "C"}, {id: 15, name: "Alexa Troiano", pos: "C"}
         ];
 
-        const SHOT_ZONES = [
-            { id: 'paint', label: 'Paint' }, { id: 'ml', label: 'Mid L' }, { id: 'mr', label: 'Mid R' },
-            { id: '3lc', label: '3L Corner' }, { id: '3lw', label: '3L Wing' }, { id: '3t', label: '3 Top' },
-            { id: '3rw', label: '3R Wing' }, { id: '3rc', label: '3R Corner' }
-        ];
+        const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','blk','to','fouls'];
+        const SHOT_ZONES = ['paint', 'ml', 'mr', '3lc', '3lw', '3t', '3rw', '3rc'];
 
-        const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','blk','to'];
-
-        function App() {
-            const [view, setView] = React.useState('entry');
-            const [games, setGames] = React.useState([]);
-            const [loading, setLoading] = React.useState(true);
-            const [opponent, setOpponent] = React.useState('');
-            const [oppScore, setOppScore] = React.useState(0);
-            const [gameDate, setGameDate] = React.useState(new Date().toISOString().split('T')[0]);
-            const [playerStats, setPlayerStats] = React.useState({});
-            const [shotMap, setShotMap] = React.useState({
-                eagles: SHOT_ZONES.reduce((acc, z) => ({ ...acc, [z.id]: { m: 0, x: 0 } }), {}),
-                opp: SHOT_ZONES.reduce((acc, z) => ({ ...acc, [z.id]: { m: 0, x: 0 } }), {})
+        window.onload = async () => {
+            await auth.signInAnonymously();
+            const entryTable = document.getElementById('rosterRows');
+            ROSTER.sort((a,b) => a.id - b.id).forEach(p => {
+                entryTable.innerHTML += `<tr class="border-b border-gray-900"><td class="p-4 font-bold text-gray-400 sticky-col"><span class="text-gold text-[10px] mr-2">${p.pos}</span> #${p.id} ${p.name}</td>${STAT_FIELDS.map(s => `<td class="p-2 text-center"><input type="number" data-player="${p.name}" data-stat="${s}" class="stat-input"></td>`).join('')}</tr>`;
+                const opt = document.createElement('option'); opt.value = p.name; opt.textContent = p.name;
+                document.getElementById('profilePicker').appendChild(opt);
             });
+            for(let i=0; i<3; i++) addSetPlayInput();
+            document.getElementById('gameDate').valueAsDate = new Date();
+            document.querySelectorAll('.live-calc').forEach(input => input.addEventListener('input', updateLiveTotals));
 
-            React.useEffect(() => {
-                auth.signInAnonymously().catch(err => console.error(err));
-                const unsubscribe = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games')
-                    .onSnapshot((snapshot) => {
-                        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                        setGames(docs.sort((a, b) => new Date(b.date) - new Date(a.date)));
-                        setLoading(false);
-                    });
-                return () => unsubscribe();
-            }, []);
-
-            const saveGame = async () => {
-                if (!opponent) return alert("Enter Opponent Name");
-                let teamScore = 0;
-                const stats = ROSTER.map(p => {
-                    const s = playerStats[p.name] || {};
-                    const score = (s.fg2m||0)*2 + (s.fg3m||0)*3 + (s.ftm||0);
-                    teamScore += score;
-                    return { ...p, ...s, pts: score };
+            // Cloud Listener (Real-Time)
+            db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games')
+                .onSnapshot((snapshot) => {
+                    seasonHistory = snapshot.docs.map(doc => ({ cloudId: doc.id, ...doc.data() }));
+                    seasonHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+                    updateFilterLists();
+                    document.getElementById('loading-screen').classList.add('hidden');
                 });
-                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').add({
-                    date: gameDate, opp: opponent, oppScore, teamScore, 
-                    result: teamScore > oppScore ? 'W' : 'L',
-                    stats, shotMap
-                });
-                alert("Synced to Cloud!"); setOpponent(''); setPlayerStats({}); setView('log');
-            };
+        };
 
-            const aggregates = React.useMemo(() => {
-                const data = {};
-                ROSTER.forEach(r => data[r.name] = { gp:0, pts:0, reb:0, mft:0, aft:0, m3:0, a3:0, m2:0, a2:0 });
-                games.forEach(g => {
-                    g.stats.forEach(s => {
-                        if(!data[s.name]) return;
-                        const p = data[s.name]; p.gp++; p.pts += s.pts; p.reb += s.reb;
-                        p.mft += (s.ftm || 0); p.aft += (s.fta || 0);
-                        p.m3 += (s.fg3m || 0); p.a3 += (s.fg3a || 0);
-                        p.m2 += (s.fg2m || 0); p.a2 += (s.fg2a || 0);
-                    });
-                });
-                return data;
-            }, [games]);
-
-            const leaders = React.useMemo(() => {
-                const list = Object.entries(aggregates).map(([n, d]) => ({ name: n, ...d }));
-                return {
-                    points: [...list].sort((a,b) => b.pts - a.pts).slice(0,3),
-                    ppg: [...list].filter(x => x.gp > 0).sort((a,b) => (b.pts/b.gp) - (a.pts/a.gp)).slice(0,3),
-                    rebounds: [...list].sort((a,b) => b.reb - a.reb).slice(0,3),
-                    rpg: [...list].filter(x => x.gp > 0).sort((a,b) => (b.reb/b.gp) - (a.reb/a.gp)).slice(0,3),
-                    ft: [...list].filter(x => x.aft > 0).sort((a,b) => (b.mft/b.aft) - (a.mft/a.aft)).slice(0,3),
-                    fg3: [...list].filter(x => x.a3 >= x.gp).sort((a,b) => (b.m3/b.a3) - (a.m3/a.a3)).slice(0,3)
-                };
-            }, [aggregates]);
-
-            if (loading) return (
-                <div className="h-screen bg-black flex flex-col items-center justify-center">
-                    <div className="text-white text-5xl mb-4 italic font-black uppercase">EAGLES <span className="text-gold">HQ</span></div>
-                    <div className="text-gold text-lg font-black animate-pulse uppercase italic tracking-widest">Cloud Syncing...</div>
-                </div>
-            );
-
-            return (
-                <div className="min-h-screen bg-gray-950 text-white font-sans">
-                    {/* Header */}
-                    <header className="sticky top-0 z-50 bg-black border-b-4 border-gold p-4 md:p-6 shadow-2xl">
-                        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-6">
-                            <div className="flex items-center gap-4">
-                                <div className="bg-white w-12 h-12 rounded-full flex items-center justify-center border-2 border-gold shadow-lg transform -rotate-2">
-                                    <span className="text-2xl">🦅</span>
-                                </div>
-                                <div>
-                                    <h1 className="text-3xl font-black italic uppercase tracking-tighter leading-none">Eagles <span className="text-gold">Dashboard</span></h1>
-                                    <p className="text-[9px] text-gray-500 uppercase tracking-widest mt-1 font-bold tracking-tighter">Performance & Tactical Analytics</p>
-                                </div>
-                            </div>
-                            <nav className="flex flex-wrap justify-center gap-1 bg-gray-900 p-1 rounded-full border border-gray-800 overflow-x-auto max-w-full">
-                                {['entry', 'log', 'clipboard', 'summary'].map(v => (
-                                    <button 
-                                        key={v} 
-                                        onClick={() => setView(v)} 
-                                        className={`nav-btn ${view === v ? 'active-nav' : 'inactive-nav'}`}
-                                    >
-                                        {v === 'entry' ? 'New Game' : v === 'log' ? 'Season Log' : v === 'clipboard' ? 'Clipboard' : 'Season Stats'}
-                                    </button>
-                                ))}
-                            </nav>
-                        </div>
-                    </header>
-
-                    <div className="max-w-7xl mx-auto p-4 md:p-8">
-                        {view === 'entry' && (
-                            <div className="space-y-8 animate-fadeIn">
-                                <div className="bg-black border border-gray-800 rounded-2xl shadow-2xl overflow-hidden mb-8">
-                                    <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 bg-gray-900 border-b border-gray-800">
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] text-gold font-bold uppercase tracking-widest">Game Date</label>
-                                            <input type="date" value={gameDate} onChange={e => setGameDate(e.target.value)} className="w-full bg-black border border-gray-700 p-3 rounded-lg text-white outline-none focus:border-gold text-sm" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] text-gold font-bold uppercase tracking-widest">Opponent Name</label>
-                                            <input type="text" value={opponent} onChange={e => setOpponent(e.target.value)} placeholder="Enter Opponent" className="w-full bg-black border border-gray-700 p-3 rounded-lg text-white outline-none focus:border-gold text-sm uppercase font-bold" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] text-red-500 font-bold uppercase tracking-widest">Opponent Score</label>
-                                            <input type="number" value={oppScore} onChange={e => setOppScore(e.target.value)} placeholder="Score" className="w-full bg-black border border-gray-700 p-3 rounded-lg text-white outline-none focus:border-red-500 text-sm font-black" />
-                                        </div>
-                                    </div>
-
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left">
-                                            <thead>
-                                                <tr className="bg-gray-950 text-gold text-[9px] uppercase border-b border-gray-800">
-                                                    <th className="p-4 sticky left-0 bg-black z-10 border-r border-gray-800">Player</th>
-                                                    {['2PM','2PA','3PM','3PA','FTM','FTA','REB','AST','STL','BLK','TO'].map(h => <th key={h} className="p-2 text-center">{h}</th>)}
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {ROSTER.map(p => (
-                                                    <tr key={p.id} className="border-b border-gray-900 group hover:bg-white/5 transition-colors">
-                                                        <td className="p-4 font-bold text-gray-400 group-hover:text-white sticky left-0 bg-black z-10 whitespace-nowrap border-r border-gray-800">
-                                                            <span className="text-gold text-[10px] mr-2">{p.pos}</span> {p.name}
-                                                        </td>
-                                                        {STAT_FIELDS.map(f => (
-                                                            <td key={f} className="p-2 text-center">
-                                                                <input type="number" className="stat-input" onChange={e => handleStatChange(p.name, f, e.target.value)} />
-                                                            </td>
-                                                        ))}
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                    <div className="bg-black border border-gray-800 rounded-2xl p-8 shadow-xl text-center">
-                                        <p className="text-[10px] font-black uppercase text-white mb-6 italic tracking-widest bg-gray-900 py-3 rounded-xl">Eagles Chart: (M) Makes / (X) Misses</p>
-                                        <div className="court-container">
-                                            <div className="court-line baseline"></div><div className="court-line the-key"></div><div className="court-line free-throw-circle"></div><div className="court-line three-point-straight-l"></div><div className="court-line three-point-straight-r"></div><div className="three-point-arc"></div><div className="rim"></div>
-                                            {SHOT_ZONES.map(z => (
-                                                <div key={z.id} className={`court-zone z-${z.id}`}>
-                                                    <span className="zone-label">{z.label}</span>
-                                                    <div className="zone-input-group">
-                                                        <input type="number" className="zone-input text-gold" placeholder="M" onChange={e => {const nm={...shotMap}; nm.eagles[z.id].m=parseInt(e.target.value)||0; setShotMap(nm);}} />
-                                                        <span className="text-gray-600">/</span>
-                                                        <input type="number" className="zone-input text-white/50" placeholder="X" onChange={e => {const nm={...shotMap}; nm.eagles[z.id].x=parseInt(e.target.value)||0; setShotMap(nm);}} />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div className="bg-black border border-gray-800 rounded-2xl p-8 shadow-xl text-center">
-                                        <p className="text-[10px] font-black uppercase text-red-500 mb-6 italic tracking-widest bg-red-950/20 py-3 rounded-xl">Opponent Chart: (M) Makes / (X) Misses</p>
-                                        <div className="court-container border-red-900/40">
-                                            <div className="court-line baseline"></div><div className="court-line the-key"></div><div className="court-line free-throw-circle"></div><div className="court-line three-point-straight-l"></div><div className="court-line three-point-straight-r"></div><div className="three-point-arc"></div><div className="rim"></div>
-                                            {SHOT_ZONES.map(z => (
-                                                <div key={z.id} className={`court-zone z-${z.id}`}>
-                                                    <span className="zone-label text-red-900">{z.label}</span>
-                                                    <div className="zone-input-group">
-                                                        <input type="number" className="zone-input text-red-500" placeholder="M" onChange={e => {const nm={...shotMap}; nm.opp[z.id].m=parseInt(e.target.value)||0; setShotMap(nm);}} />
-                                                        <span className="text-gray-600">/</span>
-                                                        <input type="number" className="zone-input text-white/50" placeholder="X" onChange={e => {const nm={...shotMap}; nm.opp[z.id].x=parseInt(e.target.value)||0; setShotMap(nm);}} />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                                <button onClick={saveGame} className="w-full bg-gold text-black py-10 rounded-3xl font-black text-4xl uppercase shadow-2xl hover:scale-[1.02] transition-transform ring-8 ring-gold/10">Sync Game to Cloud</button>
-                            </div>
-                        )}
-
-                        {view === 'log' && (
-                            <div className="space-y-8 animate-fadeIn">
-                                <h2 className="text-5xl font-black italic uppercase text-gold tracking-tighter">Season Log</h2>
-                                {games.length === 0 ? (
-                                    <div className="py-40 text-center text-gray-700 uppercase font-black italic border-2 border-dashed border-gray-800 rounded-[3rem]">No Records found.</div>
-                                ) : (
-                                    games.map(g => (
-                                        <div key={g.id} className="log-card p-10 flex flex-col lg:flex-row justify-between items-center gap-10">
-                                            <div className="flex items-center gap-10">
-                                                <div className={`log-result-box bg-gray-950 border-2 border-gray-800 ${g.result === 'W' ? 'text-gold' : 'text-red-600'}`}>{g.result}</div>
-                                                <div>
-                                                    <div className="text-base text-gray-500 font-black uppercase tracking-[0.4em] mb-2 italic">{g.date}</div>
-                                                    <div className="log-score uppercase">EAGLES {g.teamScore}, {g.opp} {g.oppScore}</div>
-                                                </div>
-                                            </div>
-                                            <button onClick={() => {if(confirm("Delete Game?")) db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').doc(g.id).delete();}} className="text-red-500 border border-red-900 px-8 py-4 rounded-2xl hover:bg-red-900 hover:text-white transition-all uppercase font-black tracking-widest text-sm">Delete Game</button>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        )}
-
-                        {view === 'clipboard' && (
-                            <div className="animate-fadeIn space-y-8">
-                                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-                                    {[
-                                        {l: 'Record', v: `${games.filter(g => g.result === 'W').length}-${games.filter(g => g.result === 'L').length}`},
-                                        {l: 'Team PPG', v: games.length ? (games.reduce((a,b) => a + b.teamScore, 0) / games.length).toFixed(1) : 0},
-                                        {l: 'RPG', v: games.length ? (Object.values(aggregates).reduce((a,b) => a + b.reb, 0) / games.length).toFixed(1) : 0},
-                                        {l: 'Win %', v: games.length ? ((games.filter(g => g.result === 'W').length / games.length) * 100).toFixed(0) + '%' : '0%'}
-                                    ].map((m, i) => (
-                                        <div key={i} className="bg-black border border-gray-800 p-6 rounded-2xl text-center border-t-4 border-t-gold shadow-xl">
-                                            <div className="text-[10px] uppercase font-black text-gray-500 mb-1">{m.l}</div>
-                                            <div className="text-3xl font-black italic text-white">{m.v}</div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                    <div className="clipboard-card">
-                                        <h3 className="text-lg font-black uppercase italic mb-4 text-gold border-b border-gray-900 pb-2">Top 3 Scorers</h3>
-                                        <div className="space-y-2">
-                                            <p className="text-[8px] uppercase font-black text-gray-600">Season Totals</p>
-                                            {leaders.points.map((p, i) => <div key={i} className="flex justify-between bg-gray-950 p-3 rounded mb-1 border border-gray-900"><span className="text-sm font-bold">{p.name}</span><span className="font-black text-gold">{p.pts}</span></div>)}
-                                            <p className="text-[8px] uppercase font-black text-gray-600 mt-4">Points Per Game</p>
-                                            {leaders.ppg.map((p, i) => <div key={i} className="flex justify-between p-2 text-xs border-b border-gray-900"><span className="font-bold text-gray-400">{p.name}</span><span className="font-black">{(p.pts/p.gp).toFixed(1)}</span></div>)}
-                                        </div>
-                                    </div>
-                                    <div className="clipboard-card">
-                                        <h3 className="text-lg font-black uppercase italic mb-4 text-white border-b border-gray-900 pb-2">Top 3 Boards</h3>
-                                        <div className="space-y-2">
-                                            <p className="text-[8px] uppercase font-black text-gray-600">Season Totals</p>
-                                            {leaders.rebounds.map((p, i) => <div key={i} className="flex justify-between bg-gray-950 p-3 rounded mb-1 border border-gray-900"><span className="text-sm font-bold">{p.name}</span><span className="font-black text-white">{p.reb}</span></div>)}
-                                            <p className="text-[8px] uppercase font-black text-gray-600 mt-4">Average RPG</p>
-                                            {leaders.rpg.map((p, i) => <div key={i} className="flex justify-between p-2 text-xs border-b border-gray-900"><span className="font-bold text-gray-400">{p.name}</span><span className="font-black">{(p.reb/p.gp).toFixed(1)}</span></div>)}
-                                        </div>
-                                    </div>
-                                    <div className="clipboard-card">
-                                        <h3 className="text-lg font-black uppercase italic mb-4 text-gold border-b border-gray-900 pb-2">Top 3 FT%</h3>
-                                        <div className="space-y-3">
-                                            {leaders.ft.map((p, i) => (
-                                                <div key={i} className="flex justify-between bg-gray-950 p-3 rounded border border-gray-900">
-                                                    <span className="text-sm font-bold">{p.name}</span>
-                                                    <div className="text-right leading-none"><div className="font-black text-gold italic text-base">{((p.mft/p.aft)*100).toFixed(0)}%</div><div className="text-[8px] text-gray-600 mt-1">{p.mft}/{p.aft}</div></div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div className="clipboard-card">
-                                        <h3 className="text-lg font-black uppercase italic mb-4 text-white border-b border-gray-900 pb-2">Efficiency (3PT)</h3>
-                                        <div className="space-y-3">
-                                            {leaders.fg3.map((p, i) => (
-                                                <div key={i} className="flex justify-between bg-gray-950 p-3 rounded border border-gray-900">
-                                                    <span className="text-sm font-bold">{p.name}</span>
-                                                    <div className="text-right leading-none"><div className="font-black text-white italic text-base">{((p.m3/p.a3)*100).toFixed(1)}%</div><div className="text-[8px] text-gray-600 mt-1">{p.m3}/{p.a3}</div></div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {view === 'summary' && (
-                            <div className="space-y-8 animate-fadeIn">
-                                <div className="bg-black border border-gray-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left text-xs">
-                                            <thead className="bg-gray-900 text-gold uppercase border-b border-gray-800">
-                                                <tr><th className="p-4 sticky left-0 bg-gray-900">Player</th><th>POS</th><th>GP</th><th>PPG</th><th>RPG</th><th>AST/G</th><th>STL/G</th><th>FT%</th><th>3PT%</th></tr>
-                                            </thead>
-                                            <tbody>
-                                                {Object.entries(aggregates).map(([name, d]) => {
-                                                    if(d.gp === 0) return null;
-                                                    const rP = ROSTER.find(r => r.name === name);
-                                                    return (
-                                                        <tr key={name} className="border-b border-gray-900 hover:bg-white/5">
-                                                            <td className="p-4 font-bold sticky left-0 bg-black text-gold">{name}</td>
-                                                            <td className="p-4 text-gray-500 font-bold">{rP?.pos}</td>
-                                                            <td className="p-4">{d.gp}</td>
-                                                            <td className="p-4 font-black">{(d.pts/d.gp).toFixed(1)}</td>
-                                                            <td className="p-4">{(d.reb/d.gp).toFixed(1)}</td>
-                                                            <td className="p-4 text-gray-400">{(Object.values(games).reduce((acc,g) => acc + (g.stats.find(s=>s.name===name)?.ast||0),0)/d.gp).toFixed(1)}</td>
-                                                            <td className="p-4 text-gray-400">{(Object.values(games).reduce((acc,g) => acc + (g.stats.find(s=>s.name===name)?.stl||0),0)/d.gp).toFixed(1)}</td>
-                                                            <td className="p-4">{d.aft > 0 ? ((d.mft/d.aft)*100).toFixed(0) + '%' : '-'}</td>
-                                                            <td className="p-4">{d.a3 > 0 ? ((d.m3/d.a3)*100).toFixed(1) + '%' : '-'}</td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
+        function toggleView(v) {
+            ['entry', 'tactics', 'defense', 'clipboard', 'summary', 'log', 'profiles', 'settings'].forEach(view => {
+                const el = document.getElementById('view-' + view);
+                if (el) el.classList.toggle('hidden', v !== view);
+                const btn = document.getElementById('nav-' + view);
+                if (btn) btn.className = "nav-btn " + (v === view ? "active-nav" : "inactive-nav");
+            });
+            if(v === 'summary') renderSeasonSummary();
+            if(v === 'clipboard') renderCoachClipboard();
+            if(v === 'tactics') renderTactics();
+            if(v === 'defense') renderDefense();
+            if(v === 'log') renderGameLog();
         }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        async function saveGame() {
+            const oppScore = parseInt(document.getElementById('oppScore').value) || 0;
+            const game = { date: document.getElementById('gameDate').value, opp: document.getElementById('opponent').value || 'TBD', oppScore: oppScore, stats: [], setPlays: [], shotMap: { eagles: {}, opp: {} } };
+            let tPts = 0;
+            ROSTER.forEach(p => {
+                const s = { name: p.name, id: p.id, pos: p.pos };
+                document.querySelectorAll(`[data-player="${p.name}"]`).forEach(i => s[i.dataset.stat] = parseInt(i.value) || 0);
+                s.pts = (s.fg2m * 2) + (s.fg3m * 3) + s.ftm; tPts += s.pts; game.stats.push(s);
+            });
+            game.teamScore = tPts; game.result = tPts > oppScore ? 'W' : (tPts < oppScore ? 'L' : 'T');
+            document.querySelectorAll('#setPlayInputs > div:not(.text-gray-500)').forEach(row => {
+                const ni = row.querySelector('.set-name');
+                if(ni && ni.value) game.setPlays.push({ name: ni.value, run: parseInt(row.querySelector('.set-run').value)||0, scored: parseInt(row.querySelector('.set-scored').value)||0, pts: parseInt(row.querySelector('.set-pts').value)||0 });
+            });
+            SHOT_ZONES.forEach(z => {
+                game.shotMap.eagles[z] = { m: parseInt(document.querySelector(`input[data-team="eagles"][data-zone="${z}"][data-type="m"]`).value)||0, x: parseInt(document.querySelector(`input[data-team="eagles"][data-zone="${z}"][data-type="x"]`).value)||0 };
+                game.shotMap.opp[z] = { m: parseInt(document.querySelector(`input[data-team="opp"][data-zone="${z}"][data-type="m"]`).value)||0, x: parseInt(document.querySelector(`input[data-team="opp"][data-zone="${z}"][data-type="x"]`).value)||0 };
+            });
+            await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').add(game);
+            alert("Record Synced to Cloud."); location.reload();
+        }
+
+        function updateLiveTotals() {
+            let eM = 0, eX = 0, oM = 0, oX = 0;
+            document.querySelectorAll('.zone-input').forEach(i => {
+                const val = parseInt(i.value) || 0;
+                if(i.dataset.team === 'eagles') { if(i.dataset.type === 'm') eM += val; else eX += val; }
+                else { if(i.dataset.type === 'm') oM += val; else oX += val; }
+            });
+            const eA = eM + eX, oA = oM + oX;
+            document.getElementById('liveEaglesTotal').textContent = `${eM}/${eA}`;
+            document.getElementById('liveEaglesPct').textContent = eA > 0 ? ((eM/eA)*100).toFixed(1) + '%' : '0.0%';
+            document.getElementById('liveOppTotal').textContent = `${oM}/${oA}`;
+            document.getElementById('liveOppPct').textContent = oA > 0 ? ((oM/oA)*100).toFixed(1) + '%' : '0.0%';
+        }
+
+        function addSetPlayInput(targetId = 'setPlayInputs', play = {name:'', run:0, scored:0, pts:0}) {
+            const div = document.createElement('div');
+            div.className = "grid grid-cols-5 gap-2 items-center mb-1";
+            div.innerHTML = `<input type="text" placeholder="Set Name" value="${play.name}" class="col-span-2 bg-gray-900 border border-gray-800 p-2 rounded text-xs text-white set-name"><input type="number" value="${play.run}" class="bg-black border border-gray-800 p-2 rounded text-xs text-white set-run"><input type="number" value="${play.scored}" class="bg-black border border-gray-800 p-2 rounded text-xs text-white set-scored"><input type="number" value="${play.pts}" class="bg-black border border-gray-800 p-2 rounded text-xs text-white set-pts">`;
+            document.getElementById(targetId).appendChild(div);
+        }
+
+        function updateFilterLists() {
+            const tSel = document.getElementById('tacticGameFilter');
+            const dSel = document.getElementById('defenseGameFilter');
+            if(!tSel || !dSel) return;
+            let opts = '<option value="all">ALL SEASON SUMMARY</option>';
+            seasonHistory.forEach((g, idx) => { opts += `<option value="${idx}">${g.opp} (${g.date})</option>`; });
+            tSel.innerHTML = opts; dSel.innerHTML = opts;
+        }
+
+        function renderTactics() {
+            const gameIdx = document.getElementById('tacticGameFilter').value;
+            const zoneCat = document.getElementById('tacticZoneFilter').value;
+            let history = gameIdx === 'all' ? seasonHistory : [seasonHistory[gameIdx]];
+            const plays = {}, heat = { paint:{m:0,x:0}, ml:{m:0,x:0}, mr:{m:0,x:0}, '3lc':{m:0,x:0}, '3rc':{m:0,x:0}, '3lw':{m:0,x:0}, '3rw':{m:0,x:0}, '3t':{m:0,x:0} };
+            history.forEach(g => {
+                g.setPlays?.forEach(p => { if(!plays[p.name]) plays[p.name] = { r:0, s:0, p:0 }; plays[p.name].r += p.run; plays[p.name].s += p.scored; plays[p.name].p += p.pts; });
+                if(g.shotMap?.eagles) Object.entries(g.shotMap.eagles).forEach(([z, d]) => { if(heat[z]) { heat[z].m += (d.m||0); heat[z].x += (d.x||0); } });
+            });
+            const sPlays = Object.values(plays).sort((a,b) => (b.p/b.r) - (a.p/a.r));
+            document.getElementById('playEfficiencyBody').innerHTML = sPlays.map(p => `<tr><td class="p-4 text-gold">${p.name}</td><td class="text-center">${p.r}</td><td class="text-center">${((p.s/p.r)*100||0).toFixed(0)}%</td><td class="text-center">${(p.p/p.r||0).toFixed(2)}</td></tr>`).join('');
+            
+            const court = document.getElementById('seasonEaglesHeatMap');
+            court.innerHTML = '<div class="court-line baseline"></div><div class="court-line the-key"></div><div class="court-line free-throw-circle"></div><div class="three-point-arc"></div><div class="rim"></div>';
+            Object.entries(heat).forEach(([z, v]) => {
+                const atts = v.m + v.x; const pct = atts > 0 ? ((v.m / atts)*100).toFixed(0) : 0;
+                const classMap = { paint: 'z-paint', ml:'z-mid-l', mr:'z-mid-r', '3lc':'z-3-lc', '3rc':'z-3-rc', '3lw':'z-3-lw', '3rw':'z-3-rw', '3t':'z-3-t' };
+                court.innerHTML += `<div class="court-zone ${classMap[z]}"><span class="text-[11px] font-black text-white">${pct}%</span><span class="text-[6px] text-gray-500">${v.m}/${atts}</span></div>`;
+            });
+        }
+
+        function renderDefense() {
+            const gameIdx = document.getElementById('defenseGameFilter').value;
+            let history = gameIdx === 'all' ? seasonHistory : [seasonHistory[gameIdx]];
+            const heat = { paint:{m:0,x:0}, ml:{m:0,x:0}, mr:{m:0,x:0}, '3lc':{m:0,x:0}, '3rc':{m:0,x:0}, '3lw':{m:0,x:0}, '3rw':{m:0,x:0}, '3t':{m:0,x:0} };
+            history.forEach(g => { if(g.shotMap?.opp) Object.entries(g.shotMap.opp).forEach(([z, d]) => { if(heat[z]) { heat[z].m += (d.m||0); heat[z].x += (d.x||0); } }); });
+            const court = document.getElementById('seasonOppHeatMap');
+            court.innerHTML = '<div class="court-line baseline"></div><div class="court-line the-key"></div><div class="court-line free-throw-circle"></div><div class="three-point-arc"></div><div class="rim"></div>';
+            const tRows = [];
+            Object.entries(heat).forEach(([z, v]) => {
+                const atts = v.m + v.x; const pct = atts > 0 ? ((v.m / atts)*100).toFixed(1) : 0;
+                const classMap = { paint: 'z-paint', ml:'z-mid-l', mr:'z-mid-r', '3lc':'z-3-lc', '3rc':'z-3-rc', '3lw':'z-3-lw', '3rw':'z-3-rw', '3t':'z-3-t' };
+                court.innerHTML += `<div class="court-zone ${classMap[z]}"><span class="text-[11px] font-black text-red-500">${pct}%</span></div>`;
+                tRows.push(`<tr class="border-b border-gray-900"><td class="p-4">${z.toUpperCase()}</td><td class="text-center">${v.m}/${atts}</td><td class="text-center">${pct}%</td><td class="text-center">${pct < 35 ? 'ELITE' : 'WEAK'}</td></tr>`);
+            });
+            document.getElementById('defensiveZoneBody').innerHTML = tRows.join('');
+        }
+
+        function renderCoachClipboard() {
+            const h = seasonHistory;
+            const pStats = {};
+            const gp = h.length || 1;
+            ROSTER.forEach(r => pStats[r.name] = { pts:0, reb:0, m3:0, a3:0, mft:0, aft:0, gp:0 });
+            h.forEach(g => g.stats.forEach(s => { const p = pStats[s.name]; p.pts += s.pts; p.reb += s.reb; p.m3 += s.fg3m; p.a3 += s.fg3a; p.mft += s.ftm; p.aft += s.fta; p.gp++; }));
+            
+            const scorers = Object.entries(pStats).sort((a,b) => b[1].pts - a[1].pts).slice(0,3);
+            document.getElementById('scoreLeaders').innerHTML = scorers.map(p => `<div class="flex justify-between p-2 rounded bg-gray-950 border mb-1"><span>${p[0]}</span><span class="text-gold font-black">${p[1].pts}</span></div>`).join('');
+            
+            const rebs = Object.entries(pStats).sort((a,b) => b[1].reb - a[1].reb).slice(0,3);
+            document.getElementById('reboundLeaders').innerHTML = rebs.map(p => `<div class="flex justify-between p-2 rounded bg-gray-950 border mb-1"><span>${p[0]}</span><span class="text-white font-black">${p[1].reb}</span></div>`).join('');
+
+            const fts = Object.entries(pStats).filter(p => p[1].aft > 0).sort((a,b) => (b[1].mft/b[1].aft) - (a[1].mft/a[1].aft)).slice(0,3);
+            document.getElementById('ftLeaders').innerHTML = fts.map(p => `<div class="flex justify-between p-2 rounded bg-gray-950 border mb-1"><span>${p[0]}</span><span class="text-gold font-black">${((p[1].mft/p[1].aft)*100).toFixed(0)}%</span></div>`).join('');
+
+            const eff = Object.entries(pStats).filter(p => p[1].a3 > 0).sort((a,b) => (b[1].m3/b[1].a3) - (a[1].m3/a[1].a3)).slice(0,3);
+            document.getElementById('efficiencyLeaders').innerHTML = eff.map(p => `<div class="flex justify-between p-2 rounded bg-gray-950 border mb-1"><span>${p[0]}</span><span class="text-white font-black">${((p[1].m3/p[1].a3)*100).toFixed(0)}%</span></div>`).join('');
+
+            const allP = []; h.forEach(g => g.stats.forEach(s => allP.push({ name: s.name, pts: s.pts, reb: s.reb, date: g.date, opp: g.opp })));
+            const findMax = (k) => { let max = Math.max(...allP.map(o => o[k])); return allP.filter(o => o[k] === max && max > 0); };
+            document.getElementById('honorRoll').innerHTML = ['pts', 'reb'].map(k => `
+                <div class="p-3 bg-gray-950 rounded-xl mb-2">
+                    <div class="text-[9px] text-gray-500 uppercase font-black">${k === 'pts' ? 'Point' : 'Rebound'} Highs</div>
+                    ${findMax(k).map(w => `<div class="flex justify-between"><span>${w.name}</span><span class="text-gold font-black">${w[k]}</span></div>`).join('')}
+                </div>`).join('');
+        }
+
+        function renderSeasonSummary() {
+            const h = seasonHistory;
+            const pM = {};
+            ROSTER.forEach(r => pM[r.name] = { gp:0, pts:0, reb:0, ast:0, ft:0, fta:0, m3:0, a3:0 });
+            h.forEach(g => g.stats.forEach(s => { const p = pM[s.name]; p.gp++; p.pts += s.pts; p.reb += s.reb; p.ast += s.ast; p.ft += s.ftm; p.fta += s.fta; p.m3 += s.fg3m; p.a3 += s.fg3a; }));
+            let html = `<table class="w-full text-left text-[11px]"><thead class="bg-gray-950 text-gray-500 uppercase"><tr><th class="p-4">Eagle</th><th>GP</th><th>PPG</th><th>RPG</th><th>APG</th><th>FT%</th><th>3PT%</th></tr></thead><tbody>`;
+            for(let n in pM) { 
+                const p = pM[n]; if(p.gp === 0) continue;
+                html += `<tr class="border-b border-gray-900"><td class="p-4 font-bold text-gold">${n}</td><td>${p.gp}</td><td>${(p.pts/p.gp).toFixed(1)}</td><td>${(p.reb/p.gp).toFixed(1)}</td><td>${(p.ast/p.gp).toFixed(1)}</td><td>${p.fta > 0 ? ((p.ft/p.fta)*100).toFixed(0)+'%' : '-'}</td><td>${p.a3 > 0 ? ((p.m3/p.a3)*100).toFixed(1)+'%' : '-'}</td></tr>`;
+            }
+            document.getElementById('summaryTableArea').innerHTML = html + `</tbody></table>`;
+        }
+
+        function renderGameLog() {
+            const s = document.getElementById('logSearch').value.toLowerCase();
+            const area = document.getElementById('gameLogArea');
+            area.innerHTML = seasonHistory.filter(g => g.opp.toLowerCase().includes(s)).map(g => `
+                <div class="log-card">
+                    <div class="bg-gray-900 p-10 flex flex-col lg:flex-row justify-between items-center gap-8">
+                        <div class="flex items-center gap-10">
+                            <div class="log-result-box bg-gray-950 border-2 border-gray-800 ${g.result==='W'?'text-gold':'text-red-600'}">${g.result}</div>
+                            <div>
+                                <span class="text-base text-gray-500 font-black uppercase mb-2 block italic">${g.date}</span>
+                                <span class="log-score block uppercase">EAGLES ${g.teamScore}, ${g.opp} ${g.oppScore}</span>
+                            </div>
+                        </div>
+                        <button onclick="deleteGame('${g.cloudId}')" class="text-red-500 border border-red-900 px-6 py-2 rounded-xl uppercase font-black text-xs">Delete Record</button>
+                    </div>
+                </div>`).join('');
+        }
+
+        async function deleteGame(id) { if(confirm("Confirm Delete?")) await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').doc(id).delete(); }
+
+        function renderPlayerProfile() {
+            const name = document.getElementById('profilePicker').value;
+            const area = document.getElementById('playerProfileArea');
+            if(!name) return;
+            const pGames = seasonHistory.filter(g => g.stats.find(s => s.name === name));
+            const totalPts = pGames.reduce((acc, g) => acc + (g.stats.find(s => s.name === name).pts), 0);
+            area.innerHTML = `
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                    <div class="bg-black border border-gold p-8 rounded-3xl text-center shadow-xl">
+                        <h2 class="text-3xl font-black uppercase mb-2">${name}</h2>
+                        <div class="text- gold text-xs font-black uppercase mb-4">${pGames.length} GAMES PLAYED</div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="bg-gray-950 p-4 rounded border"><div class="text-[8px] text-gray-500 uppercase">PPG</div><div class="text-2xl font-black">${(totalPts/pGames.length).toFixed(1)}</div></div>
+                            <div class="bg-gray-950 p-4 rounded border"><div class="text-[8px] text-gray-500 uppercase">TOTAL</div><div class="text-2xl font-black">${totalPts}</div></div>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-3 bg-black border border-gray-800 p-8 rounded-3xl h-80 shadow-xl">
+                        <canvas id="profileTrendChart"></canvas>
+                    </div>
+                </div>`;
+            const ctx = document.getElementById('profileTrendChart').getContext('2d');
+            new Chart(ctx, { type: 'line', data: { labels: pGames.map(g => g.opp).reverse(), datasets: [{ label: 'Points', data: pGames.map(g => g.stats.find(s => s.name === name).pts).reverse(), borderColor: '#FFB81C', tension: 0.4 }] }, options: { maintainAspectRatio: false } });
+        }
+
+        // CSV Import Engine for Cloud
+        function handleImport(input) {
+            const file = input.files[0];
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const text = e.target.result;
+                const rows = text.split('\n').filter(r => r.trim());
+                const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
+                const games = {};
+
+                rows.slice(1).forEach(row => {
+                    const cols = row.split(',');
+                    const data = {}; headers.forEach((h, i) => data[h] = cols[i]?.trim());
+                    const key = `${data.date}_${data.opponent}`;
+                    if (!games[key]) games[key] = { date: data.date, opp: data.opponent, oppScore: 0, stats: [], setPlays: [], shotMap: { eagles: {}, opp: {} } };
+                    
+                    const pts = (parseInt(data['2pm'])||0)*2 + (parseInt(data['3pm'])||0)*3 + (parseInt(data['ftm'])||0);
+                    games[key].stats.push({
+                        name: data.player, fg2m: parseInt(data['2pm'])||0, fg2a: parseInt(data['2pa'])||0,
+                        fg3m: parseInt(data['3pm'])||0, fg3a: parseInt(data['3pa'])||0,
+                        ftm: parseInt(data['ftm'])||0, fta: parseInt(data['fta'])||0,
+                        reb: parseInt(data['reb'])||0, ast: parseInt(data['ast'])||0, pts
+                    });
+                });
+
+                for (let k in games) {
+                    const g = games[k];
+                    g.teamScore = g.stats.reduce((acc, s) => acc + s.pts, 0);
+                    g.result = g.teamScore > g.oppScore ? 'W' : 'L';
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').add(g);
+                }
+                alert("Imported to Cloud!");
+            };
+            reader.readAsText(file);
+        }
+
+        function exportToCSV() {
+            let c = "Date,Opponent,Player,2PM,2PA,3PM,3PA,FTM,FTA,REB,AST,PTS\n";
+            seasonHistory.forEach(g => g.stats.forEach(s => { c += `${g.date},${g.opp},${s.name},${s.fg2m},${s.fg2a},${s.fg3m},${s.fg3a},${s.ftm},${s.fta},${s.reb},${s.ast},${s.pts}\n`; }));
+            const b = new Blob([c], {type:'text/csv'});
+            const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'Eagles_Cloud_Backup.csv'; a.click();
+        }
+
+        async function clearCloudData() { if(confirm("Permanently wipe ALL cloud records?")) {
+            const snapshot = await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('games').get();
+            snapshot.forEach(doc => doc.ref.delete());
+        }}
     </script>
 </body>
 </html>
