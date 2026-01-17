@@ -133,7 +133,7 @@
                 } catch(e) { console.warn("Offline"); setLoading(false); }
             }, []);
 
-            // --- SEARCH ENGINE LOGIC (AI V2) ---
+            // --- SEARCH ENGINE LOGIC (AI V3 - Advanced) ---
             const handleSearch = (e) => {
                 e.preventDefault();
                 if(!query.trim()) return;
@@ -146,7 +146,7 @@
                 const stats = getSeasonStats();
                 const getStat = (key) => stats.sort((a,b)=> parseFloat(b[key]) - parseFloat(a[key]));
 
-                // 1. GAME LOOKUP ("vs Central", "against North")
+                // 1. GAME LOOKUP
                 if(userQ.includes('vs') || userQ.includes('against')) {
                     const opp = userQ.split(/vs|against/)[1].trim();
                     const game = games.find(g => g.opp.toLowerCase().includes(opp));
@@ -156,7 +156,7 @@
                         response = `🤷‍♂️ I couldn't find a game against "${opp}". Check the spelling or the Game Log.`;
                     }
                 }
-                // 2. PLAYER COMPARISON ("Compare Reese and Natasha")
+                // 2. PLAYER COMPARISON
                 else if (userQ.includes('compare') || userQ.includes('better')) {
                     const foundPlayers = ROSTER.filter(p => userQ.includes(p.name.toLowerCase()) || userQ.includes(p.name.split(' ')[0].toLowerCase()));
                     if(foundPlayers.length >= 2) {
@@ -167,28 +167,60 @@
                         response = "I need two names to compare. Try 'Compare Reese and Natasha'.";
                     }
                 }
-                // 3. TEAM STATUS ("Record", "How are we doing")
+                // 3. TEAM STATUS
                 else if (userQ.includes('record') || userQ.includes('team') || userQ.includes('standing')) {
                     const wins = games.filter(g=>g.result==='W').length;
                     const losses = games.filter(g=>g.result==='L').length;
                     const ppg = (games.reduce((a,b)=>a+(b.teamScore||0),0)/games.length).toFixed(1);
                     response = `🦅 TEAM STATUS\nRecord: ${wins}-${losses}\nAvg Points: ${ppg}\nGames Played: ${games.length}`;
                 }
-                // 4. INDIVIDUAL SCOUTING REPORT ("Scout Kylie", "Report on Olivia")
+                // 4. INDIVIDUAL SCOUTING REPORT (ENHANCED)
                 else {
                     const playerFound = ROSTER.find(p => userQ.includes(p.name.toLowerCase()) || userQ.includes(p.name.split(' ')[0].toLowerCase()));
                     if(playerFound) {
                         const pName = playerFound.name;
                         const s = stats.find(x => x.name === pName);
-                        if(userQ.includes('scout') || userQ.includes('report') || userQ.includes('tell me')) {
-                            let strength = s.ppg > 5 ? "Scoring" : (s.rpg > 4 ? "Rebounding" : (s.apg > 2 ? "Playmaking" : "Hustle"));
-                            let note = s.topg > 2 ? "Needs to value the ball more." : "Solid ball control.";
-                            if(s.fg3Pct > 30) strength += " & 3PT Shooting";
-                            response = `📝 SCOUTING REPORT: ${pName}\n\nRole: ${s.pos}\nStrengths: ${strength}\nKey Stats: ${s.ppg} PPG | ${s.rpg} RPG\nEfficiency: ${s.fgPct}% FG | ${s.ftPct}% FT\nCoach's Note: ${note}`;
+                        
+                        if(userQ.includes('scout') || userQ.includes('report') || userQ.includes('tell me') || userQ.includes('how')) {
+                            // GENERATE UNIQUE COACH NOTE
+                            let coachNote = "";
+                            let strength = "";
+                            const astToRatio = s.to > 0 ? (s.ast / s.to).toFixed(1) : s.ast;
+
+                            // -- Logic Tree for Unique Responses --
+                            if (parseFloat(s.ppg) >= 12 && parseFloat(s.fgPct) > 45) {
+                                strength = "Elite Efficiency";
+                                coachNote = `Highly effective scorer. Shooting ${s.fgPct}% FG while averaging ${s.ppg} PPG. Keep feeding them.`;
+                            } else if (parseFloat(s.ppg) >= 12 && parseFloat(s.fgPct) <= 35) {
+                                strength = "Volume Scorer";
+                                coachNote = `Scoring high (${s.ppg} PPG) but needs better shot selection. Currently shooting ${s.fgPct}%.`;
+                            } else if (parseFloat(s.rpg) >= 7) {
+                                strength = "Glass Cleaner";
+                                coachNote = `Dominant rebounder pulling down ${s.rpg} boards per game.`;
+                            } else if (parseFloat(s.apg) >= 4 && parseFloat(astToRatio) > 1.5) {
+                                strength = "Playmaker";
+                                coachNote = `Excellent decision maker. ${astToRatio} Assist-to-Turnover ratio is stellar.`;
+                            } else if (parseFloat(s.topg) > 3.5) {
+                                strength = "Aggressive";
+                                coachNote = `Needs to value the ball. Averaging ${s.topg} turnovers per game.`;
+                            } else if (parseFloat(s.fg3Pct) > 35 && s.fg3a > 2) {
+                                strength = "Sharpshooter";
+                                coachNote = `Green light from deep. Hitting ${s.fg3Pct}% of threes.`;
+                            } else if (parseFloat(s.spg) > 2.0) {
+                                strength = "Defender";
+                                coachNote = `Disruptive on defense. Averaging ${s.spg} steals per game.`;
+                            } else if (parseFloat(s.ftPct) < 50 && s.fta > 2) {
+                                strength = "Slasher";
+                                coachNote = `Getting to the line, but needs to convert. FT% is currently ${s.ftPct}%.`;
+                            } else {
+                                strength = "Role Player";
+                                coachNote = `Solid contributor. Reliable stats across the board.`;
+                            }
+
+                            response = `📝 SCOUTING REPORT: ${pName}\n\nRole: ${s.pos}\nIdentity: ${strength}\n\nKey Stats:\n• ${s.ppg} PPG\n• ${s.rpg} RPG\n• ${s.fgPct}% FG\n\nCoach's Note: ${coachNote}`;
                         }
-                        // 5. SPECIFIC STAT QUERY
+                        // 5. TREND CHECK
                         else if (userQ.includes('trend') || userQ.includes('improving')) {
-                             // Calc trend (Last 3 games vs Avg)
                             const pData = getPlayerData(pName);
                             const last3 = pData.games.slice(0,3);
                             if(last3.length > 0) {
@@ -199,25 +231,15 @@
                                     : `📉 ${pName} is cooling off. ${l3ppg} PPG last 3 games (Season: ${s.ppg}).`;
                             } else response = "Not enough games for a trend.";
                         } else {
-                            // Fallback "Best/Worst" check from previous version
-                            const map = {'point':'ppg','score':'ppg','rebound':'rpg','assist':'apg','steal':'spg','block':'bpg','turnover':'topg'};
-                            let answered = false;
-                            for(let k in map) {
-                                if(userQ.includes(k)) {
-                                    if(userQ.includes('most') || userQ.includes('best')) {
-                                        const leader = getStat(map[k])[0];
-                                        response = `🏆 Leader in ${k.toUpperCase()}: ${leader.name} (${leader[map[k]]})`;
-                                        answered = true;
-                                    }
-                                }
-                            }
-                            if(!answered) response = `ℹ️ ${pName} Stats:\n${s.ppg} PTS, ${s.rpg} REB, ${s.apg} AST, ${s.spg} STL.`;
+                            // Default Fallback
+                            response = `ℹ️ ${pName}: ${s.ppg} PPG, ${s.rpg} RPG, ${s.apg} APG.`;
                         }
                     } else if (userQ.includes('best') || userQ.includes('leader')) {
-                         // General Leader queries without names
                          if(userQ.includes('score') || userQ.includes('point')) { const l = getStat('ppg')[0]; response = `🔥 Scoring Leader: ${l.name} (${l.ppg} PPG)`; }
                          else if(userQ.includes('rebound')) { const l = getStat('rpg')[0]; response = `💪 Rebound Leader: ${l.name} (${l.rpg} RPG)`; }
                          else if(userQ.includes('assist')) { const l = getStat('apg')[0]; response = `🧠 Assist Leader: ${l.name} (${l.apg} APG)`; }
+                         else if(userQ.includes('steal')) { const l = getStat('spg')[0]; response = `🔒 Steals Leader: ${l.name} (${l.spg} SPG)`; }
+                         else if(userQ.includes('block')) { const l = getStat('bpg')[0]; response = `🛑 Blocks Leader: ${l.name} (${l.bpg} BPG)`; }
                     }
                 }
 
@@ -299,7 +321,8 @@
                     return {
                         ...t, ppg:(t.pts/g).toFixed(1), rpg:(t.reb/g).toFixed(1), apg:(t.ast/g).toFixed(1), spg:(t.stl/g).toFixed(1), bpg:(t.blk/g).toFixed(1), topg:(t.to/g).toFixed(1),
                         fgPct:(t.fg2a+t.fg3a)>0?Math.round(((t.fg2m+t.fg3m)/(t.fg2a+t.fg3a))*100):0,
-                        fg3Pct:t.fg3a>0?Math.round((t.fg3m/t.fg3a)*100):0, ftPct:t.fta>0?Math.round((t.ftm/t.fta)*100):0
+                        fg3Pct:t.fg3a>0?Math.round((t.fg3m/t.fg3a)*100):0, ftPct:t.fta>0?Math.round((t.ftm/t.fta)*100):0,
+                        to: t.to, ast: t.ast
                     };
                 }).sort((a,b) => { const aVal = parseFloat(a[sortConfig.key])||0, bVal = parseFloat(b[sortConfig.key])||0; return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal; });
             };
