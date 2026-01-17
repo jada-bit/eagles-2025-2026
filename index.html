@@ -552,7 +552,7 @@
 
                     {/* --- VIEW: LOG --- */}
                     {view === 'log' && (
-                        <div className="grid gap-4">{games.map(g=><div key={g.id} className="bento-card flex justify-between items-center"><div><div className="text-xs font-bold text-zinc-500">{g.date}</div><div className="text-xl font-black italic">{g.result} vs {g.opp}</div></div><button onClick={()=>{setEditId(g.id);setGameMeta({date:g.date,opp:g.opp,oppScore:g.oppScore,venue:g.venue});setPlayStats(g.playStats||[]);const sm={};g.stats.forEach(s=>sm[s.name]=s);setPlayerStats(sm);setShotMap(g.shotMap||{eagles:{},opp:{}});setView('new');}} className="bg-zinc-800 text-xs font-bold uppercase p-2 rounded hover:bg-white hover:text-black">Edit</button></div>)}</div>
+                        <div className="grid gap-4">{games.map(g=><div key={g.id} className="bento-card flex justify-between items-center"><div><div className="text-xs font-bold text-zinc-500">{g.date}</div><div className="text-xl font-black italic"><span className={g.result==='W'?'text-green-500':'text-red-500'}>{g.result}</span> {g.teamScore}-{g.oppScore} vs {g.opp}</div></div><button onClick={()=>{setEditId(g.id);setGameMeta({date:g.date,opp:g.opp,oppScore:g.oppScore,venue:g.venue});setPlayStats(g.playStats||[]);const sm={};g.stats.forEach(s=>sm[s.name]=s);setPlayerStats(sm);setShotMap(g.shotMap||{eagles:{},opp:{}});setView('new');}} className="bg-zinc-800 text-xs font-bold uppercase p-2 rounded hover:bg-white hover:text-black">Edit</button></div>)}</div>
                     )}
 
                     {/* --- VIEW: ADMIN --- */}
