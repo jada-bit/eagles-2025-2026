@@ -111,7 +111,7 @@
             const [editId, setEditId] = React.useState(null);
 
             // SEARCH / AI STATE
-            const [chatHistory, setChatHistory] = React.useState([{role: 'bot', text: '🦅 Ask Coach! Try "Compare Reese and Natasha", "How did we do vs Central", or "Scout Kylie".'}]);
+            const [chatHistory, setChatHistory] = React.useState([{role: 'bot', text: '🦅 Coach, I\'m ready. Ask me "Who is the MVP?", "Who takes the last shot?", or "Scout Reese".'}]);
             const [query, setQuery] = React.useState('');
 
             // FILTERS & SELECTIONS
@@ -133,7 +133,7 @@
                 } catch(e) { console.warn("Offline"); setLoading(false); }
             }, []);
 
-            // --- SEARCH ENGINE LOGIC (AI V3 - Advanced) ---
+            // --- SEARCH ENGINE LOGIC (AI V4 - DECISION SUPPORT) ---
             const handleSearch = (e) => {
                 e.preventDefault();
                 if(!query.trim()) return;
@@ -142,12 +142,60 @@
                 const newHistory = [...chatHistory, {role: 'user', text: query}];
                 setQuery('');
                 
-                let response = "I didn't quite catch that. Try asking about a player, a game result, or team stats.";
+                let response = "I didn't quite catch that. Try specific decision questions like 'Who takes the last shot?'.";
                 const stats = getSeasonStats();
-                const getStat = (key) => stats.sort((a,b)=> parseFloat(b[key]) - parseFloat(a[key]));
+                
+                // Helper: Weighted Impact Score (PIR)
+                const getImpact = (p) => {
+                    return (parseFloat(p.ppg)*1) + (parseFloat(p.rpg)*1.5) + (parseFloat(p.apg)*1.5) + (parseFloat(p.spg)*3) + (parseFloat(p.bpg)*3) - (parseFloat(p.topg)*2);
+                };
 
-                // 1. GAME LOOKUP
-                if(userQ.includes('vs') || userQ.includes('against')) {
+                // 1. BEST PLAYER / MVP LOGIC
+                if (userQ.includes('best player') || userQ.includes('mvp') || userQ.includes('overall') || userQ.includes('star')) {
+                    const sorted = [...stats].sort((a,b) => getImpact(b) - getImpact(a));
+                    const best = sorted[0];
+                    const runnerUp = sorted[1];
+                    response = `🏆 MVP / BEST OVERALL: ${best.name}\n\nBased on weighted impact (Scoring + Defense + Efficiency):\n1. ${best.name} (Impact: ${getImpact(best).toFixed(1)})\n2. ${runnerUp.name} (Impact: ${getImpact(runnerUp).toFixed(1)})\n\n${best.name} is averaging ${best.ppg} PPG, ${best.rpg} RPG, and ${best.spg} STL.`;
+                }
+                
+                // 2. DECISION SUPPORT: CLUTCH SHOT
+                else if (userQ.includes('last shot') || userQ.includes('buzzer') || userQ.includes('clutch') || userQ.includes('bucket')) {
+                    // Formula: PPG + (FG% * 0.2) + (FT% * 0.1)
+                    const shooters = [...stats].sort((a,b) => {
+                        const scoreA = parseFloat(a.ppg) + (a.fgPct * 0.2) + (a.ftPct * 0.1);
+                        const scoreB = parseFloat(b.ppg) + (b.fgPct * 0.2) + (b.ftPct * 0.1);
+                        return scoreB - scoreA;
+                    });
+                    const pick = shooters[0];
+                    response = `🏀 CLUTCH OPTION: ${pick.name}\n\nShe combines high volume (${pick.ppg} PPG) with reliability (${pick.fgPct}% FG, ${pick.ftPct}% FT). Get her the ball.`;
+                }
+
+                // 3. DECISION SUPPORT: DEFENSIVE STOP
+                else if (userQ.includes('stop') || userQ.includes('defense') || userQ.includes('lockdown') || userQ.includes('steal')) {
+                    // Formula: Steals + Blocks + (Rebounds * 0.5)
+                    const defenders = [...stats].sort((a,b) => {
+                        const scoreA = parseFloat(a.spg) + parseFloat(a.bpg) + (parseFloat(a.rpg)*0.5);
+                        const scoreB = parseFloat(b.spg) + parseFloat(b.bpg) + (parseFloat(b.rpg)*0.5);
+                        return scoreB - scoreA;
+                    });
+                    const pick = defenders[0];
+                    response = `🛡️ DEFENSIVE ANCHOR: ${pick.name}\n\nFor a critical stop, put her in. She generates chaos: ${pick.spg} Steals and ${pick.bpg} Blocks per game.`;
+                }
+
+                // 4. DECISION SUPPORT: BALL HANDLER
+                else if (userQ.includes('handle') || userQ.includes('ball') || userQ.includes('dribble') || userQ.includes('point')) {
+                    // Formula: AST / (TO + 1) to avoid divide by zero
+                    const handlers = [...stats].sort((a,b) => {
+                        const ratioA = a.ast / (a.to + 0.1);
+                        const ratioB = b.ast / (b.to + 0.1);
+                        return ratioB - ratioA;
+                    });
+                    const pick = handlers[0];
+                    response = `🧠 FLOOR GENERAL: ${pick.name}\n\nSafest pair of hands. Assist-to-Turnover ratio is ${(pick.ast/(pick.to||1)).toFixed(2)}. Trust her against the press.`;
+                }
+
+                // 5. GAME LOOKUP
+                else if(userQ.includes('vs') || userQ.includes('against')) {
                     const opp = userQ.split(/vs|against/)[1].trim();
                     const game = games.find(g => g.opp.toLowerCase().includes(opp));
                     if(game) {
@@ -156,7 +204,7 @@
                         response = `🤷‍♂️ I couldn't find a game against "${opp}". Check the spelling or the Game Log.`;
                     }
                 }
-                // 2. PLAYER COMPARISON
+                // 6. PLAYER COMPARISON
                 else if (userQ.includes('compare') || userQ.includes('better')) {
                     const foundPlayers = ROSTER.filter(p => userQ.includes(p.name.toLowerCase()) || userQ.includes(p.name.split(' ')[0].toLowerCase()));
                     if(foundPlayers.length >= 2) {
@@ -167,79 +215,43 @@
                         response = "I need two names to compare. Try 'Compare Reese and Natasha'.";
                     }
                 }
-                // 3. TEAM STATUS
+                // 7. TEAM STATUS
                 else if (userQ.includes('record') || userQ.includes('team') || userQ.includes('standing')) {
                     const wins = games.filter(g=>g.result==='W').length;
                     const losses = games.filter(g=>g.result==='L').length;
                     const ppg = (games.reduce((a,b)=>a+(b.teamScore||0),0)/games.length).toFixed(1);
                     response = `🦅 TEAM STATUS\nRecord: ${wins}-${losses}\nAvg Points: ${ppg}\nGames Played: ${games.length}`;
                 }
-                // 4. INDIVIDUAL SCOUTING REPORT (ENHANCED)
+                // 8. INDIVIDUAL SCOUTING REPORT (ENHANCED)
                 else {
                     const playerFound = ROSTER.find(p => userQ.includes(p.name.toLowerCase()) || userQ.includes(p.name.split(' ')[0].toLowerCase()));
                     if(playerFound) {
                         const pName = playerFound.name;
                         const s = stats.find(x => x.name === pName);
-                        
                         if(userQ.includes('scout') || userQ.includes('report') || userQ.includes('tell me') || userQ.includes('how')) {
-                            // GENERATE UNIQUE COACH NOTE
                             let coachNote = "";
                             let strength = "";
                             const astToRatio = s.to > 0 ? (s.ast / s.to).toFixed(1) : s.ast;
 
-                            // -- Logic Tree for Unique Responses --
-                            if (parseFloat(s.ppg) >= 12 && parseFloat(s.fgPct) > 45) {
-                                strength = "Elite Efficiency";
-                                coachNote = `Highly effective scorer. Shooting ${s.fgPct}% FG while averaging ${s.ppg} PPG. Keep feeding them.`;
-                            } else if (parseFloat(s.ppg) >= 12 && parseFloat(s.fgPct) <= 35) {
-                                strength = "Volume Scorer";
-                                coachNote = `Scoring high (${s.ppg} PPG) but needs better shot selection. Currently shooting ${s.fgPct}%.`;
-                            } else if (parseFloat(s.rpg) >= 7) {
-                                strength = "Glass Cleaner";
-                                coachNote = `Dominant rebounder pulling down ${s.rpg} boards per game.`;
-                            } else if (parseFloat(s.apg) >= 4 && parseFloat(astToRatio) > 1.5) {
-                                strength = "Playmaker";
-                                coachNote = `Excellent decision maker. ${astToRatio} Assist-to-Turnover ratio is stellar.`;
-                            } else if (parseFloat(s.topg) > 3.5) {
-                                strength = "Aggressive";
-                                coachNote = `Needs to value the ball. Averaging ${s.topg} turnovers per game.`;
-                            } else if (parseFloat(s.fg3Pct) > 35 && s.fg3a > 2) {
-                                strength = "Sharpshooter";
-                                coachNote = `Green light from deep. Hitting ${s.fg3Pct}% of threes.`;
-                            } else if (parseFloat(s.spg) > 2.0) {
-                                strength = "Defender";
-                                coachNote = `Disruptive on defense. Averaging ${s.spg} steals per game.`;
-                            } else if (parseFloat(s.ftPct) < 50 && s.fta > 2) {
-                                strength = "Slasher";
-                                coachNote = `Getting to the line, but needs to convert. FT% is currently ${s.ftPct}%.`;
-                            } else {
-                                strength = "Role Player";
-                                coachNote = `Solid contributor. Reliable stats across the board.`;
-                            }
+                            if (parseFloat(s.ppg) >= 12 && parseFloat(s.fgPct) > 45) { strength = "Elite Efficiency"; coachNote = `Highly effective scorer. Shooting ${s.fgPct}% FG while averaging ${s.ppg} PPG. Keep feeding them.`; } 
+                            else if (parseFloat(s.ppg) >= 12 && parseFloat(s.fgPct) <= 35) { strength = "Volume Scorer"; coachNote = `Scoring high (${s.ppg} PPG) but needs better shot selection. Currently shooting ${s.fgPct}%.`; } 
+                            else if (parseFloat(s.rpg) >= 7) { strength = "Glass Cleaner"; coachNote = `Dominant rebounder pulling down ${s.rpg} boards per game.`; } 
+                            else if (parseFloat(s.apg) >= 4 && parseFloat(astToRatio) > 1.5) { strength = "Playmaker"; coachNote = `Excellent decision maker. ${astToRatio} Assist-to-Turnover ratio is stellar.`; } 
+                            else if (parseFloat(s.topg) > 3.5) { strength = "Aggressive"; coachNote = `Needs to value the ball. Averaging ${s.topg} turnovers per game.`; } 
+                            else if (parseFloat(s.fg3Pct) > 35 && s.fg3a > 2) { strength = "Sharpshooter"; coachNote = `Green light from deep. Hitting ${s.fg3Pct}% of threes.`; } 
+                            else if (parseFloat(s.spg) > 2.0) { strength = "Defender"; coachNote = `Disruptive on defense. Averaging ${s.spg} steals per game.`; } 
+                            else { strength = "Role Player"; coachNote = `Solid contributor. Reliable stats across the board.`; }
 
                             response = `📝 SCOUTING REPORT: ${pName}\n\nRole: ${s.pos}\nIdentity: ${strength}\n\nKey Stats:\n• ${s.ppg} PPG\n• ${s.rpg} RPG\n• ${s.fgPct}% FG\n\nCoach's Note: ${coachNote}`;
-                        }
-                        // 5. TREND CHECK
-                        else if (userQ.includes('trend') || userQ.includes('improving')) {
-                            const pData = getPlayerData(pName);
-                            const last3 = pData.games.slice(0,3);
-                            if(last3.length > 0) {
-                                let l3pts = 0; last3.forEach(g => { const st = g.stats.find(x=>x.name===pName); l3pts += ((st.fg2m*2)+(st.fg3m*3)+st.ftm); });
-                                const l3ppg = (l3pts/last3.length).toFixed(1);
-                                response = parseFloat(l3ppg) > parseFloat(s.ppg) 
-                                    ? `📈 ${pName} is Trending UP! ${l3ppg} PPG last 3 games (Season: ${s.ppg}).`
-                                    : `📉 ${pName} is cooling off. ${l3ppg} PPG last 3 games (Season: ${s.ppg}).`;
-                            } else response = "Not enough games for a trend.";
                         } else {
-                            // Default Fallback
                             response = `ℹ️ ${pName}: ${s.ppg} PPG, ${s.rpg} RPG, ${s.apg} APG.`;
                         }
-                    } else if (userQ.includes('best') || userQ.includes('leader')) {
-                         if(userQ.includes('score') || userQ.includes('point')) { const l = getStat('ppg')[0]; response = `🔥 Scoring Leader: ${l.name} (${l.ppg} PPG)`; }
-                         else if(userQ.includes('rebound')) { const l = getStat('rpg')[0]; response = `💪 Rebound Leader: ${l.name} (${l.rpg} RPG)`; }
-                         else if(userQ.includes('assist')) { const l = getStat('apg')[0]; response = `🧠 Assist Leader: ${l.name} (${l.apg} APG)`; }
-                         else if(userQ.includes('steal')) { const l = getStat('spg')[0]; response = `🔒 Steals Leader: ${l.name} (${l.spg} SPG)`; }
-                         else if(userQ.includes('block')) { const l = getStat('bpg')[0]; response = `🛑 Blocks Leader: ${l.name} (${l.bpg} BPG)`; }
+                    } else if (userQ.includes('finisher') || userQ.includes('inside')) {
+                        const l = [...stats].sort((a,b) => b.fgPct - a.fgPct)[0]; response = `🥅 Best Finisher: ${l.name} (${l.fgPct}% FG)`;
+                    } else if (userQ.includes('shooter') || userQ.includes('3pt')) {
+                        const l = [...stats].sort((a,b) => b.fg3Pct - a.fg3Pct)[0]; response = `🎯 Best Shooter: ${l.name} (${l.fg3Pct}% from 3)`;
+                    } else if (userQ.includes('playmaker')) {
+                        const l = [...stats].sort((a,b) => b.apg - a.apg)[0]; response = `👟 Best Playmaker: ${l.name} (${l.apg} APG)`;
                     }
                 }
 
@@ -489,7 +501,7 @@
                                     ))}
                                 </div>
                                 <form onSubmit={handleSearch} className="flex gap-2">
-                                    <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Try: 'Compare Reese and Natasha', 'How did we do vs Central', 'Scout Kylie'" className="flex-1 bg-black border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold" />
+                                    <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Try: 'Who is the MVP?', 'Who takes the last shot?', 'Scout Reese'" className="flex-1 bg-black border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold" />
                                     <button type="submit" className="bg-gold text-black font-bold px-6 py-3 rounded-lg hover:bg-white transition">SEND</button>
                                 </form>
                             </div>
