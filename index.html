@@ -38,9 +38,9 @@
         .zone:hover { opacity: 0.6; stroke: white; }
 
         /* CHAT UI */
-        .chat-bubble { padding: 10px 15px; border-radius: 12px; margin-bottom: 10px; max-width: 80%; font-size: 14px; line-height: 1.4; animation: slideIn 0.2s; }
+        .chat-bubble { padding: 12px 16px; border-radius: 12px; margin-bottom: 10px; max-width: 85%; font-size: 14px; line-height: 1.5; animation: slideIn 0.2s; white-space: pre-wrap; }
         .chat-user { background: #333; align-self: flex-end; margin-left: auto; color: white; border-bottom-right-radius: 2px; }
-        .chat-bot { background: var(--gold); color: black; align-self: flex-start; font-weight: 600; border-bottom-left-radius: 2px; }
+        .chat-bot { background: var(--gold); color: black; align-self: flex-start; font-weight: 600; border-bottom-left-radius: 2px; box-shadow: 0 2px 10px rgba(255,184,28,0.2); }
 
         /* TABLE STYLES */
         .stat-table th { position: sticky; top: 0; background: #111; z-index: 10; font-size: 10px; text-transform: uppercase; color: #888; padding: 10px; cursor: pointer; }
@@ -111,7 +111,7 @@
             const [editId, setEditId] = React.useState(null);
 
             // SEARCH / AI STATE
-            const [chatHistory, setChatHistory] = React.useState([{role: 'bot', text: '🦅 Ask me anything about the team! Try "Who is the best scorer?" or "How is Reese doing?"'}]);
+            const [chatHistory, setChatHistory] = React.useState([{role: 'bot', text: '🦅 Ask Coach! Try "Compare Reese and Natasha", "How did we do vs Central", or "Scout Kylie".'}]);
             const [query, setQuery] = React.useState('');
 
             // FILTERS & SELECTIONS
@@ -133,7 +133,7 @@
                 } catch(e) { console.warn("Offline"); setLoading(false); }
             }, []);
 
-            // --- SEARCH ENGINE LOGIC (AI) ---
+            // --- SEARCH ENGINE LOGIC (AI V2) ---
             const handleSearch = (e) => {
                 e.preventDefault();
                 if(!query.trim()) return;
@@ -142,83 +142,92 @@
                 const newHistory = [...chatHistory, {role: 'user', text: query}];
                 setQuery('');
                 
-                let response = "I'm not sure about that one yet. Try asking about 'points', 'rebounds', or a specific player.";
-                
-                // DATA PREP
+                let response = "I didn't quite catch that. Try asking about a player, a game result, or team stats.";
                 const stats = getSeasonStats();
                 const getStat = (key) => stats.sort((a,b)=> parseFloat(b[key]) - parseFloat(a[key]));
-                
-                // MAPPING DICTIONARY
-                const map = {
-                    'point': 'ppg', 'score': 'ppg', 'scoring': 'ppg',
-                    'rebound': 'rpg', 'board': 'rpg',
-                    'assist': 'apg', 'dime': 'apg', 'pass': 'apg',
-                    'steal': 'spg', 'defense': 'spg',
-                    'block': 'bpg',
-                    'turnover': 'topg', 'mistake': 'topg',
-                    '3pt': 'fg3Pct', 'three': 'fg3Pct', 'shoot': 'fgPct'
-                };
 
-                // INTENT 1: BEST/WORST QUERIES
-                if(userQ.includes('best') || userQ.includes('most') || userQ.includes('top') || userQ.includes('leader')) {
-                    for(let k in map) {
-                        if(userQ.includes(k)) {
-                            const leader = getStat(map[k])[0];
-                            response = `🏆 The team leader in ${k.toUpperCase()} is ${leader.name} with ${leader[map[k]]}.`;
-                            break;
-                        }
+                // 1. GAME LOOKUP ("vs Central", "against North")
+                if(userQ.includes('vs') || userQ.includes('against')) {
+                    const opp = userQ.split(/vs|against/)[1].trim();
+                    const game = games.find(g => g.opp.toLowerCase().includes(opp));
+                    if(game) {
+                        response = `📅 ${game.date} vs ${game.opp}\nResult: ${game.result === 'W' ? '✅ WIN' : '❌ LOSS'} (${game.teamScore} - ${game.oppScore})\nWe shot ${getGameFg(game)}% from the field.`;
+                    } else {
+                        response = `🤷‍♂️ I couldn't find a game against "${opp}". Check the spelling or the Game Log.`;
                     }
                 }
-                else if(userQ.includes('worst') || userQ.includes('least')) {
-                    for(let k in map) {
-                        if(userQ.includes(k)) {
-                            const low = [...getStat(map[k])].reverse()[0];
-                            response = `📉 ${low.name} averages the lowest ${k.toUpperCase()} at ${low[map[k]]}.`;
-                            break;
-                        }
+                // 2. PLAYER COMPARISON ("Compare Reese and Natasha")
+                else if (userQ.includes('compare') || userQ.includes('better')) {
+                    const foundPlayers = ROSTER.filter(p => userQ.includes(p.name.toLowerCase()) || userQ.includes(p.name.split(' ')[0].toLowerCase()));
+                    if(foundPlayers.length >= 2) {
+                        const p1 = stats.find(s => s.name === foundPlayers[0].name);
+                        const p2 = stats.find(s => s.name === foundPlayers[1].name);
+                        response = `⚖️ HEAD-TO-HEAD:\n\n${p1.name} vs ${p2.name}\nPTS: ${p1.ppg} vs ${p2.ppg}\nREB: ${p1.rpg} vs ${p2.rpg}\nAST: ${p1.apg} vs ${p2.apg}\nFG%: ${p1.fgPct}% vs ${p2.fgPct}%`;
+                    } else {
+                        response = "I need two names to compare. Try 'Compare Reese and Natasha'.";
                     }
                 }
-
-                // INTENT 2: PLAYER SPECIFIC (TRENDS)
-                const playerFound = ROSTER.find(p => userQ.includes(p.name.toLowerCase()) || userQ.includes(p.name.split(' ')[0].toLowerCase()));
-                
-                if(playerFound) {
-                    const pName = playerFound.name;
-                    const pData = getPlayerData(pName);
-                    
-                    if(userQ.includes('improving') || userQ.includes('doing') || userQ.includes('trend')) {
-                        // Calc trend (Last 3 games vs Avg)
-                        const last3 = pData.games.slice(0,3);
-                        if(last3.length > 0) {
-                            let l3pts = 0, l3reb = 0;
-                            last3.forEach(g => { 
-                                const s = g.stats.find(x=>x.name===pName);
-                                l3pts += ((s.fg2m*2)+(s.fg3m*3)+s.ftm);
-                                l3reb += s.reb;
-                            });
-                            const l3ppg = (l3pts/last3.length).toFixed(1);
-                            const avgPpg = pData.avgs.ppg;
-                            
-                            if(parseFloat(l3ppg) > parseFloat(avgPpg)) response = `📈 ${pName} is HEATING UP! Averaging ${l3ppg} PPG in the last 3 games (Season avg: ${avgPpg}).`;
-                            else response = `📉 ${pName} is cooling off slightly. Averaging ${l3ppg} PPG in the last 3 games (Season avg: ${avgPpg}).`;
+                // 3. TEAM STATUS ("Record", "How are we doing")
+                else if (userQ.includes('record') || userQ.includes('team') || userQ.includes('standing')) {
+                    const wins = games.filter(g=>g.result==='W').length;
+                    const losses = games.filter(g=>g.result==='L').length;
+                    const ppg = (games.reduce((a,b)=>a+(b.teamScore||0),0)/games.length).toFixed(1);
+                    response = `🦅 TEAM STATUS\nRecord: ${wins}-${losses}\nAvg Points: ${ppg}\nGames Played: ${games.length}`;
+                }
+                // 4. INDIVIDUAL SCOUTING REPORT ("Scout Kylie", "Report on Olivia")
+                else {
+                    const playerFound = ROSTER.find(p => userQ.includes(p.name.toLowerCase()) || userQ.includes(p.name.split(' ')[0].toLowerCase()));
+                    if(playerFound) {
+                        const pName = playerFound.name;
+                        const s = stats.find(x => x.name === pName);
+                        if(userQ.includes('scout') || userQ.includes('report') || userQ.includes('tell me')) {
+                            let strength = s.ppg > 5 ? "Scoring" : (s.rpg > 4 ? "Rebounding" : (s.apg > 2 ? "Playmaking" : "Hustle"));
+                            let note = s.topg > 2 ? "Needs to value the ball more." : "Solid ball control.";
+                            if(s.fg3Pct > 30) strength += " & 3PT Shooting";
+                            response = `📝 SCOUTING REPORT: ${pName}\n\nRole: ${s.pos}\nStrengths: ${strength}\nKey Stats: ${s.ppg} PPG | ${s.rpg} RPG\nEfficiency: ${s.fgPct}% FG | ${s.ftPct}% FT\nCoach's Note: ${note}`;
+                        }
+                        // 5. SPECIFIC STAT QUERY
+                        else if (userQ.includes('trend') || userQ.includes('improving')) {
+                             // Calc trend (Last 3 games vs Avg)
+                            const pData = getPlayerData(pName);
+                            const last3 = pData.games.slice(0,3);
+                            if(last3.length > 0) {
+                                let l3pts = 0; last3.forEach(g => { const st = g.stats.find(x=>x.name===pName); l3pts += ((st.fg2m*2)+(st.fg3m*3)+st.ftm); });
+                                const l3ppg = (l3pts/last3.length).toFixed(1);
+                                response = parseFloat(l3ppg) > parseFloat(s.ppg) 
+                                    ? `📈 ${pName} is Trending UP! ${l3ppg} PPG last 3 games (Season: ${s.ppg}).`
+                                    : `📉 ${pName} is cooling off. ${l3ppg} PPG last 3 games (Season: ${s.ppg}).`;
+                            } else response = "Not enough games for a trend.";
                         } else {
-                            response = `${pName} hasn't played enough games for a trend analysis yet.`;
+                            // Fallback "Best/Worst" check from previous version
+                            const map = {'point':'ppg','score':'ppg','rebound':'rpg','assist':'apg','steal':'spg','block':'bpg','turnover':'topg'};
+                            let answered = false;
+                            for(let k in map) {
+                                if(userQ.includes(k)) {
+                                    if(userQ.includes('most') || userQ.includes('best')) {
+                                        const leader = getStat(map[k])[0];
+                                        response = `🏆 Leader in ${k.toUpperCase()}: ${leader.name} (${leader[map[k]]})`;
+                                        answered = true;
+                                    }
+                                }
+                            }
+                            if(!answered) response = `ℹ️ ${pName} Stats:\n${s.ppg} PTS, ${s.rpg} REB, ${s.apg} AST, ${s.spg} STL.`;
                         }
-                    } 
-                    else if (userQ.includes('work') || userQ.includes('bad') || userQ.includes('need')) {
-                        // Identify weakness (compare to team leaders or thresholds)
-                        const pStats = stats.find(s=>s.name === pName);
-                        if(pStats.ftPct < 50) response = `⚠️ ${pName} is struggling from the line (${pStats.ftPct}% FT). Focus on Free Throws.`;
-                        else if (pStats.topg > 3) response = `⚠️ ${pName} needs to protect the ball. Averaging ${pStats.topg} Turnovers per game.`;
-                        else response = `${pName} is pretty solid! Maybe focus on efficiency, currently shooting ${pStats.fgPct}% from the field.`;
-                    }
-                    else {
-                        // General Summary
-                        response = `ℹ️ ${pName}: ${pData.avgs.ppg} PPG, ${pData.avgs.rpg} RPG, ${pData.avgs.apg} APG. Shooting ${pData.pcts.fg}% FG.`;
+                    } else if (userQ.includes('best') || userQ.includes('leader')) {
+                         // General Leader queries without names
+                         if(userQ.includes('score') || userQ.includes('point')) { const l = getStat('ppg')[0]; response = `🔥 Scoring Leader: ${l.name} (${l.ppg} PPG)`; }
+                         else if(userQ.includes('rebound')) { const l = getStat('rpg')[0]; response = `💪 Rebound Leader: ${l.name} (${l.rpg} RPG)`; }
+                         else if(userQ.includes('assist')) { const l = getStat('apg')[0]; response = `🧠 Assist Leader: ${l.name} (${l.apg} APG)`; }
                     }
                 }
 
                 setChatHistory([...newHistory, {role: 'bot', text: response}]);
+            };
+
+            // Helper for Game FG%
+            const getGameFg = (g) => {
+                let m=0, a=0; g.stats.forEach(s=>{m+=(s.fg2m+s.fg3m); a+=(s.fg2a+s.fg3a)});
+                return a>0 ? Math.round((m/a)*100) : 0;
             };
 
             // --- SMART VALIDATION HANDLERS ---
@@ -457,7 +466,7 @@
                                     ))}
                                 </div>
                                 <form onSubmit={handleSearch} className="flex gap-2">
-                                    <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Ask about stats, players, or trends..." className="flex-1 bg-black border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold" />
+                                    <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Try: 'Compare Reese and Natasha', 'How did we do vs Central', 'Scout Kylie'" className="flex-1 bg-black border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold" />
                                     <button type="submit" className="bg-gold text-black font-bold px-6 py-3 rounded-lg hover:bg-white transition">SEND</button>
                                 </form>
                             </div>
@@ -559,12 +568,69 @@
 
         function InteractiveCourt({ data, onClick, mode }) { 
             const getFill = (key) => { const z=data[key]||{m:0,x:0},t=z.m+z.x; if(t===0)return 'transparent'; return (z.m/t)>=0.4?'rgba(34,197,94,0.6)':'rgba(239,68,68,0.6)'; }; 
-            return (<div className="relative max-w-[350px] mx-auto select-none"><svg viewBox="0 0 100 100" className="court-svg"><rect width="100" height="100" fill="#111" stroke="#333" strokeWidth="2"/><path d="M 10,100 L 10,35 Q 50,-15 90,35 L 90,100" fill="none" stroke="white" strokeWidth="1"/><path d="M 35,100 L 35,55 L 65,55 L 65,100" fill={getFill('paint')} stroke="white" strokeWidth="1" onClick={()=>onClick('paint',mode==='make')}/><path d="M 65,55 A 15,15 0 0,0 35,55" fill={getFill('paint')} stroke="white" strokeWidth="1" onClick={()=>onClick('paint',mode==='make')}/><path d="M 35,55 A 15,15 0 0,0 65,55" fill="transparent" stroke="white" strokeWidth="1" strokeDasharray="3,3" pointerEvents="none"/><path d="M 35,0 A 15,15 0 0,0 65,0" fill="none" stroke="white" strokeWidth="1"/><line x1="33" y1="85" x2="35" y2="85" stroke="white" strokeWidth="1"/><line x1="33" y1="75" x2="35" y2="75" stroke="white" strokeWidth="1"/><line x1="33" y1="65" x2="35" y2="65" stroke="white" strokeWidth="1"/><rect x="33" y="90" width="2" height="2" fill="white"/><line x1="65" y1="85" x2="67" y2="85" stroke="white" strokeWidth="1"/><line x1="65" y1="75" x2="67" y2="75" stroke="white" strokeWidth="1"/><line x1="65" y1="65" x2="67" y2="65" stroke="white" strokeWidth="1"/><rect x="65" y="90" width="2" height="2" fill="white"/><line x1="45" y1="92" x2="55" y2="92" stroke="white" strokeWidth="1"/><circle cx="50" cy="88" r="2" fill="none" stroke="white" strokeWidth="1"/><path d="M 0,100 L 10,100 L 10,40 L 0,40 Z" className="zone" onClick={()=>onClick('corn_l',mode==='make')} fill={getFill('corn_l')}/><path d="M 90,100 L 100,100 L 100,40 L 90,40 Z" className="zone" onClick={()=>onClick('corn_r',mode==='make')} fill={getFill('corn_r')}/><path d="M 0,40 L 10,40 L 30,15 L 0,15 Z" className="zone" onClick={()=>onClick('wing_l',mode==='make')} fill={getFill('wing_l')}/><path d="M 100,40 L 90,40 L 70,15 L 100,15 Z" className="zone" onClick={()=>onClick('wing_r',mode==='make')} fill={getFill('wing_r')}/><path d="M 30,15 L 70,15 L 65,35 L 35,35 Z" className="zone" onClick={()=>onClick('top',mode==='make')} fill={getFill('top')}/><path d="M 10,100 L 35,100 L 35,55 L 10,40 Z" className="zone" onClick={()=>onClick('mid_l',mode==='make')} fill={getFill('mid_l')}/><path d="M 90,100 L 65,100 L 65,55 L 90,40 Z" className="zone" onClick={()=>onClick('mid_r',mode==='make')} fill={getFill('mid_r')}/><path d="M 35,55 L 65,55 L 65,35 L 35,35 Z" className="zone" onClick={()=>onClick('mid_c',mode==='make')} fill={getFill('mid_c')}/><text x="50" y="80" className="zone-label" fill="white" fontSize="4" textAnchor="middle" opacity="0.3">PAINT</text></svg></div>);
+            return (
+                <div className="relative max-w-[350px] mx-auto select-none">
+                    <svg viewBox="0 0 100 100" className="court-svg">
+                        <rect width="100" height="100" fill="#111" stroke="#333" strokeWidth="2"/>
+                        <path d="M 10,100 L 10,35 Q 50,-15 90,35 L 90,100" fill="none" stroke="white" strokeWidth="1"/>
+                        <path d="M 35,100 L 35,55 L 65,55 L 65,100" fill={getFill('paint')} stroke="white" strokeWidth="1" onClick={()=>onClick('paint',mode==='make')}/>
+                        <path d="M 65,55 A 15,15 0 0,0 35,55" fill={getFill('paint')} stroke="white" strokeWidth="1" onClick={()=>onClick('paint',mode==='make')}/>
+                        <path d="M 35,55 A 15,15 0 0,0 65,55" fill="transparent" stroke="white" strokeWidth="1" strokeDasharray="3,3" pointerEvents="none"/>
+                        <path d="M 35,0 A 15,15 0 0,0 65,0" fill="none" stroke="white" strokeWidth="1"/>
+                        <line x1="33" y1="85" x2="35" y2="85" stroke="white" strokeWidth="1"/>
+                        <line x1="33" y1="75" x2="35" y2="75" stroke="white" strokeWidth="1"/>
+                        <line x1="33" y1="65" x2="35" y2="65" stroke="white" strokeWidth="1"/>
+                        <rect x="33" y="90" width="2" height="2" fill="white"/>
+                        <line x1="65" y1="85" x2="67" y2="85" stroke="white" strokeWidth="1"/>
+                        <line x1="65" y1="75" x2="67" y2="75" stroke="white" strokeWidth="1"/>
+                        <line x1="65" y1="65" x2="67" y2="65" stroke="white" strokeWidth="1"/>
+                        <rect x="65" y="90" width="2" height="2" fill="white"/>
+                        <line x1="45" y1="92" x2="55" y2="92" stroke="white" strokeWidth="1"/>
+                        <circle cx="50" cy="88" r="2" fill="none" stroke="white" strokeWidth="1"/>
+                        <path d="M 0,100 L 10,100 L 10,40 L 0,40 Z" className="zone" onClick={()=>onClick('corn_l',mode==='make')} fill={getFill('corn_l')}/>
+                        <path d="M 90,100 L 100,100 L 100,40 L 90,40 Z" className="zone" onClick={()=>onClick('corn_r',mode==='make')} fill={getFill('corn_r')}/>
+                        <path d="M 0,40 L 10,40 L 30,15 L 0,15 Z" className="zone" onClick={()=>onClick('wing_l',mode==='make')} fill={getFill('wing_l')}/>
+                        <path d="M 100,40 L 90,40 L 70,15 L 100,15 Z" className="zone" onClick={()=>onClick('wing_r',mode==='make')} fill={getFill('wing_r')}/>
+                        <path d="M 30,15 L 70,15 L 65,35 L 35,35 Z" className="zone" onClick={()=>onClick('top',mode==='make')} fill={getFill('top')}/>
+                        <path d="M 10,100 L 35,100 L 35,55 L 10,40 Z" className="zone" onClick={()=>onClick('mid_l',mode==='make')} fill={getFill('mid_l')}/>
+                        <path d="M 90,100 L 65,100 L 65,55 L 90,40 Z" className="zone" onClick={()=>onClick('mid_r',mode==='make')} fill={getFill('mid_r')}/>
+                        <path d="M 35,55 L 65,55 L 65,35 L 35,35 Z" className="zone" onClick={()=>onClick('mid_c',mode==='make')} fill={getFill('mid_c')}/>
+                        <text x="50" y="80" className="zone-label" fill="white" fontSize="4" textAnchor="middle" opacity="0.3">PAINT</text>
+                    </svg>
+                </div>
+            ); 
         }
 
         function HeatMapCourt({ data }) { 
             const getFill = (key) => { const z=data[key]||{m:0,x:0},t=z.m+z.x; if(t===0) return 'rgba(255,255,255,0.05)'; const pct=z.m/t; if(pct>=0.5)return 'rgba(34,197,94,0.7)'; if(pct>=0.4)return 'rgba(59,130,246,0.7)'; if(pct>=0.3)return 'rgba(234,179,8,0.7)'; return 'rgba(239,68,68,0.7)'; }; 
-            return (<div className="relative max-w-[350px] mx-auto select-none"><svg viewBox="0 0 100 100" className="court-svg"><rect width="100" height="100" fill="#111" stroke="#333" strokeWidth="2"/><path d="M 10,100 L 10,35 Q 50,-15 90,35 L 90,100" fill="none" stroke="white" strokeWidth="1" strokeOpacity="0.3"/><path d="M 35,100 L 35,55 L 65,55 L 65,100" fill={getFill('paint')} stroke="white" strokeWidth="1" strokeOpacity="0.3"/><path d="M 65,55 A 15,15 0 0,0 35,55" fill={getFill('paint')} stroke="white" strokeWidth="1" strokeOpacity="0.3"/><path d="M 0,100 L 10,100 L 10,40 L 0,40 Z" fill={getFill('corn_l')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/><path d="M 90,100 L 100,100 L 100,40 L 90,40 Z" fill={getFill('corn_r')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/><path d="M 0,40 L 10,40 L 30,15 L 0,15 Z" fill={getFill('wing_l')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/><path d="M 100,40 L 90,40 L 70,15 L 100,15 Z" fill={getFill('wing_r')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/><path d="M 30,15 L 70,15 L 65,35 L 35,35 Z" fill={getFill('top')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/><path d="M 10,100 L 35,100 L 35,55 L 10,40 Z" fill={getFill('mid_l')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/><path d="M 90,100 L 65,100 L 65,55 L 90,40 Z" fill={getFill('mid_r')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/><path d="M 35,55 L 65,55 L 65,35 L 35,35 Z" fill={getFill('mid_c')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>{ZONES.map(z=>{const d=data[z]||{m:0,x:0},t=d.m+d.x;if(t<1)return null;const pct=Math.round((d.m/t)*100);const pos={paint:[50,75], mid_l:[22,75], mid_r:[78,75], mid_c:[50,45],corn_l:[5,80], corn_r:[95,80], wing_l:[15,25], wing_r:[85,25], top:[50,15]}[z];return <text key={z} x={pos[0]} y={pos[1]} fill="white" fontSize="4" fontWeight="900" textAnchor="middle" filter="drop-shadow(1px 1px 1px black)">{pct}%</text>})}</svg></div>); 
+            return (
+                <div className="relative max-w-[350px] mx-auto select-none">
+                    <svg viewBox="0 0 100 100" className="court-svg">
+                        <rect width="100" height="100" fill="#111" stroke="#333" strokeWidth="2"/>
+                        <path d="M 10,100 L 10,35 Q 50,-15 90,35 L 90,100" fill="none" stroke="white" strokeWidth="1" strokeOpacity="0.3"/>
+                        <path d="M 35,100 L 35,55 L 65,55 L 65,100" fill={getFill('paint')} stroke="white" strokeWidth="1" strokeOpacity="0.3"/>
+                        <path d="M 65,55 A 15,15 0 0,0 35,55" fill={getFill('paint')} stroke="white" strokeWidth="1" strokeOpacity="0.3"/>
+                        <path d="M 0,100 L 10,100 L 10,40 L 0,40 Z" fill={getFill('corn_l')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
+                        <path d="M 90,100 L 100,100 L 100,40 L 90,40 Z" fill={getFill('corn_r')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
+                        <path d="M 0,40 L 10,40 L 30,15 L 0,15 Z" fill={getFill('wing_l')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
+                        <path d="M 100,40 L 90,40 L 70,15 L 100,15 Z" fill={getFill('wing_r')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
+                        <path d="M 30,15 L 70,15 L 65,35 L 35,35 Z" fill={getFill('top')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
+                        <path d="M 10,100 L 35,100 L 35,55 L 10,40 Z" fill={getFill('mid_l')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
+                        <path d="M 90,100 L 65,100 L 65,55 L 90,40 Z" fill={getFill('mid_r')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
+                        <path d="M 35,55 L 65,55 L 65,35 L 35,35 Z" fill={getFill('mid_c')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
+                        {ZONES.map(z=>{
+                            const d=data[z]||{m:0,x:0},t=d.m+d.x;
+                            if(t<1)return null;
+                            const pct=Math.round((d.m/t)*100);
+                            const pos={
+                                paint:[50,75], mid_l:[22,75], mid_r:[78,75], mid_c:[50,45],
+                                corn_l:[5,80], corn_r:[95,80], wing_l:[15,25], wing_r:[85,25], top:[50,15]
+                            }[z];
+                            return <text key={z} x={pos[0]} y={pos[1]} fill="white" fontSize="4" fontWeight="900" textAnchor="middle" filter="drop-shadow(1px 1px 1px black)">{pct}%</text>
+                        })}
+                    </svg>
+                </div>
+            ); 
         }
 
         function StatBox({label, val, color}) { return (<div className="bento-card text-center py-4"><div className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1">{label}</div><div className={`text-3xl font-black italic tracking-tighter ${color||'text-white'}`}>{val}</div></div>); }
