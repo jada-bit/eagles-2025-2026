@@ -142,7 +142,7 @@
                 const newHistory = [...chatHistory, {role: 'user', text: query}];
                 setQuery('');
                 
-                let response = "I didn't quite catch that. Try specific decision questions like 'Who takes the last shot?'.";
+                let response = "I didn't quite catch that. Check the 'Capabilities' box to see what I can answer.";
                 const stats = getSeasonStats();
                 const getImpact = (p) => (parseFloat(p.ppg)*1) + (parseFloat(p.rpg)*1.5) + (parseFloat(p.apg)*1.5) + (parseFloat(p.spg)*3) + (parseFloat(p.bpg)*3) - (parseFloat(p.topg)*2);
 
@@ -199,7 +199,7 @@
                 setChatHistory([...newHistory, {role: 'bot', text: response}]);
             };
 
-            // --- SMART VALIDATION HANDLERS (RESTORED FULL) ---
+            // --- SMART VALIDATION HANDLERS (FULL) ---
             const updatePlayerStat = (player, field, value) => {
                 const safeVal = Math.max(0, parseInt(value) || 0);
                 const currentStats = playerStats[player] || {};
@@ -210,34 +210,21 @@
             };
 
             const validateAndSave = async () => {
-                // A. Required Fields
                 if (!gameMeta.opp || !gameMeta.opp.trim()) return alert("⛔ VALIDATION FAILED\n\nOpponent Name is required.");
-                
-                // B. Logic Checks
                 if (playStats.some(p => p.made > p.att)) return alert("⛔ LOGIC ERROR\n\nPlay Makes cannot exceed Attempts.");
                 
-                // C. Calculate Totals & Warnings (RESTORED)
                 let tScore = 0;
                 let warnings = [];
                 ROSTER.forEach(p => {
                     const s = playerStats[p.name] || {};
                     tScore += ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
-                    // Unusual Stat Detection
                     if((s.stl || 0) >= 10) warnings.push(`⚠️ ${p.name}: ${s.stl} Steals (High)`);
                     if((s.blk || 0) >= 10) warnings.push(`⚠️ ${p.name}: ${s.blk} Blocks (High)`);
                     if((s.to || 0) >= 15) warnings.push(`⚠️ ${p.name}: ${s.to} Turnovers (High)`);
                 });
 
-                // D. Empty Game Check
-                if (tScore === 0) {
-                    if (!confirm("⚠️ EMPTY GAME DETECTED\n\nTotal Team Score is 0. Save anyway?")) return;
-                }
-
-                // E. Unusual Stats Confirmation
-                if (warnings.length > 0) {
-                    const msg = "UNUSUAL STATS DETECTED:\n" + warnings.join('\n') + "\n\nAre you sure these numbers are correct?";
-                    if (!confirm(msg)) return;
-                }
+                if (tScore === 0) { if (!confirm("⚠️ EMPTY GAME DETECTED\n\nTotal Team Score is 0. Save anyway?")) return; }
+                if (warnings.length > 0) { const msg = "UNUSUAL STATS DETECTED:\n" + warnings.join('\n') + "\n\nAre you sure these numbers are correct?"; if (!confirm(msg)) return; }
 
                 saveGame(tScore);
             };
@@ -452,18 +439,44 @@
                     )}
 
                     {view === 'ask coach' && (
-                        <div className="animate-slideIn max-w-2xl mx-auto">
-                            <h2 className="text-2xl font-black italic uppercase text-gold mb-6 text-center">AI Assistant Coach</h2>
-                            <div className="bento-card h-[60vh] flex flex-col">
+                        <div className="animate-slideIn max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="lg:col-span-2 bento-card h-[65vh] flex flex-col">
                                 <div className="flex-1 overflow-y-auto mb-4 space-y-4 p-2 custom-scrollbar">
                                     {chatHistory.map((msg, i) => (
                                         <div key={i} className={`chat-bubble ${msg.role === 'user' ? 'chat-user' : 'chat-bot'}`}>{msg.text}</div>
                                     ))}
                                 </div>
                                 <form onSubmit={handleSearch} className="flex gap-2">
-                                    <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Try: 'Who is the MVP?', 'Who takes the last shot?', 'Scout Reese'" className="flex-1 bg-black border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold" />
+                                    <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Type your question..." className="flex-1 bg-black border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold" />
                                     <button type="submit" className="bg-gold text-black font-bold px-6 py-3 rounded-lg hover:bg-white transition">SEND</button>
                                 </form>
+                            </div>
+                            <div className="bento-card h-full overflow-y-auto">
+                                <h3 className="text-xl font-black text-gold uppercase italic mb-4">Coach's Playbook</h3>
+                                <div className="space-y-4 text-xs">
+                                    <div>
+                                        <div className="font-bold text-green-400 mb-1">✅ TRY ASKING:</div>
+                                        <ul className="space-y-2 text-zinc-400">
+                                            <li>• "Who is the MVP?" (Impact Rating)</li>
+                                            <li>• "Who takes the last shot?" (Clutch)</li>
+                                            <li>• "I need a defensive stop."</li>
+                                            <li>• "Who should handle the ball?"</li>
+                                            <li>• "Compare Reese and Natasha."</li>
+                                            <li>• "Scout Kylie." (Full Report)</li>
+                                            <li>• "Score vs Central."</li>
+                                            <li>• "Who is the best shooter/finisher?"</li>
+                                        </ul>
+                                    </div>
+                                    <div className="border-t border-white/10 pt-4">
+                                        <div className="font-bold text-red-400 mb-1">❌ NOT SUPPORTED:</div>
+                                        <ul className="space-y-2 text-zinc-400">
+                                            <li>• "Predict the next score."</li>
+                                            <li>• "Who played the most minutes?"</li>
+                                            <li>• "What defense should we run?"</li>
+                                            <li>• "Who scored the most in Q4?"</li>
+                                        </ul>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -561,7 +574,6 @@
             return games.length ? <canvas ref={ref} /> : <div className="h-full flex items-center justify-center text-zinc-500 text-xs">No Data</div>;
         }
 
-        // --- REALISTIC COURT COMPONENTS ---
         function InteractiveCourt({ data, onClick, mode }) { 
             const getFill = (key) => { const z=data[key]||{m:0,x:0},t=z.m+z.x; if(t===0)return 'transparent'; return (z.m/t)>=0.4?'rgba(34,197,94,0.6)':'rgba(239,68,68,0.6)'; }; 
             return (
@@ -583,8 +595,6 @@
                         <rect x="65" y="90" width="2" height="2" fill="white"/>
                         <line x1="45" y1="92" x2="55" y2="92" stroke="white" strokeWidth="1"/>
                         <circle cx="50" cy="88" r="2" fill="none" stroke="white" strokeWidth="1"/>
-                        
-                        {/* Click Zones */}
                         <path d="M 0,100 L 10,100 L 10,40 L 0,40 Z" className="zone" onClick={()=>onClick('corn_l',mode==='make')} fill={getFill('corn_l')}/>
                         <path d="M 90,100 L 100,100 L 100,40 L 90,40 Z" className="zone" onClick={()=>onClick('corn_r',mode==='make')} fill={getFill('corn_r')}/>
                         <path d="M 0,40 L 10,40 L 30,15 L 0,15 Z" className="zone" onClick={()=>onClick('wing_l',mode==='make')} fill={getFill('wing_l')}/>
@@ -593,7 +603,6 @@
                         <path d="M 10,100 L 35,100 L 35,55 L 10,40 Z" className="zone" onClick={()=>onClick('mid_l',mode==='make')} fill={getFill('mid_l')}/>
                         <path d="M 90,100 L 65,100 L 65,55 L 90,40 Z" className="zone" onClick={()=>onClick('mid_r',mode==='make')} fill={getFill('mid_r')}/>
                         <path d="M 35,55 L 65,55 L 65,35 L 35,35 Z" className="zone" onClick={()=>onClick('mid_c',mode==='make')} fill={getFill('mid_c')}/>
-                        
                         <text x="50" y="80" className="zone-label" fill="white" fontSize="4" textAnchor="middle" opacity="0.3">PAINT</text>
                     </svg>
                 </div>
