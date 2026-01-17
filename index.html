@@ -34,9 +34,8 @@
         .stat-input:focus { border-color: var(--gold); outline: none; background: #222; }
         
         .court-svg { width: 100%; display: block; margin: 0 auto; filter: drop-shadow(0 0 8px rgba(255,184,28,0.1)); }
-        .zone { cursor: pointer; transition: 0.2s; opacity: 0; stroke: transparent; fill: transparent; }
-        .zone:hover { opacity: 0.3; stroke: white; fill: white; }
-        .zone-active { opacity: 0.6; stroke: white; }
+        .zone { cursor: pointer; transition: 0.2s; opacity: 0.3; stroke: rgba(255,255,255,0.4); stroke-width: 0.8; fill: transparent; }
+        .zone:hover { opacity: 0.6; stroke: white; }
 
         /* CHAT UI */
         .chat-bubble { padding: 12px 16px; border-radius: 12px; margin-bottom: 10px; max-width: 85%; font-size: 14px; line-height: 1.5; animation: slideIn 0.2s; white-space: pre-wrap; }
@@ -149,7 +148,8 @@
 
                 if (userQ.includes('best player') || userQ.includes('mvp') || userQ.includes('overall') || userQ.includes('star')) {
                     const sorted = [...stats].sort((a,b) => getImpact(b) - getImpact(a));
-                    response = `🏆 MVP: ${sorted[0].name}\nImpact Rating: ${getImpact(sorted[0]).toFixed(1)}\nRunner Up: ${sorted[1].name}`;
+                    const best = sorted[0]; const runner = sorted[1];
+                    response = `🏆 MVP: ${best.name}\nImpact Rating: ${getImpact(best).toFixed(1)}\nRunner Up: ${runner.name} (${getImpact(runner).toFixed(1)})`;
                 }
                 else if (userQ.includes('last shot') || userQ.includes('clutch')) {
                     const pick = [...stats].sort((a,b) => (parseFloat(b.ppg) + (b.fgPct*0.2) + (b.ftPct*0.1)) - (parseFloat(a.ppg) + (a.fgPct*0.2) + (a.ftPct*0.1)))[0];
@@ -176,18 +176,30 @@
                         const s = stats.find(x => x.name === pName);
                         if(userQ.includes('scout') || userQ.includes('report') || userQ.includes('how')) {
                             let note = "";
-                            if (parseFloat(s.ppg) >= 12 && parseFloat(s.fgPct) > 45) note = `Highly effective scorer (${s.ppg} PPG @ ${s.fgPct}%).`;
-                            else if (parseFloat(s.rpg) >= 7) note = `Dominant rebounder (${s.rpg} RPG).`;
-                            else if (parseFloat(s.topg) > 3.5) note = `Needs to value the ball (${s.topg} TO/g).`;
-                            else note = `Solid contributor. Reliable stats.`;
-                            response = `📝 REPORT: ${pName}\n${note}\nStats: ${s.ppg} PPG | ${s.rpg} RPG | ${s.fgPct}% FG`;
+                            let strength = "";
+                            const astToRatio = s.to > 0 ? (s.ast / s.to).toFixed(1) : s.ast;
+                            if (parseFloat(s.ppg) >= 12 && parseFloat(s.fgPct) > 45) { strength = "Elite Efficiency"; note = `Highly effective scorer (${s.ppg} PPG @ ${s.fgPct}%).`; } 
+                            else if (parseFloat(s.ppg) >= 12 && parseFloat(s.fgPct) <= 35) { strength = "Volume Scorer"; note = `Scoring high (${s.ppg} PPG) but needs better shot selection.`; } 
+                            else if (parseFloat(s.rpg) >= 7) { strength = "Glass Cleaner"; note = `Dominant rebounder (${s.rpg} RPG).`; } 
+                            else if (parseFloat(s.apg) >= 4 && parseFloat(astToRatio) > 1.5) { strength = "Playmaker"; note = `Excellent decision maker. ${astToRatio} AST/TO ratio.`; } 
+                            else if (parseFloat(s.topg) > 3.5) { strength = "Aggressive"; note = `Needs to value the ball (${s.topg} TO/g).`; } 
+                            else if (parseFloat(s.fg3Pct) > 35 && s.fg3a > 2) { strength = "Sharpshooter"; note = `Green light from deep (${s.fg3Pct}%).`; } 
+                            else if (parseFloat(s.spg) > 2.0) { strength = "Defender"; note = `Disruptive. ${s.spg} Steals/g.`; } 
+                            else { strength = "Role Player"; note = `Solid contributor. Reliable stats.`; }
+                            response = `📝 SCOUTING REPORT: ${pName}\n\nRole: ${s.pos}\nIdentity: ${strength}\n\nKey Stats:\n• ${s.ppg} PPG\n• ${s.rpg} RPG\n• ${s.fgPct}% FG\n\nCoach's Note: ${note}`;
                         } else response = `ℹ️ ${pName}: ${s.ppg} PPG, ${s.rpg} RPG, ${s.apg} APG.`;
-                    } else response = "I didn't quite catch that. Try 'Who is the MVP?' or 'Scout Reese'.";
+                    } else if (userQ.includes('finisher')) {
+                        const l = [...stats].sort((a,b) => b.fgPct - a.fgPct)[0]; response = `🥅 Best Finisher: ${l.name} (${l.fgPct}% FG)`;
+                    } else if (userQ.includes('shooter')) {
+                        const l = [...stats].sort((a,b) => b.fg3Pct - a.fg3Pct)[0]; response = `🎯 Best Shooter: ${l.name} (${l.fg3Pct}% from 3)`;
+                    } else if (userQ.includes('playmaker')) {
+                        const l = [...stats].sort((a,b) => b.apg - a.apg)[0]; response = `👟 Best Playmaker: ${l.name} (${l.apg} APG)`;
+                    }
                 }
                 setChatHistory([...newHistory, {role: 'bot', text: response}]);
             };
 
-            // --- SMART VALIDATION HANDLERS ---
+            // --- SMART VALIDATION HANDLERS (RESTORED FULL) ---
             const updatePlayerStat = (player, field, value) => {
                 const safeVal = Math.max(0, parseInt(value) || 0);
                 const currentStats = playerStats[player] || {};
@@ -198,10 +210,35 @@
             };
 
             const validateAndSave = async () => {
-                if (!gameMeta.opp || !gameMeta.opp.trim()) return alert("⛔ Opponent Name Required");
-                if (playStats.some(p => p.made > p.att)) return alert("⛔ Logic Error: Play Makes > Attempts");
-                let tScore = 0; ROSTER.forEach(p => { const s = playerStats[p.name] || {}; tScore += ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0); });
-                if (tScore === 0 && !confirm("⚠️ Total Score is 0. Save anyway?")) return;
+                // A. Required Fields
+                if (!gameMeta.opp || !gameMeta.opp.trim()) return alert("⛔ VALIDATION FAILED\n\nOpponent Name is required.");
+                
+                // B. Logic Checks
+                if (playStats.some(p => p.made > p.att)) return alert("⛔ LOGIC ERROR\n\nPlay Makes cannot exceed Attempts.");
+                
+                // C. Calculate Totals & Warnings (RESTORED)
+                let tScore = 0;
+                let warnings = [];
+                ROSTER.forEach(p => {
+                    const s = playerStats[p.name] || {};
+                    tScore += ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
+                    // Unusual Stat Detection
+                    if((s.stl || 0) >= 10) warnings.push(`⚠️ ${p.name}: ${s.stl} Steals (High)`);
+                    if((s.blk || 0) >= 10) warnings.push(`⚠️ ${p.name}: ${s.blk} Blocks (High)`);
+                    if((s.to || 0) >= 15) warnings.push(`⚠️ ${p.name}: ${s.to} Turnovers (High)`);
+                });
+
+                // D. Empty Game Check
+                if (tScore === 0) {
+                    if (!confirm("⚠️ EMPTY GAME DETECTED\n\nTotal Team Score is 0. Save anyway?")) return;
+                }
+
+                // E. Unusual Stats Confirmation
+                if (warnings.length > 0) {
+                    const msg = "UNUSUAL STATS DETECTED:\n" + warnings.join('\n') + "\n\nAre you sure these numbers are correct?";
+                    if (!confirm(msg)) return;
+                }
+
                 saveGame(tScore);
             };
 
