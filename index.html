@@ -44,7 +44,7 @@
         .bg-neg { background: #3f3f46; color: #a1a1aa; }
 
         /* EVENT FEED (FAT FINGER FRIENDLY) */
-        .event-feed { background: #111; border-top: 1px solid #333; overflow-y: auto; height: 300px; padding: 10px; display: flex; flex-direction: column-reverse; gap: 8px; -webkit-overflow-scrolling: touch; }
+        .event-feed { background: #111; border-top: 1px solid #333; overflow-y: auto; height: 400px; padding: 10px; display: flex; flex-direction: column-reverse; gap: 8px; -webkit-overflow-scrolling: touch; }
         .event-item { background: #222; border: 1px solid #333; padding: 12px 16px; border-radius: 8px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; animation: slideInLeft 0.2s; cursor: pointer; border-left: 4px solid var(--gold); min-height: 50px; }
         .event-item:hover { background: #333; border-color: #555; }
         .undo-hint { color: #ef4444; font-weight: 900; font-size: 11px; text-transform: uppercase; padding: 4px 8px; border: 1px solid rgba(239,68,68,0.3); border-radius: 4px; background: rgba(239,68,68,0.1); }
@@ -146,6 +146,7 @@
             
             // MISSING STATE RESTORED
             const [newPlayName, setNewPlayName] = React.useState('');
+            const [shotMode, setShotMode] = React.useState('make'); // For Court Widget
             
             // UI
             const [selectedPlayer, setSelectedPlayer] = React.useState(null); 
@@ -190,7 +191,7 @@
                 const eventId = Date.now();
                 const logItem = { id: eventId, stat: statKey, val: pointVal, type: 'player', pid: selectedPlayer, name: '', desc: '' };
                 
-                // Determine Label Logic (BUG FIX: "Misske")
+                // Determine Label Logic (FIXED)
                 const isMake = statKey.endsWith('m');
                 const actionType = isMake ? 'MAKE' : (statKey.endsWith('a') ? 'MISS' : '');
                 let shotType = '';
@@ -208,15 +209,12 @@
                     if (statKey === 'fg2m') updates['fg2a'] = (opponentStats.fg2a || 0) + 1;
                     if (statKey === 'fg3m') updates['fg3a'] = (opponentStats.fg3a || 0) + 1;
                     if (statKey === 'ftm') updates['fta'] = (opponentStats.fta || 0) + 1;
-                    
                     setOpponentStats(prev => ({ ...prev, ...updates }));
                     if (pointVal > 0) setGameMeta(prev => ({ ...prev, oppScore: prev.oppScore + pointVal }));
-                    
                     logItem.type = 'opp';
                     logItem.name = 'Opponent';
                     logItem.desc = `${label} ${pointVal>0?`(+${pointVal})`:''}`;
-                    setEventLog(prev => [logItem, ...prev].slice(0, 20)); 
-                    
+                    setEventLog(prev => [logItem, ...prev].slice(0, 30)); // Expanded history
                     showToast(`Opponent: ${label}`);
                     setSelectedPlayer(null);
                     return;
@@ -229,13 +227,10 @@
                 if (statKey === 'fg2m') updates['fg2a'] = (playerStats[pName]?.['fg2a'] || 0) + 1;
                 if (statKey === 'fg3m') updates['fg3a'] = (playerStats[pName]?.['fg3a'] || 0) + 1;
                 if (statKey === 'ftm') updates['fta'] = (playerStats[pName]?.['fta'] || 0) + 1;
-                
                 setPlayerStats(prev => ({ ...prev, [pName]: { ...prev[pName], ...updates } }));
-                
                 logItem.name = pName.split(' ')[0];
                 logItem.desc = label;
-                setEventLog(prev => [logItem, ...prev].slice(0, 20));
-
+                setEventLog(prev => [logItem, ...prev].slice(0, 30));
                 showToast(`${logItem.name}: ${label} ${pointVal>0?`(+${pointVal})`:''}`);
                 setSelectedPlayer(null); 
             };
@@ -326,17 +321,63 @@
                     else await db.collection('games').add(payload); 
                     showToast("Game Saved Successfully!", "success"); 
                     setPlayerStats({}); setOpponentStats({fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0}); setEventLog([]);
-                    setGameMeta({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0, venue: 'Home' }); setEditId(null); setView('log'); 
+                    setGameMeta({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0 }); setEditId(null); setView('log'); 
                 } 
                 catch(e) { showToast("Error Saving: " + e.message, "error"); }
             };
 
-            // --- DATA PROCESSORS (RESTORED FULL LOGIC) ---
+            // --- DATA PROCESSORS (SAFE & CRASH-PROOF) ---
             const updatePlayerStat = (player, field, value) => { const safeVal = Math.max(0, parseInt(value) || 0); const currentStats = playerStats[player] || {}; let updates = { [field]: safeVal }; if (field.endsWith('m')) { const attKey = field.replace('m', 'a'); if (safeVal > (currentStats[attKey] || 0)) updates[attKey] = safeVal; } else if (field.endsWith('a')) { const makeKey = field.replace('a', 'm'); if (safeVal < (currentStats[makeKey] || 0)) updates[makeKey] = safeVal; } setPlayerStats(prev => ({ ...prev, [player]: { ...prev[player], ...updates } })); };
-            const getSeasonStats = () => { const totals = {}; ROSTER.forEach(p => totals[p.name] = { name: p.name, pos: p.pos, games: 0, pts:0, reb:0, ast:0, stl:0, blk:0, to:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0 }); games.forEach(g => g.stats.forEach(s => { if (totals[s.name]) { const t = totals[s.name]; t.games++; t.fg2m+=(s.fg2m||0); t.fg2a+=(s.fg2a||0); t.fg3m+=(s.fg3m||0); t.fg3a+=(s.fg3a||0); t.ftm+=(s.ftm||0); t.fta+=(s.fta||0); t.reb+=(s.reb||0); t.ast+=(s.ast||0); t.stl+=(s.stl||0); t.blk+=(s.blk||0); t.to+=(s.to||0); t.pts+=((s.fg2m||0)*2+(s.fg3m||0)*3+(s.ftm||0)); } })); return Object.values(totals).map(t => { const g = t.games || 1; const totalFGM = t.fg2m + t.fg3m; const totalFGA = t.fg2a + t.fg3a; const eFG = totalFGA > 0 ? ((totalFGM + (0.5 * t.fg3m)) / totalFGA) * 100 : 0; const tsDiv = 2 * (totalFGA + (0.44 * t.fta)); const TS = tsDiv > 0 ? (t.pts / tsDiv) * 100 : 0; return { ...t, ppg:(t.pts/g).toFixed(1), rpg:(t.reb/g).toFixed(1), apg:(t.ast/g).toFixed(1), spg:(t.stl/g).toFixed(1), bpg:(t.blk/g).toFixed(1), topg:(t.to/g).toFixed(1), fgPct:totalFGA>0?Math.round((totalFGM/totalFGA)*100):0, fg3Pct:t.fg3a>0?Math.round((t.fg3m/t.fg3a)*100):0, ftPct:t.fta>0?Math.round((t.ftm/t.fta)*100):0, eFG: Math.round(eFG), TS: Math.round(TS), to:t.to, ast:t.ast }; }).sort((a,b) => { const aVal = parseFloat(a[sortConfig.key])||0, bVal = parseFloat(b[sortConfig.key])||0; return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal; }); };
-            const getClipboardData = () => { const totalGames = games.length || 1; const totals = { pts:0, opp:0, reb:0, ast:0, to:0, stocks:0 }; const pMap = {}; ROSTER.forEach(p => pMap[p.name] = { name: p.name, gp:0, pts:0, reb:0, fg3m:0, fg3a:0, ftm:0, fta:0, highs:{pts:0,ast:0,reb:0,stl:0,blk:0} }); let seasonHighs = { pts:{val:0}, ast:{val:0}, reb:{val:0}, stl:{val:0}, blk:{val:0} }; games.forEach(g => { totals.pts += g.teamScore || 0; totals.opp += g.oppScore || 0; g.stats.forEach(s => { totals.reb += (s.reb||0); totals.ast += (s.ast||0); totals.to += (s.to||0); totals.stocks += ((s.stl||0) + (s.blk||0)); if(pMap[s.name]) { const p = pMap[s.name]; p.gp++; const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0); p.pts += pts; p.reb += (s.reb||0); p.fg3m += (s.fg3m||0); p.fg3a += (s.fg3a||0); p.ftm += (s.ftm||0); p.fta += (s.fta||0); if(pts > seasonHighs.pts.val) seasonHighs.pts = {val:pts, player:s.name}; if((s.reb||0) > seasonHighs.reb.val) seasonHighs.reb = {val:s.reb, player:s.name}; if((s.ast||0) > seasonHighs.ast.val) seasonHighs.ast = {val:s.ast, player:s.name}; if((s.stl||0) > seasonHighs.stl.val) seasonHighs.stl = {val:s.stl, player:s.name}; if((s.blk||0) > seasonHighs.blk.val) seasonHighs.blk = {val:s.blk, player:s.name}; } }); }); const players = Object.values(pMap).filter(p => p.gp > 0); return { team: { ppg:(totals.pts/totalGames).toFixed(1), opp:(totals.opp/totalGames).toFixed(1), rpg:(totals.reb/totalGames).toFixed(1), apg:(totals.ast/totalGames).toFixed(1), topg:(totals.to/totalGames).toFixed(1), stocks:(totals.stocks/totalGames).toFixed(1), record:`${games.filter(g=>g.result==='W').length}-${games.filter(g=>g.result==='L').length}` }, scorers: [...players].sort((a,b)=>(b.pts/b.gp)-(a.pts/a.gp)).slice(0,3), rebounders: [...players].sort((a,b)=>(b.reb/b.gp)-(a.reb/a.gp)).slice(0,3), snipers: [...players].filter(p=>p.fg3a>5).sort((a,b)=>(b.fg3m/b.fg3a)-(a.fg3m/a.fg3a)).slice(0,3), freeThrowers: [...players].filter(p=>p.fta>5).sort((a,b)=>(b.ftm/b.fta)-(a.ftm/a.fta)).slice(0,3), seasonHighs }; };
-            const getPlayerData = (pName) => { const pGames = games.filter(g => g.stats.find(s => s.name === pName)); const totals = { gp: pGames.length, pts:0, reb:0, ast:0, stl:0, blk:0, to:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0 }; const highs = { pts:0, reb:0, ast:0, stl:0, blk:0 }; pGames.forEach(g => { const s = g.stats.find(stat => stat.name === pName); const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0); totals.pts+=pts; totals.reb+=(s.reb||0); totals.ast+=(s.ast||0); totals.stl+=(s.stl||0); totals.blk+=(s.blk||0); totals.to+=(s.to||0); totals.fg2m+=(s.fg2m||0); totals.fg2a+=(s.fg2a||0); totals.fg3m+=(s.fg3m||0); totals.fg3a+=(s.fg3a||0); totals.ftm+=(s.ftm||0); totals.fta+=(s.fta||0); if(pts>highs.pts) highs.pts=pts; if((s.reb||0)>highs.reb) highs.reb=s.reb; if((s.ast||0)>highs.ast) highs.ast=s.ast; if((s.stl||0)>highs.stl) highs.stl=s.stl; if((s.blk||0)>highs.blk) highs.blk=s.blk; }); const gp = totals.gp || 1; const totalFGM = totals.fg2m + totals.fg3m; const totalFGA = totals.fg2a + totals.fg3a; const eFG = totalFGA > 0 ? ((totalFGM + (0.5 * totals.fg3m)) / totalFGA) * 100 : 0; const tsDiv = 2 * (totalFGA + (0.44 * totals.fta)); const TS = tsDiv > 0 ? (totals.pts / tsDiv) * 100 : 0; return { totals, highs, games: pGames, avgs: { ppg:(totals.pts/gp).toFixed(1), rpg:(totals.reb/gp).toFixed(1), apg:(totals.ast/gp).toFixed(1), spg:(totals.stl/gp).toFixed(1), bpg:(totals.blk/gp).toFixed(1), topg:(totals.to/gp).toFixed(1) }, pcts: { fg:totalFGA>0?Math.round((totalFGM/totalFGA)*100):0, fg2:totals.fg2a>0?Math.round((totals.fg2m/totals.fg2a)*100):0, fg3:totals.fg3a>0?Math.round((totals.fg3m/totals.fg3a)*100):0, ft:totals.fta>0?Math.round((totals.ftm/totals.fta)*100):0, eFG: Math.round(eFG), TS: Math.round(TS) } }; };
-            const getTacticalData = () => { let targetGames = tacticsFilter === 'season' ? games : games.filter(g => g.id === tacticsFilter); const aggPlays = {}; const aggMap = ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}); targetGames.forEach(g => { if(g.playStats) g.playStats.forEach(p => { if(!aggPlays[p.name]) aggPlays[p.name] = { name: p.name, att: 0, made: 0, pts: 0 }; aggPlays[p.name].att += (p.att || 0); aggPlays[p.name].made += (p.made || 0); aggPlays[p.name].pts += (p.pts || (p.made*2) || 0); }); if(g.shotMap && g.shotMap.eagles) ZONES.forEach(z => { const zone = g.shotMap.eagles[z] || {m:0, x:0}; aggMap[z].m += zone.m; aggMap[z].x += zone.x; }); }); return { plays: Object.values(aggPlays), map: aggMap }; };
+            
+            const getSeasonStats = () => { 
+                const totals = {}; 
+                ROSTER.forEach(p => totals[p.name] = { name: p.name, pos: p.pos, games: 0, pts:0, reb:0, ast:0, stl:0, blk:0, to:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0 }); 
+                games.forEach(g => {
+                    const stats = g.stats || [];
+                    stats.forEach(s => { 
+                        if (totals[s.name]) { 
+                            const t = totals[s.name]; t.games++; t.fg2m+=(s.fg2m||0); t.fg2a+=(s.fg2a||0); t.fg3m+=(s.fg3m||0); t.fg3a+=(s.fg3a||0); t.ftm+=(s.ftm||0); t.fta+=(s.fta||0); t.reb+=(s.reb||0); t.ast+=(s.ast||0); t.stl+=(s.stl||0); t.blk+=(s.blk||0); t.to+=(s.to||0); t.pts+=((s.fg2m||0)*2+(s.fg3m||0)*3+(s.ftm||0)); 
+                        } 
+                    });
+                }); 
+                return Object.values(totals).map(t => { 
+                    const g = t.games || 1; const totalFGM = t.fg2m + t.fg3m; const totalFGA = t.fg2a + t.fg3a; const eFG = totalFGA > 0 ? ((totalFGM + (0.5 * t.fg3m)) / totalFGA) * 100 : 0; const tsDiv = 2 * (totalFGA + (0.44 * t.fta)); const TS = tsDiv > 0 ? (t.pts / tsDiv) * 100 : 0; 
+                    return { ...t, ppg:(t.pts/g).toFixed(1), rpg:(t.reb/g).toFixed(1), apg:(t.ast/g).toFixed(1), spg:(t.stl/g).toFixed(1), bpg:(t.blk/g).toFixed(1), topg:(t.to/g).toFixed(1), fgPct:totalFGA>0?Math.round((totalFGM/totalFGA)*100):0, fg3Pct:t.fg3a>0?Math.round((t.fg3m/t.fg3a)*100):0, ftPct:t.fta>0?Math.round((t.ftm/t.fta)*100):0, eFG: Math.round(eFG), TS: Math.round(TS), to:t.to, ast:t.ast }; 
+                }).sort((a,b) => { const aVal = parseFloat(a[sortConfig.key])||0, bVal = parseFloat(b[sortConfig.key])||0; return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal; }); 
+            };
+
+            const getClipboardData = () => { 
+                const totalGames = games.length || 1; const totals = { pts:0, opp:0, reb:0, ast:0, to:0, stocks:0 }; const pMap = {}; ROSTER.forEach(p => pMap[p.name] = { name: p.name, gp:0, pts:0, reb:0, fg3m:0, fg3a:0, ftm:0, fta:0, highs:{pts:0,ast:0,reb:0,stl:0,blk:0} }); let seasonHighs = { pts:{val:0}, ast:{val:0}, reb:{val:0}, stl:{val:0}, blk:{val:0} }; 
+                games.forEach(g => { 
+                    totals.pts += g.teamScore || 0; totals.opp += g.oppScore || 0; 
+                    (g.stats || []).forEach(s => { 
+                        totals.reb += (s.reb||0); totals.ast += (s.ast||0); totals.to += (s.to||0); totals.stocks += ((s.stl||0) + (s.blk||0)); 
+                        if(pMap[s.name]) { const p = pMap[s.name]; p.gp++; const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0); p.pts += pts; p.reb += (s.reb||0); p.fg3m += (s.fg3m||0); p.fg3a += (s.fg3a||0); p.ftm += (s.ftm||0); p.fta += (s.fta||0); if(pts > seasonHighs.pts.val) seasonHighs.pts = {val:pts, player:s.name}; if((s.reb||0) > seasonHighs.reb.val) seasonHighs.reb = {val:s.reb, player:s.name}; if((s.ast||0) > seasonHighs.ast.val) seasonHighs.ast = {val:s.ast, player:s.name}; if((s.stl||0) > seasonHighs.stl.val) seasonHighs.stl = {val:s.stl, player:s.name}; if((s.blk||0) > seasonHighs.blk.val) seasonHighs.blk = {val:s.blk, player:s.name}; } 
+                    }); 
+                }); 
+                const players = Object.values(pMap).filter(p => p.gp > 0); 
+                return { team: { ppg:(totals.pts/totalGames).toFixed(1), opp:(totals.opp/totalGames).toFixed(1), rpg:(totals.reb/totalGames).toFixed(1), apg:(totals.ast/totalGames).toFixed(1), topg:(totals.to/totalGames).toFixed(1), stocks:(totals.stocks/totalGames).toFixed(1), record:`${games.filter(g=>g.result==='W').length}-${games.filter(g=>g.result==='L').length}` }, scorers: [...players].sort((a,b)=>(b.pts/b.gp)-(a.pts/a.gp)).slice(0,3), rebounders: [...players].sort((a,b)=>(b.reb/b.gp)-(a.reb/a.gp)).slice(0,3), snipers: [...players].filter(p=>p.fg3a>5).sort((a,b)=>(b.fg3m/b.fg3a)-(a.fg3m/a.fg3a)).slice(0,3), freeThrowers: [...players].filter(p=>p.fta>5).sort((a,b)=>(b.ftm/b.fta)-(a.ftm/a.fta)).slice(0,3), seasonHighs }; 
+            };
+
+            const getPlayerData = (pName) => { 
+                const pGames = games.filter(g => (g.stats || []).find(s => s.name === pName)); 
+                const totals = { gp: pGames.length, pts:0, reb:0, ast:0, stl:0, blk:0, to:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0 }; const highs = { pts:0, reb:0, ast:0, stl:0, blk:0 }; 
+                pGames.forEach(g => { 
+                    const s = g.stats.find(stat => stat.name === pName); const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0); totals.pts+=pts; totals.reb+=(s.reb||0); totals.ast+=(s.ast||0); totals.stl+=(s.stl||0); totals.blk+=(s.blk||0); totals.to+=(s.to||0); totals.fg2m+=(s.fg2m||0); totals.fg2a+=(s.fg2a||0); totals.fg3m+=(s.fg3m||0); totals.fg3a+=(s.fg3a||0); totals.ftm+=(s.ftm||0); totals.fta+=(s.fta||0); if(pts>highs.pts) highs.pts=pts; if((s.reb||0)>highs.reb) highs.reb=s.reb; if((s.ast||0)>highs.ast) highs.ast=s.ast; if((s.stl||0)>highs.stl) highs.stl=s.stl; if((s.blk||0)>highs.blk) highs.blk=s.blk; 
+                }); 
+                const gp = totals.gp || 1; const totalFGM = totals.fg2m + totals.fg3m; const totalFGA = totals.fg2a + totals.fg3a; const eFG = totalFGA > 0 ? ((totalFGM + (0.5 * totals.fg3m)) / totalFGA) * 100 : 0; const tsDiv = 2 * (totalFGA + (0.44 * totals.fta)); const TS = tsDiv > 0 ? (totals.pts / tsDiv) * 100 : 0; 
+                return { totals, highs, games: pGames, avgs: { ppg:(totals.pts/gp).toFixed(1), rpg:(totals.reb/gp).toFixed(1), apg:(totals.ast/gp).toFixed(1), spg:(totals.stl/gp).toFixed(1), bpg:(totals.blk/gp).toFixed(1), topg:(totals.to/gp).toFixed(1) }, pcts: { fg:totalFGA>0?Math.round((totalFGM/totalFGA)*100):0, fg2:totals.fg2a>0?Math.round((totals.fg2m/totals.fg2a)*100):0, fg3:totals.fg3a>0?Math.round((totals.fg3m/totals.fg3a)*100):0, ft:totals.fta>0?Math.round((totals.ftm/totals.fta)*100):0, eFG: Math.round(eFG), TS: Math.round(TS) } }; 
+            };
+
+            const getTacticalData = () => { 
+                let targetGames = tacticsFilter === 'season' ? games : games.filter(g => g.id === tacticsFilter); 
+                const aggPlays = {}; const aggMap = ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}); 
+                targetGames.forEach(g => { 
+                    if(g.playStats) g.playStats.forEach(p => { if(!aggPlays[p.name]) aggPlays[p.name] = { name: p.name, att: 0, made: 0, pts: 0 }; aggPlays[p.name].att += (p.att || 0); aggPlays[p.name].made += (p.made || 0); aggPlays[p.name].pts += (p.pts || (p.made*2) || 0); }); 
+                    if(g.shotMap && g.shotMap.eagles) ZONES.forEach(z => { const zone = g.shotMap.eagles[z] || {m:0, x:0}; aggMap[z].m += zone.m; aggMap[z].x += zone.x; }); 
+                }); 
+                return { plays: Object.values(aggPlays), map: aggMap }; 
+            };
             
             // --- AI ---
             const handleSearch = (e, manualQuery) => {
@@ -601,12 +642,12 @@
             React.useEffect(() => {
                 if(!ref.current || !games.length) return;
                 const sorted = [...games].reverse();
-                const labels = sorted.map(g => g.opp.substring(0,4));
+                const labels = sorted.map(g => (g.opp || 'Unk').substring(0,4));
                 let d1=[], d2=[], label1='', label2='', color1='#FFB81C', color2='#ef4444';
-                if (type === 'score') { label1='Us'; label2='Them'; d1=sorted.map(g=>g.teamScore); d2=sorted.map(g=>g.oppScore); }
-                else if (type === 'fg') { label1='FG%'; d1=sorted.map(g=>{let m=0,a=0;g.stats.forEach(s=>{m+=(s.fg2m+s.fg3m);a+=(s.fg2a+s.fg3a)}); return a>0?((m/a)*100).toFixed(1):0;}); }
-                else if (type === '3pt') { label1='3PT%'; d1=sorted.map(g=>{let m=0,a=0;g.stats.forEach(s=>{m+=s.fg3m;a+=s.fg3a}); return a>0?((m/a)*100).toFixed(1):0;}); }
-                else if (type === 'to') { label1='TO'; d1=sorted.map(g=>g.stats.reduce((acc,s)=>acc+(s.to||0),0)); color1='#ef4444'; }
+                if (type === 'score') { label1='Us'; label2='Them'; d1=sorted.map(g=>g.teamScore||0); d2=sorted.map(g=>g.oppScore||0); }
+                else if (type === 'fg') { label1='FG%'; d1=sorted.map(g=>{let m=0,a=0;(g.stats||[]).forEach(s=>{m+=(s.fg2m+s.fg3m);a+=(s.fg2a+s.fg3a)}); return a>0?((m/a)*100).toFixed(1):0;}); }
+                else if (type === '3pt') { label1='3PT%'; d1=sorted.map(g=>{let m=0,a=0;(g.stats||[]).forEach(s=>{m+=s.fg3m;a+=s.fg3a}); return a>0?((m/a)*100).toFixed(1):0;}); }
+                else if (type === 'to') { label1='TO'; d1=sorted.map(g=>(g.stats||[]).reduce((acc,s)=>acc+(s.to||0),0)); color1='#ef4444'; }
                 const datasets = [{ label:label1, data:d1, borderColor:color1, backgroundColor:color1, tension:0.3 }];
                 if(d2.length) datasets.push({ label:label2, data:d2, borderColor:color2, backgroundColor:color2, tension:0.3 });
                 const chart = new Chart(ref.current.getContext('2d'), { type: type==='to'?'bar':'line', data:{labels,datasets}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:'white'}}}, scales:{y:{grid:{color:'#333'},ticks:{color:'#888'}}, x:{grid:{display:false}}}}});
