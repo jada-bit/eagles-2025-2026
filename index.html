@@ -31,6 +31,12 @@
         .hud-label { font-size: 10px; font-weight: 900; color: #888; text-transform: uppercase; letter-spacing: 1px; }
         .hud-val { font-size: 18px; font-weight: 900; color: white; }
         
+        /* QUARTER SELECTOR */
+        .q-selector { display: flex; gap: 4px; padding: 4px; background: #222; border-radius: 8px; justify-content: center; }
+        .q-btn { flex: 1; padding: 6px; font-size: 10px; font-weight: 900; color: #888; background: transparent; border-radius: 4px; transition: all 0.2s; border: 1px solid transparent; }
+        .q-btn.active { background: var(--gold); color: black; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+        .q-btn:hover:not(.active) { background: rgba(255,255,255,0.1); color: white; }
+
         /* BIG BUTTONS */
         .kb-player-btn { position: relative; height: 100%; width: 100%; min-height: 75px; background: #18181b; border: 1px solid #333; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.1s; cursor: pointer; }
         .kb-player-btn.selected { background: var(--gold); color: black; border-color: white; transform: scale(1.02); box-shadow: 0 0 15px rgba(255, 184, 28, 0.4); z-index: 10; }
@@ -43,7 +49,7 @@
         .bg-action { background: #1e3a8a; color: white; }
         .bg-neg { background: #3f3f46; color: #a1a1aa; }
 
-        /* EVENT FEED (FAT FINGER FRIENDLY) */
+        /* EVENT FEED */
         .event-feed { background: #111; border-top: 1px solid #333; overflow-y: auto; height: 300px; padding: 10px; display: flex; flex-direction: column-reverse; gap: 8px; -webkit-overflow-scrolling: touch; }
         .event-item { background: #222; border: 1px solid #333; padding: 12px 16px; border-radius: 8px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; animation: slideInLeft 0.2s; cursor: pointer; border-left: 4px solid var(--gold); min-height: 50px; }
         .event-item:hover { background: #333; border-color: #555; }
@@ -148,13 +154,15 @@
             ], 'eagles_plays');
             const [eventLog, setEventLog] = useStickyState([], 'eagles_events');
             
-            // UI STATES
+            // MISSING STATE RESTORED
             const [newPlayName, setNewPlayName] = React.useState('');
+            const [shotMode, setShotMode] = React.useState('make'); 
+            
+            // UI
             const [selectedPlayer, setSelectedPlayer] = React.useState(null); 
             const [subTarget, setSubTarget] = React.useState(null); 
             const [editId, setEditId] = React.useState(null);
             const [showSnapshot, setShowSnapshot] = React.useState(false);
-            const [shotMode, setShotMode] = React.useState('make');
             
             // ANALYTICS & TACTICS STATE
             const [tacticsFilter, setTacticsFilter] = React.useState('season');
@@ -228,7 +236,7 @@
                 if (statKey === 'fg3m') updates['fg3a'] = (playerStats[pName]?.['fg3a'] || 0) + 1;
                 if (statKey === 'ftm') updates['fta'] = (playerStats[pName]?.['fta'] || 0) + 1;
                 setPlayerStats(prev => ({ ...prev, [pName]: { ...prev[pName], ...updates } }));
-                logItem.name = pName.split(' ')[0]; 
+                logItem.name = pName.split(' ')[0]; logItem.desc = label;
                 setEventLog(prev => [logItem, ...prev].slice(0, 30));
                 showToast(`${logItem.name}: ${label} ${pointVal>0?`(+${pointVal})`:''}`);
                 setSelectedPlayer(null); 
@@ -287,7 +295,6 @@
 
             const getGameInsights = () => {
                 let teamPF = 0, teamTO = 0, teamReb = 0;
-                let teamFGM = 0, teamFGA = 0, team3PM = 0, team3PA = 0;
                 let alerts = [];
                 let foulTrouble = [];
                 let hotPlayers = [];
@@ -295,9 +302,6 @@
 
                 Object.entries(playerStats).forEach(([name, s]) => {
                     teamPF += (s.pf || 0); teamTO += (s.to || 0); teamReb += (s.reb || 0);
-                    teamFGM += (s.fg2m||0) + (s.fg3m||0); teamFGA += (s.fg2a||0) + (s.fg3a||0);
-                    team3PM += (s.fg3m||0); team3PA += (s.fg3a||0);
-
                     // Alerts logic
                     if((s.to || 0) >= 4) alerts.push({ msg: `⚠️ ${name.split(' ')[0]}: 4+ TOs`, type: 'bad' });
                     if((s.pf || 0) >= 3) {
@@ -312,6 +316,11 @@
                         if(pct > 0.75) hotPlayers.push(`${name.split(' ')[0]} (${Math.round(pct*100)}%)`);
                     }
                 });
+                
+                const teamFGM = Object.values(playerStats).reduce((a,s) => a + (s.fg2m||0) + (s.fg3m||0), 0);
+                const teamFGA = Object.values(playerStats).reduce((a,s) => a + (s.fg2a||0) + (s.fg3a||0), 0);
+                const team3PM = Object.values(playerStats).reduce((a,s) => a + (s.fg3m||0), 0);
+                const team3PA = Object.values(playerStats).reduce((a,s) => a + (s.fg3a||0), 0);
                 
                 const fgPct = teamFGA > 0 ? Math.round((teamFGM/teamFGA)*100) : 0;
                 const fg3Pct = team3PA > 0 ? Math.round((team3PM/team3PA)*100) : 0;
@@ -406,6 +415,7 @@
                 // Turnovers
                 const toLast3 = last3.reduce((a,g)=>a + (g.stats||[]).reduce((x,s)=>x+(s.to||0),0),0)/last3.length;
                 if(toLast3 > 15) summaries.push({ title: "⚠️ Ball Security", desc: `Averaging ${toLast3.toFixed(1)} TOs in last 3 games.`, type: "bad" });
+                else if(toLast3 < 10) summaries.push({ title: "🔒 Safe Hands", desc: `Only ${toLast3.toFixed(1)} turnovers/game recently.`, type: "good" });
                 return summaries;
             };
 
@@ -420,6 +430,7 @@
                 
                 let response = "I didn't quite catch that. Check the 'Capabilities' box.";
                 const stats = getSeasonStats();
+                if(stats.length === 0) { setChatHistory([...newHistory, {role: 'bot', text: "I need more game data before I can answer that, Coach!"}]); return; }
                 const getImpact = (p) => (parseFloat(p.ppg)*1) + (parseFloat(p.rpg)*1.5) + (parseFloat(p.apg)*1.5) + (parseFloat(p.spg)*3) + (parseFloat(p.bpg)*3) - (parseFloat(p.topg)*2);
 
                 if (userQ.includes('best player') || userQ.includes('mvp') || userQ.includes('overall')) {
@@ -461,7 +472,7 @@
             const activePlayers = ROSTER.filter(p => activeLineup.includes(p.id));
             const benchPlayers = ROSTER.filter(p => !activeLineup.includes(p.id));
             
-            // INSIGHTS
+            // INSIGHTS & TRENDS
             const insights = getGameInsights();
             const trendSummaries = getTrendSummaries();
 
@@ -708,6 +719,7 @@
                 const sorted = [...games].reverse();
                 const labels = sorted.map(g => (g.opp || 'Unk').substring(0,4));
                 let d1=[], d2=[], label1='', label2='', color1='#FFB81C', color2='#ef4444';
+                
                 if (type === 'score') { label1='Us'; label2='Them'; d1=sorted.map(g=>g.teamScore||0); d2=sorted.map(g=>g.oppScore||0); }
                 else if (type === 'fg') { label1='FG%'; d1=sorted.map(g=>{let m=0,a=0;(g.stats||[]).forEach(s=>{m+=(s.fg2m+s.fg3m);a+=(s.fg2a+s.fg3a)}); return a>0?((m/a)*100).toFixed(1):0;}); }
                 else if (type === '3pt') { label1='3PT%'; d1=sorted.map(g=>{let m=0,a=0;(g.stats||[]).forEach(s=>{m+=s.fg3m;a+=s.fg3a}); return a>0?((m/a)*100).toFixed(1):0;}); }
