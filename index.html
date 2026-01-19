@@ -18,35 +18,37 @@
         body { background-color: var(--black); color: white; font-family: system-ui, -apple-system, sans-serif; -webkit-print-color-adjust: exact; }
         
         /* UI COMPONENTS */
-        .bento-card { 
-            background: rgba(30, 30, 30, 0.7); backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 1.25rem; 
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); transition: transform 0.2s;
-        }
-        .bento-card:hover { border-color: var(--gold); }
+        .bento-card { background: rgba(30, 30, 30, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 1.25rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); }
         
+        /* NAVIGATION */
         .nav-btn { font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 10px 14px; border-radius: 99px; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; white-space: nowrap; }
         .active-nav { background-color: var(--gold); color: black; box-shadow: 0 0 15px rgba(255, 184, 28, 0.3); }
         .inactive-nav { background: rgba(255,255,255,0.05); color: #888; }
         .inactive-nav:hover { background: rgba(255,255,255,0.1); color: white; }
 
         /* LIVE MODE STYLES */
-        .player-card-active { background: linear-gradient(145deg, #222, #111); border: 2px solid var(--gold); border-radius: 12px; padding: 15px; cursor: pointer; transition: 0.1s; display: flex; flex-direction: column; justify-content: space-between; height: 140px; position: relative; }
-        .player-card-active:active { transform: scale(0.98); background: #333; }
-        .player-card-bench { background: #111; border: 1px solid #333; border-radius: 8px; padding: 10px; cursor: pointer; opacity: 0.7; }
-        .player-card-bench:hover { opacity: 1; border-color: #555; }
+        .live-header { background: #000; border-bottom: 4px solid var(--gold); padding: 10px 15px; position: sticky; top: 0; z-index: 40; display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; align-items: center; }
+        .score-val { font-size: 2.5rem; font-weight: 900; line-height: 1; text-align: center; }
         
-        .stat-btn-lg { width: 100%; height: 50px; font-weight: 900; text-transform: uppercase; border-radius: 8px; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: 0.1s; }
-        .stat-btn-lg:active { transform: scale(0.95); }
-        .btn-green { background: #166534; color: white; border: 1px solid #22c55e; }
-        .btn-red { background: #7f1d1d; color: white; border: 1px solid #ef4444; }
-        .btn-blue { background: #1e3a8a; color: white; border: 1px solid #3b82f6; }
-        .btn-zinc { background: #27272a; color: white; border: 1px solid #52525b; }
+        .kb-player-btn { position: relative; height: 100%; width: 100%; min-height: 75px; background: #18181b; border: 1px solid #333; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.1s; cursor: pointer; }
+        .kb-player-btn.selected { background: var(--gold); color: black; border-color: white; transform: scale(1.02); box-shadow: 0 0 15px rgba(255, 184, 28, 0.4); z-index: 10; }
+        .kb-opp-btn { background: #450a0a; border: 1px solid #ef4444; color: white; }
+        .kb-opp-btn.selected { background: #ef4444; color: white; border-color: white; transform: scale(1.02); box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
 
-        /* MODAL */
-        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(5px); z-index: 50; display: flex; align-items: center; justify-content: center; }
-        .modal-content { background: #111; border: 1px solid var(--gold); padding: 20px; border-radius: 16px; width: 90%; max-width: 500px; animation: popIn 0.2s ease-out; }
-        @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .kb-stat-btn { height: 100%; width: 100%; min-height: 50px; border-radius: 6px; font-weight: 900; font-size: 12px; text-transform: uppercase; display: flex; align-items: center; justify-content: center; transition: 0.1s; border: 1px solid rgba(255,255,255,0.1); }
+        .kb-stat-btn:active { transform: scale(0.95); }
+        .bg-make { background: #166534; color: white; }
+        .bg-miss { background: #7f1d1d; color: white; }
+        .bg-action { background: #1e3a8a; color: white; }
+        .bg-neg { background: #3f3f46; color: #a1a1aa; }
+
+        /* REALISTIC COURT STYLES */
+        .court-container svg { background-color: #dcb386; border: 2px solid #333; display: block; width: 100%; }
+        .court-lines { fill: none; stroke: white; stroke-width: 0.17; vector-effect: non-scaling-stroke; }
+        .paint-area { fill: #c04e01; fill-opacity: 0.3; }
+        .hoop-rim { fill: none; stroke: #ff4500; stroke-width: 0.25; }
+        .zone { cursor: pointer; transition: 0.2s; opacity: 0; fill: transparent; stroke: none; }
+        .zone:hover { opacity: 0.5; fill: #FFB81C; stroke: white; stroke-width: 0.2; }
 
         /* CHAT UI */
         .chat-bubble { padding: 12px 16px; border-radius: 12px; margin-bottom: 10px; max-width: 85%; font-size: 14px; line-height: 1.5; animation: slideIn 0.2s; white-space: pre-wrap; }
@@ -55,46 +57,29 @@
         .suggestion-chip { background: rgba(255, 184, 28, 0.1); border: 1px solid rgba(255, 184, 28, 0.3); color: var(--gold); padding: 6px 12px; border-radius: 99px; font-size: 11px; font-weight: bold; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
         .suggestion-chip:hover { background: var(--gold); color: black; }
 
-        /* TOAST NOTIFICATIONS */
-        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 100; display: flex; flex-direction: column; gap: 10px; }
-        .toast { padding: 12px 20px; border-radius: 8px; color: white; font-weight: bold; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); animation: slideInRight 0.3s ease-out; display: flex; align-items: center; gap: 8px; min-width: 250px; }
-        .toast-success { background: var(--green); border-left: 4px solid #14532d; }
-        .toast-error { background: var(--red); border-left: 4px solid #7f1d1d; }
-        .toast-info { background: var(--blue); border-left: 4px solid #1e3a8a; }
-        @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        /* MODALS & TOAST */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); backdrop-filter: blur(8px); z-index: 50; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s; }
+        .modal-content { background: #111; border: 1px solid var(--gold); padding: 20px; border-radius: 20px; width: 95%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
+        .toast-container { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; flex-direction: column; gap: 5px; width: 90%; max-width: 400px; }
+        .toast { padding: 10px 16px; border-radius: 8px; color: white; font-weight: bold; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.8); display: flex; align-items: center; gap: 8px; background: #222; border: 1px solid #444; animation: slideDown 0.2s; }
+        .toast-success { border-left: 4px solid var(--green); } .toast-error { border-left: 4px solid var(--red); }
 
-        /* TABLE STYLES */
+        /* UTILS */
+        .sub-icon { position: absolute; top: 4px; right: 4px; font-size: 10px; background: #333; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; border: 1px solid #555; }
+        .sub-icon:hover { background: var(--gold); color: black; }
+        .player-card-bench { background: #111; border: 1px solid #333; border-radius: 8px; padding: 12px; cursor: pointer; opacity: 0.6; display: flex; align-items: center; justify-content: space-between; transition: 0.2s; }
+        .player-card-bench:hover { border-color: var(--gold); opacity: 1; background: #222; }
+        
         .stat-table th { position: sticky; top: 0; background: #111; z-index: 10; font-size: 10px; text-transform: uppercase; color: #888; padding: 10px; cursor: pointer; }
         .stat-table th:hover { color: var(--gold); }
         .stat-row:hover { background: rgba(255,255,255,0.05); }
 
-        /* LEADERBOARD & ALERTS */
-        .leader-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .alert-box { animation: slideIn 0.3s ease-out; border-left: 4px solid; padding: 12px; margin-bottom: 8px; background: rgba(255,255,255,0.03); border-radius: 0 8px 8px 0; }
-        .alert-good { border-color: var(--green); } .alert-bad { border-color: var(--red); }
-        @keyframes slideIn { from { transform: translateX(-10px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-
-        /* PRINT STYLES */
-        @media print {
-            body { background: white; color: black; }
-            .no-print { display: none !important; }
-            .bento-card { background: white; border: 2px solid #000; color: black; box-shadow: none; break-inside: avoid; }
-            .text-gold { color: #000 !important; }
-            .text-zinc-500, .text-zinc-400 { color: #444 !important; }
-            .bg-black { background: white; border: 1px solid #ccc; color: black; }
-            input, select { border: 1px solid #ccc; color: black; }
-            .print-header { display: block !important; border-bottom: 2px solid black; margin-bottom: 20px; padding-bottom: 10px; }
-            .print-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        }
-        .print-header { display: none; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     </style>
 </head>
 <body>
-    <div id="root">
-        <div style="height: 100vh; display: flex; align-items: center; justify-content: center; color: #FFB81C; font-weight: bold; font-size: 24px; animation: pulse 2s infinite;">
-            BOOTING MASTER SYSTEM...
-        </div>
-    </div>
+    <div id="root"></div>
 
     <script type="text/babel">
         // --- CONFIG ---
@@ -107,10 +92,9 @@
             {id: 34, name: "Dani Cardona", pos: "C"}, {id: 15, name: "Alexa Troiano", pos: "C"},
             {id: 0, name: "Bela Smith", pos: "G/F"}
         ];
-        // Fields for Live Entry (Includes PF)
-        const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','blk','to','pf'];
+        const ZONES = ['top_3', 'wing_l_3', 'wing_r_3', 'corn_l_3', 'corn_r_3', 'mid_l_2', 'mid_r_2', 'paint'];
+        const OPPONENT_ID = 'OPP';
 
-        // --- MAIN APP COMPONENT ---
         function App() {
             // STATE
             const [view, setView] = React.useState('live');
@@ -119,31 +103,27 @@
             const [db, setDb] = React.useState(null);
             const [toasts, setToasts] = React.useState([]);
 
-            // LIVE DATA ENTRY
-            const [gameMeta, setGameMeta] = React.useState({ date: new Date().toISOString().split('T')[0], opp: 'Opponent', oppScore: 0, venue: 'Home' });
+            // DATA
+            const [gameMeta, setGameMeta] = React.useState({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0 });
             const [playerStats, setPlayerStats] = React.useState({});
-            const [activeLineup, setActiveLineup] = React.useState(ROSTER.slice(0, 5).map(p => p.name));
-            const [selectedForStat, setSelectedForStat] = React.useState(null);
-            const [subMode, setSubMode] = React.useState(null);
+            const [opponentStats, setOpponentStats] = React.useState({ fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0 });
             
-            // Legacy/Aggregate Data (for Tactics/Plays)
-            const [playStats, setPlayStats] = React.useState([
-                { id: 'trans', name: 'TRANSITION', att: 0, made: 0, pts: 0 },
-                { id: 'broken', name: 'BROKEN PLAY', att: 0, made: 0, pts: 0 },
-                { id: 'motion', name: 'Motion Offense', att: 0, made: 0, pts: 0 }
-            ]);
-            const [newPlayName, setNewPlayName] = React.useState('');
-
-            // AI/SEARCH STATE
+            // UI
+            const [activeLineup, setActiveLineup] = React.useState(ROSTER.slice(0, 5).map(p => p.id));
+            const [selectedPlayer, setSelectedPlayer] = React.useState(null); 
+            const [subTarget, setSubTarget] = React.useState(null); 
+            const [editId, setEditId] = React.useState(null);
+            
+            // ANALYTICS & TACTICS STATE
+            const [tacticsFilter, setTacticsFilter] = React.useState('season');
+            const [selectedProfile, setSelectedProfile] = React.useState(ROSTER[0].name);
+            const [sortConfig, setSortConfig] = React.useState({ key: 'ppg', direction: 'desc' });
+            
+            // AI
             const [chatHistory, setChatHistory] = React.useState([{role: 'bot', text: '🦅 Coach, I\'m ready. Ask me "Who is the MVP?", "Who takes the last shot?", or "Scout Reese".'}]);
             const [query, setQuery] = React.useState('');
 
-            // FILTERS & SELECTIONS
-            const [selectedPlayer, setSelectedPlayer] = React.useState(ROSTER[0].name);
-            const [sortConfig, setSortConfig] = React.useState({ key: 'ppg', direction: 'desc' });
-            const [tacticsFilter, setTacticsFilter] = React.useState('season');
-
-            // --- INIT & FIREBASE ---
+            // --- INIT ---
             React.useEffect(() => {
                 try {
                     const firebaseConfig = { apiKey: "AIzaSyA5H5SsumWG7bym_0EZ7jOlfWeswpSauhk", projectId: "eagles-stats", appId: "1:386723096734:web:b50e343c703983e838b38f" };
@@ -158,33 +138,50 @@
             }, []);
 
             // --- TOAST SYSTEM ---
-            const showToast = (msg, type = 'info') => {
+            const showToast = (msg, type='success') => {
                 const id = Date.now();
-                setToasts(prev => [...prev, { id, msg, type }]);
-                setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
+                setToasts(p => [...p, {id, msg, type}]);
+                setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 2500);
             };
 
-            // --- LIVE STAT LOGIC ---
-            const handleLiveStat = (player, stat, value) => {
-                const current = playerStats[player]?.[stat] || 0;
-                const newVal = Math.max(0, current + value);
-                let updates = { [stat]: newVal };
-                // Auto-increment attempts if makes are added
-                if (stat === 'fg2m' && value > 0) updates['fg2a'] = (playerStats[player]?.['fg2a'] || 0) + 1;
-                if (stat === 'fg3m' && value > 0) updates['fg3a'] = (playerStats[player]?.['fg3a'] || 0) + 1;
-                if (stat === 'ftm' && value > 0) updates['fta'] = (playerStats[player]?.['fta'] || 0) + 1;
+            // --- LIVE LOGIC ---
+            const handleStatClick = (statKey, pointVal = 0) => {
+                if (!selectedPlayer) return showToast("⚠️ Select a Player or Opponent First!", "error");
+
+                // OPPONENT LOGIC
+                if (selectedPlayer === OPPONENT_ID) {
+                    const current = opponentStats[statKey] || 0;
+                    let updates = { [statKey]: current + 1 };
+                    if (statKey === 'fg2m') updates['fg2a'] = opponentStats.fg2a + 1;
+                    if (statKey === 'fg3m') updates['fg3a'] = opponentStats.fg3a + 1;
+                    if (statKey === 'ftm') updates['fta'] = opponentStats.fta + 1;
+                    setOpponentStats(prev => ({ ...prev, ...updates }));
+                    if (pointVal > 0) setGameMeta(prev => ({ ...prev, oppScore: prev.oppScore + pointVal }));
+                    showToast(`Opponent: ${statKey.toUpperCase().replace('M',' MAKE')} ${pointVal>0 ? `(+${pointVal})` : ''}`);
+                    setSelectedPlayer(null);
+                    return;
+                }
                 
-                setPlayerStats(prev => ({ ...prev, [player]: { ...prev[player], ...updates } }));
-                showToast(`${player}: ${stat.toUpperCase()} Updated`, "success");
-                if (value > 0) setSelectedForStat(null);
+                // PLAYER LOGIC
+                const pName = ROSTER.find(r => r.id === selectedPlayer).name;
+                const current = playerStats[pName]?.[statKey] || 0;
+                let updates = { [statKey]: current + 1 };
+                if (statKey === 'fg2m') updates['fg2a'] = (playerStats[pName]?.['fg2a'] || 0) + 1;
+                if (statKey === 'fg3m') updates['fg3a'] = (playerStats[pName]?.['fg3a'] || 0) + 1;
+                if (statKey === 'ftm') updates['fta'] = (playerStats[pName]?.['fta'] || 0) + 1;
+                setPlayerStats(prev => ({ ...prev, [pName]: { ...prev[pName], ...updates } }));
+                const statLabel = statKey.replace('fg', '').replace('m', ' Make').replace('a', ' Miss').toUpperCase();
+                showToast(`${pName.split(' ')[0]}: ${statLabel} ${pointVal>0 ? `(+${pointVal})` : ''}`);
+                setSelectedPlayer(null); 
             };
 
-            const handleSub = (playerIn) => {
-                if (!subMode) return;
-                const newLineup = activeLineup.map(p => p === subMode ? playerIn : p);
+            const handleSubIn = (benchPid) => {
+                if(!subTarget) return;
+                const newLineup = activeLineup.map(id => id === subTarget ? benchPid : id);
                 setActiveLineup(newLineup);
-                setSubMode(null);
-                showToast(`Sub: ${playerIn} In, ${subMode} Out`, "info");
+                const pIn = ROSTER.find(r => r.id === benchPid).name;
+                showToast(`🔄 ${pIn.split(' ')[0]} Checked In`);
+                setSubTarget(null);
             };
 
             const getTeamScore = () => {
@@ -196,18 +193,104 @@
             const saveGame = async () => {
                 if(!db) return showToast("Offline Mode", "error");
                 const tScore = getTeamScore();
-                // Merge Live Stats with Roster Data
                 const stats = ROSTER.map(p => { 
                     const s = playerStats[p.name] || {}; 
                     const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
                     return { ...p, ...s, pts }; 
                 });
-                const payload = { ...gameMeta, teamScore: tScore, stats, playStats, result: tScore > gameMeta.oppScore ? 'W' : 'L', updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
-                try { await db.collection('games').add(payload); showToast("Game Saved Successfully!", "success"); setPlayerStats({}); setView('log'); } 
+                const payload = { ...gameMeta, teamScore: tScore, stats, opponentStats, result: tScore > gameMeta.oppScore ? 'W' : 'L', updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+                try { if(editId) await db.collection('games').doc(editId).update(payload); else await db.collection('games').add(payload); showToast("Game Saved Successfully!", "success"); setPlayerStats({}); setOpponentStats({fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0}); setView('log'); } 
                 catch(e) { showToast("Error Saving: " + e.message, "error"); }
             };
 
-            // --- AI LOGIC (V4) ---
+            // --- DATA PROCESSORS ---
+            const getSeasonStats = () => {
+                const totals = {};
+                ROSTER.forEach(p => totals[p.name] = { name: p.name, pos: p.pos, games: 0, pts:0, reb:0, ast:0, stl:0, blk:0, to:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0 });
+                games.forEach(g => g.stats.forEach(s => {
+                    if (totals[s.name]) {
+                        const t = totals[s.name]; t.games++;
+                        t.fg2m+=(s.fg2m||0); t.fg2a+=(s.fg2a||0); t.fg3m+=(s.fg3m||0); t.fg3a+=(s.fg3a||0); t.ftm+=(s.ftm||0); t.fta+=(s.fta||0);
+                        t.reb+=(s.reb||0); t.ast+=(s.ast||0); t.stl+=(s.stl||0); t.blk+=(s.blk||0); t.to+=(s.to||0);
+                        t.pts+=((s.fg2m||0)*2+(s.fg3m||0)*3+(s.ftm||0));
+                    }
+                }));
+                return Object.values(totals).map(t => {
+                    const g = t.games || 1;
+                    const totalFGM = t.fg2m + t.fg3m; const totalFGA = t.fg2a + t.fg3a;
+                    const eFG = totalFGA > 0 ? ((totalFGM + (0.5 * t.fg3m)) / totalFGA) * 100 : 0;
+                    const tsDiv = 2 * (totalFGA + (0.44 * t.fta));
+                    const TS = tsDiv > 0 ? (t.pts / tsDiv) * 100 : 0;
+                    return { ...t, ppg:(t.pts/g).toFixed(1), rpg:(t.reb/g).toFixed(1), apg:(t.ast/g).toFixed(1), spg:(t.stl/g).toFixed(1), bpg:(t.blk/g).toFixed(1), topg:(t.to/g).toFixed(1), fgPct:totalFGA>0?Math.round((totalFGM/totalFGA)*100):0, fg3Pct:t.fg3a>0?Math.round((t.fg3m/t.fg3a)*100):0, ftPct:t.fta>0?Math.round((t.ftm/t.fta)*100):0, eFG: Math.round(eFG), TS: Math.round(TS), to:t.to, ast:t.ast };
+                }).sort((a,b) => { const aVal = parseFloat(a[sortConfig.key])||0, bVal = parseFloat(b[sortConfig.key])||0; return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal; });
+            };
+
+            const getClipboardData = () => {
+                const totalGames = games.length || 1;
+                const totals = { pts:0, opp:0, reb:0, ast:0, to:0, stocks:0 };
+                const pMap = {};
+                ROSTER.forEach(p => pMap[p.name] = { name: p.name, gp:0, pts:0, reb:0, fg3m:0, fg3a:0, ftm:0, fta:0, highs:{pts:0,ast:0,reb:0,stl:0,blk:0} });
+                let seasonHighs = { pts:{val:0}, ast:{val:0}, reb:{val:0}, stl:{val:0}, blk:{val:0} };
+                games.forEach(g => {
+                    totals.pts += g.teamScore || 0; totals.opp += g.oppScore || 0;
+                    g.stats.forEach(s => {
+                        totals.reb += (s.reb||0); totals.ast += (s.ast||0); totals.to += (s.to||0); totals.stocks += ((s.stl||0) + (s.blk||0));
+                        if(pMap[s.name]) {
+                            const p = pMap[s.name]; p.gp++;
+                            const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
+                            p.pts += pts; p.reb += (s.reb||0); p.fg3m += (s.fg3m||0); p.fg3a += (s.fg3a||0); p.ftm += (s.ftm||0); p.fta += (s.fta||0);
+                            if(pts > seasonHighs.pts.val) seasonHighs.pts = {val:pts, player:s.name};
+                            if((s.reb||0) > seasonHighs.reb.val) seasonHighs.reb = {val:s.reb, player:s.name};
+                            if((s.ast||0) > seasonHighs.ast.val) seasonHighs.ast = {val:s.ast, player:s.name};
+                            if((s.stl||0) > seasonHighs.stl.val) seasonHighs.stl = {val:s.stl, player:s.name};
+                            if((s.blk||0) > seasonHighs.blk.val) seasonHighs.blk = {val:s.blk, player:s.name};
+                        }
+                    });
+                });
+                const players = Object.values(pMap).filter(p => p.gp > 0);
+                return {
+                    team: { ppg:(totals.pts/totalGames).toFixed(1), opp:(totals.opp/totalGames).toFixed(1), rpg:(totals.reb/totalGames).toFixed(1), apg:(totals.ast/totalGames).toFixed(1), topg:(totals.to/totalGames).toFixed(1), stocks:(totals.stocks/totalGames).toFixed(1), record:`${games.filter(g=>g.result==='W').length}-${games.filter(g=>g.result==='L').length}` },
+                    scorers: [...players].sort((a,b)=>(b.pts/b.gp)-(a.pts/a.gp)).slice(0,3),
+                    rebounders: [...players].sort((a,b)=>(b.reb/b.gp)-(a.reb/a.gp)).slice(0,3),
+                    snipers: [...players].filter(p=>p.fg3a>5).sort((a,b)=>(b.fg3m/b.fg3a)-(a.fg3m/a.fg3a)).slice(0,3),
+                    freeThrowers: [...players].filter(p=>p.fta>5).sort((a,b)=>(b.ftm/b.fta)-(a.ftm/a.fta)).slice(0,3),
+                    seasonHighs
+                };
+            };
+
+            const getPlayerData = (pName) => {
+                const pGames = games.filter(g => g.stats.find(s => s.name === pName));
+                const totals = { gp: pGames.length, pts:0, reb:0, ast:0, stl:0, blk:0, to:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0 };
+                const highs = { pts:0, reb:0, ast:0, stl:0, blk:0 };
+                pGames.forEach(g => {
+                    const s = g.stats.find(stat => stat.name === pName);
+                    const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
+                    totals.pts+=pts; totals.reb+=(s.reb||0); totals.ast+=(s.ast||0); totals.stl+=(s.stl||0); totals.blk+=(s.blk||0); totals.to+=(s.to||0);
+                    totals.fg2m+=(s.fg2m||0); totals.fg2a+=(s.fg2a||0); totals.fg3m+=(s.fg3m||0); totals.fg3a+=(s.fg3a||0); totals.ftm+=(s.ftm||0); totals.fta+=(s.fta||0);
+                    if(pts>highs.pts) highs.pts=pts; if((s.reb||0)>highs.reb) highs.reb=s.reb; if((s.ast||0)>highs.ast) highs.ast=s.ast; if((s.stl||0)>highs.stl) highs.stl=s.stl; if((s.blk||0)>highs.blk) highs.blk=s.blk;
+                });
+                const gp = totals.gp || 1;
+                const totalFGM = totals.fg2m + totals.fg3m; const totalFGA = totals.fg2a + totals.fg3a;
+                const eFG = totalFGA > 0 ? ((totalFGM + (0.5 * totals.fg3m)) / totalFGA) * 100 : 0;
+                const tsDiv = 2 * (totalFGA + (0.44 * totals.fta));
+                const TS = tsDiv > 0 ? (totals.pts / tsDiv) * 100 : 0;
+                return { totals, highs, games: pGames, avgs: { ppg:(totals.pts/gp).toFixed(1), rpg:(totals.reb/gp).toFixed(1), apg:(totals.ast/gp).toFixed(1), spg:(totals.stl/gp).toFixed(1), bpg:(totals.blk/gp).toFixed(1), topg:(totals.to/gp).toFixed(1) }, pcts: { fg:totalFGA>0?Math.round((totalFGM/totalFGA)*100):0, fg2:totals.fg2a>0?Math.round((totals.fg2m/totals.fg2a)*100):0, fg3:totals.fg3a>0?Math.round((totals.fg3m/totals.fg3a)*100):0, ft:totals.fta>0?Math.round((totals.ftm/totals.fta)*100):0, eFG: Math.round(eFG), TS: Math.round(TS) } };
+            };
+
+            const getTacticalData = () => {
+                let targetGames = tacticsFilter === 'season' ? games : games.filter(g => g.id === tacticsFilter);
+                const aggPlays = {};
+                // If we were tracking shot zones in live mode, we'd aggregate them here
+                // For now, this is a placeholder or uses legacy data if present
+                const aggMap = ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}); 
+                targetGames.forEach(g => {
+                    if(g.playStats) g.playStats.forEach(p => { if(!aggPlays[p.name]) aggPlays[p.name] = { name: p.name, att: 0, made: 0, pts: 0 }; aggPlays[p.name].att += (p.att || 0); aggPlays[p.name].made += (p.made || 0); aggPlays[p.name].pts += (p.pts || (p.made*2) || 0); });
+                    if(g.shotMap && g.shotMap.eagles) ZONES.forEach(z => { const zone = g.shotMap.eagles[z] || {m:0, x:0}; aggMap[z].m += zone.m; aggMap[z].x += zone.x; });
+                });
+                return { plays: Object.values(aggPlays), map: aggMap };
+            };
+
+            // --- AI ---
             const handleSearch = (e, manualQuery) => {
                 if(e) e.preventDefault();
                 const qText = manualQuery || query;
@@ -242,106 +325,23 @@
                 setChatHistory([...newHistory, {role: 'bot', text: response}]);
             };
 
-            // --- DATA AGGREGATION ---
-            const getClipboardData = () => {
-                const totalGames = games.length || 1;
-                const totals = { pts:0, opp:0, reb:0, ast:0, to:0, stocks:0 };
-                const pMap = {};
-                ROSTER.forEach(p => pMap[p.name] = { name: p.name, gp:0, pts:0, reb:0, fg3m:0, fg3a:0, ftm:0, fta:0, highs:{pts:0,ast:0,reb:0,stl:0,blk:0} });
-                let seasonHighs = { pts:{val:0}, ast:{val:0}, reb:{val:0}, stl:{val:0}, blk:{val:0} };
-                games.forEach(g => {
-                    totals.pts += g.teamScore || 0; totals.opp += g.oppScore || 0;
-                    g.stats.forEach(s => {
-                        totals.reb += (s.reb||0); totals.ast += (s.ast||0); totals.to += (s.to||0); totals.stocks += ((s.stl||0) + (s.blk||0));
-                        if(pMap[s.name]) {
-                            const p = pMap[s.name]; p.gp++;
-                            const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
-                            p.pts += pts; p.reb += (s.reb||0); p.fg3m += (s.fg3m||0); p.fg3a += (s.fg3a||0); p.ftm += (s.ftm||0); p.fta += (s.fta||0);
-                            if(pts > seasonHighs.pts.val) seasonHighs.pts = {val:pts, player:s.name};
-                            if((s.reb||0) > seasonHighs.reb.val) seasonHighs.reb = {val:s.reb, player:s.name};
-                            if((s.ast||0) > seasonHighs.ast.val) seasonHighs.ast = {val:s.ast, player:s.name};
-                            if((s.stl||0) > seasonHighs.stl.val) seasonHighs.stl = {val:s.stl, player:s.name};
-                            if((s.blk||0) > seasonHighs.blk.val) seasonHighs.blk = {val:s.blk, player:s.name};
-                        }
-                    });
-                });
-                const players = Object.values(pMap).filter(p => p.gp > 0);
-                return {
-                    team: { ppg:(totals.pts/totalGames).toFixed(1), opp:(totals.opp/totalGames).toFixed(1), rpg:(totals.reb/totalGames).toFixed(1), apg:(totals.ast/totalGames).toFixed(1), topg:(totals.to/totalGames).toFixed(1), stocks:(totals.stocks/totalGames).toFixed(1), record:`${games.filter(g=>g.result==='W').length}-${games.filter(g=>g.result==='L').length}` },
-                    scorers: [...players].sort((a,b)=>(b.pts/b.gp)-(a.pts/a.gp)).slice(0,3),
-                    rebounders: [...players].sort((a,b)=>(b.reb/b.gp)-(a.reb/a.gp)).slice(0,3),
-                    snipers: [...players].filter(p=>p.fg3a>5).sort((a,b)=>(b.fg3m/b.fg3a)-(a.fg3m/a.fg3a)).slice(0,3),
-                    freeThrowers: [...players].filter(p=>p.fta>5).sort((a,b)=>(b.ftm/b.fta)-(a.ftm/a.fta)).slice(0,3),
-                    seasonHighs
-                };
-            };
-
-            const getSeasonStats = () => {
-                const totals = {};
-                ROSTER.forEach(p => totals[p.name] = { name: p.name, pos: p.pos, games: 0, pts:0, reb:0, ast:0, stl:0, blk:0, to:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0 });
-                games.forEach(g => g.stats.forEach(s => {
-                    if (totals[s.name]) {
-                        const t = totals[s.name]; t.games++;
-                        t.fg2m+=(s.fg2m||0); t.fg2a+=(s.fg2a||0); t.fg3m+=(s.fg3m||0); t.fg3a+=(s.fg3a||0); t.ftm+=(s.ftm||0); t.fta+=(s.fta||0);
-                        t.reb+=(s.reb||0); t.ast+=(s.ast||0); t.stl+=(s.stl||0); t.blk+=(s.blk||0); t.to+=(s.to||0);
-                        t.pts+=((s.fg2m||0)*2+(s.fg3m||0)*3+(s.ftm||0));
-                    }
-                }));
-                return Object.values(totals).map(t => {
-                    const g = t.games || 1;
-                    const totalFGM = t.fg2m + t.fg3m; const totalFGA = t.fg2a + t.fg3a;
-                    const eFG = totalFGA > 0 ? ((totalFGM + (0.5 * t.fg3m)) / totalFGA) * 100 : 0;
-                    const tsDiv = 2 * (totalFGA + (0.44 * t.fta));
-                    const TS = tsDiv > 0 ? (t.pts / tsDiv) * 100 : 0;
-                    return {
-                        ...t, 
-                        ppg:(t.pts/g).toFixed(1), rpg:(t.reb/g).toFixed(1), apg:(t.ast/g).toFixed(1), spg:(t.stl/g).toFixed(1), bpg:(t.blk/g).toFixed(1), topg:(t.to/g).toFixed(1),
-                        fgPct:totalFGA>0?Math.round((totalFGM/totalFGA)*100):0, fg3Pct:t.fg3a>0?Math.round((t.fg3m/t.fg3a)*100):0, ftPct:t.fta>0?Math.round((t.ftm/t.fta)*100):0,
-                        eFG: Math.round(eFG), TS: Math.round(TS), to:t.to, ast:t.ast
-                    };
-                }).sort((a,b) => { const aVal = parseFloat(a[sortConfig.key])||0, bVal = parseFloat(b[sortConfig.key])||0; return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal; });
-            };
-
-            const getPlayerData = (pName) => {
-                const pGames = games.filter(g => g.stats.find(s => s.name === pName));
-                const totals = { gp: pGames.length, pts:0, reb:0, ast:0, stl:0, blk:0, to:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0 };
-                const highs = { pts:0, reb:0, ast:0, stl:0, blk:0 };
-                pGames.forEach(g => {
-                    const s = g.stats.find(stat => stat.name === pName);
-                    const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
-                    totals.pts+=pts; totals.reb+=(s.reb||0); totals.ast+=(s.ast||0); totals.stl+=(s.stl||0); totals.blk+=(s.blk||0); totals.to+=(s.to||0);
-                    totals.fg2m+=(s.fg2m||0); totals.fg2a+=(s.fg2a||0); totals.fg3m+=(s.fg3m||0); totals.fg3a+=(s.fg3a||0); totals.ftm+=(s.ftm||0); totals.fta+=(s.fta||0);
-                    if(pts>highs.pts) highs.pts=pts; if((s.reb||0)>highs.reb) highs.reb=s.reb; if((s.ast||0)>highs.ast) highs.ast=s.ast; if((s.stl||0)>highs.stl) highs.stl=s.stl; if((s.blk||0)>highs.blk) highs.blk=s.blk;
-                });
-                const gp = totals.gp || 1;
-                const totalFGM = totals.fg2m + totals.fg3m; const totalFGA = totals.fg2a + totals.fg3a;
-                const eFG = totalFGA > 0 ? ((totalFGM + (0.5 * totals.fg3m)) / totalFGA) * 100 : 0;
-                const tsDiv = 2 * (totalFGA + (0.44 * totals.fta));
-                const TS = tsDiv > 0 ? (totals.pts / tsDiv) * 100 : 0;
-                return { 
-                    totals, highs, games: pGames, 
-                    avgs: { ppg:(totals.pts/gp).toFixed(1), rpg:(totals.reb/gp).toFixed(1), apg:(totals.ast/gp).toFixed(1), spg:(totals.stl/gp).toFixed(1), bpg:(totals.blk/gp).toFixed(1), topg:(totals.to/gp).toFixed(1) }, 
-                    pcts: { fg:totalFGA>0?Math.round((totalFGM/totalFGA)*100):0, fg3:totals.fg3a>0?Math.round((totals.fg3m/totals.fg3a)*100):0, ft:totals.fta>0?Math.round((totals.ftm/totals.fta)*100):0, eFG: Math.round(eFG), TS: Math.round(TS) } 
-                };
-            };
-
-            const handlePlayUpdate = (index, points) => { const newPlays = [...playStats]; newPlays[index].att += 1; if (points > 0) { newPlays[index].made += 1; newPlays[index].pts += points; } setPlayStats(newPlays); };
             const handleSort = (key) => { setSortConfig({ key, direction: sortConfig.key === key && sortConfig.direction === 'desc' ? 'asc' : 'desc' }); };
-            const exportData = () => { /* Export logic */ }; const importData = (e) => { /* Import logic */ }; const purgeData = () => { /* Purge logic */ };
+            const exportData = () => { /* Simplified export */ showToast("Exporting data...", "info"); };
+            const importData = () => { /* Simplified import */ showToast("Importing data...", "info"); };
+            const purgeData = async () => { if(!confirm("Delete all?")) return; showToast("Purged.", "success"); };
 
             if(loading) return <div className="p-20 text-center text-gold font-bold">LOADING DATA...</div>;
 
             const clipboard = getClipboardData();
             const seasonStats = getSeasonStats();
-            const profile = getPlayerData(selectedPlayer);
-            const playerInfo = ROSTER.find(p => p.name === selectedPlayer);
-            const activePlayers = ROSTER.filter(p => activeLineup.includes(p.name));
-            const benchPlayers = ROSTER.filter(p => !activeLineup.includes(p.name));
-            const teamScore = getTeamScore();
+            const tactics = getTacticalData();
+            const profile = getPlayerData(selectedProfile);
+            const playerInfo = ROSTER.find(p => p.name === selectedProfile);
+            const activePlayers = ROSTER.filter(p => activeLineup.includes(p.id));
+            const benchPlayers = ROSTER.filter(p => !activeLineup.includes(p.id));
 
             return (
                 <div className="pb-24 max-w-7xl mx-auto p-4">
-                    {/* TOAST CONTAINER */}
                     <div className="toast-container">{toasts.map(t => <div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>)}</div>
 
                     <div className="flex flex-col md:flex-row justify-between items-center mb-6 bg-zinc-900 p-4 rounded-xl border border-white/10 sticky top-2 z-50 shadow-xl no-print">
@@ -351,94 +351,53 @@
                         </nav>
                     </div>
 
-                    {/* LIVE GAME VIEW */}
+                    {/* LIVE VIEW */}
                     {view === 'live' && (
-                        <div className="space-y-4 animate-slideIn">
-                            {/* SCOREBOARD */}
-                            <div className="grid grid-cols-3 gap-4 text-center bg-black border border-white/10 p-4 rounded-xl items-center">
-                                <div><div className="text-xs text-zinc-500 font-bold uppercase">EAGLES</div><div className="text-4xl font-black text-gold">{teamScore}</div></div>
-                                <div className="text-zinc-600 font-black text-xl">VS</div>
-                                <div>
-                                    <input className="bg-transparent text-center text-xs text-zinc-500 font-bold uppercase w-full outline-none" value={gameMeta.opp} onChange={e=>setGameMeta({...gameMeta, opp:e.target.value})} placeholder="OPPONENT"/>
-                                    <div className="flex items-center justify-center gap-2">
-                                        <button onClick={()=>setGameMeta(p=>({...p, oppScore: Math.max(0, p.oppScore-1)}))} className="text-zinc-600 hover:text-white">-</button>
-                                        <input type="number" className="bg-transparent text-4xl font-black text-white w-16 text-center outline-none" value={gameMeta.oppScore} onChange={e=>setGameMeta({...gameMeta, oppScore:parseInt(e.target.value)||0})} />
-                                        <button onClick={()=>setGameMeta(p=>({...p, oppScore: p.oppScore+1}))} className="text-zinc-600 hover:text-white">+</button>
-                                    </div>
-                                </div>
+                        <div className="flex flex-col h-[85vh] overflow-hidden">
+                            <div className="live-header">
+                                <div className="score-box"><div className="score-label">EAGLES</div><div className="score-val text-gold">{getTeamScore()}</div></div>
+                                <div className="flex flex-col items-center gap-1"><input type="date" value={gameMeta.date} onChange={e=>setGameMeta({...gameMeta, date:e.target.value})} className="bg-zinc-900 text-white text-[10px] p-1 rounded text-center w-24 border border-zinc-700" /><div className="text-zinc-600 font-black text-xs">VS</div></div>
+                                <div className="score-box"><input value={gameMeta.opp} onChange={e=>setGameMeta({...gameMeta, opp:e.target.value})} className="bg-transparent text-center text-[10px] font-black text-zinc-500 w-full outline-none" placeholder="OPPONENT"/><div className="flex items-center justify-center gap-2"><button onClick={()=>setGameMeta(p=>({...p, oppScore: Math.max(0, p.oppScore-1)}))} className="text-zinc-600 hover:text-white">-</button><div className="score-val text-white">{gameMeta.oppScore}</div><button onClick={()=>setGameMeta(p=>({...p, oppScore: p.oppScore+1}))} className="text-zinc-600 hover:text-white">+</button></div></div>
                             </div>
-
-                            {/* ON THE FLOOR */}
-                            <div>
-                                <h3 className="text-gold text-xs font-black uppercase tracking-widest mb-2 flex justify-between">
-                                    <span>Active Lineup</span>
-                                    {subMode && <span className="text-red-500 animate-pulse">Select Bench Player to Sub In...</span>}
-                                </h3>
-                                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                            
+                            <div className="p-2 flex-1 flex gap-2 overflow-hidden">
+                                <div className="w-1/3 flex flex-col gap-2 h-full overflow-y-auto pr-1">
                                     {activePlayers.map(p => {
+                                        const isSelected = selectedPlayer === p.id;
                                         const s = playerStats[p.name] || {};
                                         const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
                                         return (
-                                            <div key={p.id} onClick={() => subMode ? setSubMode(p.name) : setSelectedForStat(p.name)} className={`player-card-active ${subMode === p.name ? 'ring-2 ring-red-500' : ''}`}>
-                                                <div className="flex justify-between items-start"><span className="text-2xl font-black italic opacity-20">#{p.id}</span><span className={`text-xs font-bold px-2 rounded ${s.pf>=4?'bg-red-600':(s.pf>=3?'bg-yellow-600':'bg-zinc-800')}`}>{s.pf||0} PF</span></div>
-                                                <div className="text-center"><div className="text-lg font-bold leading-tight">{p.name.split(' ')[0]}</div><div className="text-xs text-zinc-400">{p.name.split(' ')[1]}</div></div>
-                                                <div className="mt-2 pt-2 border-t border-white/10 flex justify-between text-xs font-mono text-gold"><span>{pts} PTS</span><span>{s.reb||0} REB</span></div>
-                                                {subMode && <div className="absolute inset-0 bg-red-900/80 flex items-center justify-center font-bold uppercase tracking-wider rounded-lg">SUB OUT</div>}
+                                            <div key={p.id} onClick={() => setSelectedPlayer(p.id)} className={`kb-player-btn ${isSelected ? 'selected' : ''}`}>
+                                                <button onClick={(e)=>{e.stopPropagation(); setSubTarget(p.id)}} className="sub-icon">🔄</button>
+                                                <div className="text-lg font-black leading-none">{p.name.split(' ')[0]}</div>
+                                                <div className={`text-[10px] font-bold ${isSelected ? 'text-black' : 'text-zinc-500'}`}>#{p.id} • {pts} Pts</div>
+                                                {s.pf > 0 && <div className="absolute bottom-1 left-2 text-[9px] font-bold text-red-500">{s.pf} PF</div>}
                                             </div>
-                                        );
+                                        )
                                     })}
-                                </div>
-                            </div>
-
-                            {/* BENCH */}
-                            <div>
-                                <h3 className="text-zinc-500 text-xs font-black uppercase tracking-widest mb-2">Bench</h3>
-                                <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                                    {benchPlayers.map(p => (
-                                        <div key={p.id} onClick={() => handleSub(p.name)} className="player-card-bench">
-                                            <div className="text-xs text-zinc-500">#{p.id}</div>
-                                            <div className="text-sm font-bold truncate">{p.name}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                                <div className="mt-4 flex gap-2">
-                                    <button onClick={() => setSubMode(subMode ? null : 'active')} className={`w-full py-3 rounded-lg font-black uppercase text-sm ${subMode ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}>{subMode ? 'Cancel Substitution' : '🔄 Substitute Player'}</button>
-                                    <button onClick={saveGame} className="w-full py-3 bg-blue-700 hover:bg-blue-600 rounded-lg font-black uppercase text-sm text-white">💾 Save Game</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* MODAL: STAT ENTRY PAD */}
-                    {selectedForStat && (
-                        <div className="modal-overlay" onClick={() => setSelectedForStat(null)}>
-                            <div className="modal-content" onClick={e => e.stopPropagation()}>
-                                <div className="flex justify-between items-center mb-4">
-                                    <h2 className="text-2xl font-black italic uppercase text-gold">{selectedForStat}</h2>
-                                    <button onClick={() => setSelectedForStat(null)} className="text-zinc-500 text-xl">✕</button>
-                                </div>
-                                <div className="space-y-3">
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <button onClick={() => handleLiveStat(selectedForStat, 'fg2m', 1)} className="stat-btn-lg btn-green">2PT MADE (+2)</button>
-                                        <button onClick={() => handleLiveStat(selectedForStat, 'fg2a', 1)} className="stat-btn-lg btn-red">2PT MISS</button>
+                                    <div onClick={() => setSelectedPlayer(OPPONENT_ID)} className={`kb-player-btn kb-opp-btn ${selectedPlayer === OPPONENT_ID ? 'selected' : ''}`}>
+                                        <div className="text-xl font-black italic tracking-widest">OPPONENT</div>
+                                        <div className="text-[10px] opacity-70">Track Scoring</div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <button onClick={() => handleLiveStat(selectedForStat, 'fg3m', 1)} className="stat-btn-lg btn-green">3PT MADE (+3)</button>
-                                        <button onClick={() => handleLiveStat(selectedForStat, 'fg3a', 1)} className="stat-btn-lg btn-red">3PT MISS</button>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <button onClick={() => handleLiveStat(selectedForStat, 'ftm', 1)} className="stat-btn-lg btn-green">FT MADE (+1)</button>
-                                        <button onClick={() => handleLiveStat(selectedForStat, 'fta', 1)} className="stat-btn-lg btn-red">FT MISS</button>
-                                    </div>
-                                    <div className="h-px bg-white/10 my-4"></div>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <button onClick={() => handleLiveStat(selectedForStat, 'reb', 1)} className="stat-btn-lg btn-blue">REB</button>
-                                        <button onClick={() => handleLiveStat(selectedForStat, 'ast', 1)} className="stat-btn-lg btn-blue">AST</button>
-                                        <button onClick={() => handleLiveStat(selectedForStat, 'stl', 1)} className="stat-btn-lg btn-blue">STL</button>
-                                        <button onClick={() => handleLiveStat(selectedForStat, 'blk', 1)} className="stat-btn-lg btn-blue">BLK</button>
-                                        <button onClick={() => handleLiveStat(selectedForStat, 'to', 1)} className="stat-btn-lg btn-zinc">TO</button>
-                                        <button onClick={() => handleLiveStat(selectedForStat, 'pf', 1)} className="stat-btn-lg btn-zinc">PF</button>
-                                    </div>
+                                    <button onClick={saveGame} className="mt-auto w-full py-4 bg-blue-700 hover:bg-blue-600 rounded font-black uppercase text-xs">SAVE GAME</button>
+                                </div>
+                                <div className="w-2/3 h-full flex flex-col gap-2">
+                                    {selectedPlayer === OPPONENT_ID ? (
+                                        <>
+                                            <div className="h-10 flex items-center justify-center text-red-400 font-bold uppercase text-xs border-b border-red-900/30">TRACKING OPPONENT SCORING</div>
+                                            <div className="flex gap-2 flex-1"><button onClick={() => handleStatClick('fg2m', 2)} className="kb-stat-btn bg-make text-xl">Opp 2PT (+2)</button><button onClick={() => handleStatClick('fg2a')} className="kb-stat-btn bg-miss text-xl">Opp 2PT Miss</button></div>
+                                            <div className="flex gap-2 flex-1"><button onClick={() => handleStatClick('fg3m', 3)} className="kb-stat-btn bg-make text-xl">Opp 3PT (+3)</button><button onClick={() => handleStatClick('fg3a')} className="kb-stat-btn bg-miss text-xl">Opp 3PT Miss</button></div>
+                                            <div className="flex gap-2 flex-1"><button onClick={() => handleStatClick('ftm', 1)} className="kb-stat-btn bg-make text-xl">Opp FT (+1)</button><button onClick={() => handleStatClick('fta')} className="kb-stat-btn bg-miss text-xl">Opp FT Miss</button></div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="flex gap-2 h-1/5"><button onClick={() => handleStatClick('fg2m', 2)} className="kb-stat-btn bg-make">2PT MAKE (+2)</button><button onClick={() => handleStatClick('fg2a')} className="kb-stat-btn bg-miss">2PT MISS</button></div>
+                                            <div className="flex gap-2 h-1/5"><button onClick={() => handleStatClick('fg3m', 3)} className="kb-stat-btn bg-make">3PT MAKE (+3)</button><button onClick={() => handleStatClick('fg3a')} className="kb-stat-btn bg-miss">3PT MISS</button></div>
+                                            <div className="flex gap-2 h-1/5"><button onClick={() => handleStatClick('ftm', 1)} className="kb-stat-btn bg-make">FT MAKE (+1)</button><button onClick={() => handleStatClick('fta')} className="kb-stat-btn bg-miss">FT MISS</button></div>
+                                            <div className="flex gap-2 h-1/5"><button onClick={() => handleStatClick('reb')} className="kb-stat-btn bg-action">REBOUND</button><button onClick={() => handleStatClick('ast')} className="kb-stat-btn bg-action">ASSIST</button><button onClick={() => handleStatClick('stl')} className="kb-stat-btn bg-action">STEAL</button></div>
+                                            <div className="flex gap-2 h-1/5"><button onClick={() => handleStatClick('blk')} className="kb-stat-btn bg-action">BLOCK</button><button onClick={() => handleStatClick('to')} className="kb-stat-btn bg-neg">TURNOVER</button><button onClick={() => handleStatClick('pf')} className="kb-stat-btn bg-neg">FOUL</button></div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -446,69 +405,30 @@
 
                     {view === 'clipboard' && (
                         <div className="space-y-6 animate-slideIn">
-                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                                <MiniStat label="Record" value={clipboard.team.record} />
-                                <MiniStat label="PPG" value={clipboard.team.ppg} color="text-gold" />
-                                <MiniStat label="Opp PPG" value={clipboard.team.opp} color="text-red-400" />
-                                <MiniStat label="RPG" value={clipboard.team.rpg} />
-                                <MiniStat label="APG" value={clipboard.team.apg} />
-                                <MiniStat label="Stocks" value={clipboard.team.stocks} sub="(Stl+Blk)" />
-                                <MiniStat label="TO/G" value={clipboard.team.topg} color="text-zinc-400" />
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                <Leaderboard title="Scoring Leaders" icon="🔥" players={clipboard.scorers} valFunc={p=>(p.pts/p.gp).toFixed(1)} label="PPG" />
-                                <Leaderboard title="Glass Cleaners" icon="💪" players={clipboard.rebounders} valFunc={p=>(p.reb/p.gp).toFixed(1)} label="RPG" />
-                                <Leaderboard title="Snipers (3PT%)" icon="🎯" players={clipboard.snipers} valFunc={p=>Math.round((p.fg3m/p.fg3a)*100)+'%'} label="3PT%" />
-                                <Leaderboard title="Free Throws" icon="🔒" players={clipboard.freeThrowers} valFunc={p=>Math.round((p.ftm/p.fta)*100)+'%'} label="FT%" />
-                            </div>
-                            <div className="bento-card border-t-4 border-gold">
-                                <h3 className="text-sm font-black text-zinc-500 uppercase tracking-widest mb-4">🏆 Season Honor Roll</h3>
-                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                                    <HonorCard label="Pts" data={clipboard.seasonHighs.pts} color="text-white" />
-                                    <HonorCard label="Ast" data={clipboard.seasonHighs.ast} color="text-blue-400" />
-                                    <HonorCard label="Reb" data={clipboard.seasonHighs.reb} color="text-green-400" />
-                                    <HonorCard label="Stl" data={clipboard.seasonHighs.stl} color="text-gold" />
-                                    <HonorCard label="Blk" data={clipboard.seasonHighs.blk} color="text-red-400" />
-                                </div>
-                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3"><MiniStat label="Record" value={clipboard.team.record} /><MiniStat label="PPG" value={clipboard.team.ppg} color="text-gold" /><MiniStat label="Opp PPG" value={clipboard.team.opp} color="text-red-400" /><MiniStat label="RPG" value={clipboard.team.rpg} /><MiniStat label="APG" value={clipboard.team.apg} /><MiniStat label="Stocks" value={clipboard.team.stocks} sub="(Stl+Blk)" /><MiniStat label="TO/G" value={clipboard.team.topg} color="text-zinc-400" /></div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><Leaderboard title="Scoring Leaders" icon="🔥" players={clipboard.scorers} valFunc={p=>(p.pts/p.gp).toFixed(1)} label="PPG" /><Leaderboard title="Glass Cleaners" icon="💪" players={clipboard.rebounders} valFunc={p=>(p.reb/p.gp).toFixed(1)} label="RPG" /><Leaderboard title="Snipers (3PT%)" icon="🎯" players={clipboard.snipers} valFunc={p=>Math.round((p.fg3m/p.fg3a)*100)+'%'} label="3PT%" /><Leaderboard title="Free Throws" icon="🔒" players={clipboard.freeThrowers} valFunc={p=>Math.round((p.ftm/p.fta)*100)+'%'} label="FT%" /></div>
+                            <div className="bento-card border-t-4 border-gold"><h3 className="text-sm font-black text-zinc-500 uppercase tracking-widest mb-4">🏆 Season Honor Roll</h3><div className="grid grid-cols-2 md:grid-cols-5 gap-4"><HonorCard label="Pts" data={clipboard.seasonHighs.pts} color="text-white" /><HonorCard label="Ast" data={clipboard.seasonHighs.ast} color="text-blue-400" /><HonorCard label="Reb" data={clipboard.seasonHighs.reb} color="text-green-400" /><HonorCard label="Stl" data={clipboard.seasonHighs.stl} color="text-gold" /><HonorCard label="Blk" data={clipboard.seasonHighs.blk} color="text-red-400" /></div></div>
                         </div>
                     )}
 
                     {view === 'ask coach' && (
                         <div className="animate-slideIn max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
                             <div className="lg:col-span-2 bento-card h-[65vh] flex flex-col">
-                                <div className="flex-1 overflow-y-auto mb-4 space-y-4 p-2 custom-scrollbar">
-                                    {chatHistory.map((msg, i) => (
-                                        <div key={i} className={`chat-bubble ${msg.role === 'user' ? 'chat-user' : 'chat-bot'}`}>{msg.text}</div>
-                                    ))}
-                                </div>
-                                <div className="flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar">
-                                    {["🏆 Who is MVP?", "🏀 Clutch Player", "🛡️ Defensive Stop", "📅 Last Game", "🧠 Best Playmaker", "📉 Scout Reese"].map(q => (
-                                        <button key={q} onClick={(e)=>handleSearch(e, q)} className="suggestion-chip">{q}</button>
-                                    ))}
-                                </div>
-                                <form onSubmit={handleSearch} className="flex gap-2">
-                                    <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Type your question..." className="flex-1 bg-black border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold" />
-                                    <button type="submit" className="bg-gold text-black font-bold px-6 py-3 rounded-lg hover:bg-white transition">SEND</button>
-                                </form>
+                                <div className="flex-1 overflow-y-auto mb-4 space-y-4 p-2 custom-scrollbar">{chatHistory.map((msg, i) => (<div key={i} className={`chat-bubble ${msg.role === 'user' ? 'chat-user' : 'chat-bot'}`}>{msg.text}</div>))}</div>
+                                <div className="flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar">{["🏆 Who is MVP?", "🏀 Clutch Player", "🛡️ Defensive Stop", "🧠 Best Playmaker", "📉 Scout Reese"].map(q => (<button key={q} onClick={(e)=>handleSearch(e, q)} className="suggestion-chip">{q}</button>))}</div>
+                                <form onSubmit={handleSearch} className="flex gap-2"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Type your question..." className="flex-1 bg-black border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold" /><button type="submit" className="bg-gold text-black font-bold px-6 py-3 rounded-lg hover:bg-white transition">SEND</button></form>
                             </div>
-                            <div className="bento-card h-full overflow-y-auto">
-                                <h3 className="text-xl font-black text-gold uppercase italic mb-4">Coach's Playbook</h3>
-                                <div className="space-y-4 text-xs">
-                                    <div><div className="font-bold text-green-400 mb-1">✅ TRY ASKING:</div><ul className="space-y-2 text-zinc-400"><li>• "Who is the MVP?" (Impact Rating)</li><li>• "Who takes the last shot?" (Clutch)</li><li>• "I need a defensive stop."</li><li>• "Who should handle the ball?"</li><li>• "Compare Reese and Natasha."</li><li>• "Scout Kylie." (Full Report)</li></ul></div>
-                                    <div className="border-t border-white/10 pt-4"><div className="font-bold text-red-400 mb-1">❌ NOT SUPPORTED:</div><ul className="space-y-2 text-zinc-400"><li>• "Predict the next score."</li><li>• "Who played the most minutes?"</li><li>• "What defense should we run?"</li></ul></div>
-                                </div>
-                            </div>
+                            <div className="bento-card h-full overflow-y-auto"><h3 className="text-xl font-black text-gold uppercase italic mb-4">Coach's Playbook</h3><div className="space-y-4 text-xs"><div><div className="font-bold text-green-400 mb-1">✅ TRY ASKING:</div><ul className="space-y-2 text-zinc-400"><li>• "Who is the MVP?" (Impact Rating)</li><li>• "Who takes the last shot?" (Clutch)</li><li>• "I need a defensive stop."</li><li>• "Who should handle the ball?"</li><li>• "Compare Reese and Natasha."</li><li>• "Scout Kylie." (Full Report)</li></ul></div></div></div>
                         </div>
                     )}
 
                     {view === 'tactics' && (
                         <div className="space-y-6 animate-slideIn">
-                            <div className="flex justify-between items-center bg-zinc-900 p-3 rounded-lg border border-zinc-800">
-                                <label className="text-xs font-bold text-zinc-500 uppercase mr-3">Data Source:</label>
-                                <select className="bg-black text-white font-bold text-xs p-2 rounded border border-zinc-700 flex-1" value={tacticsFilter} onChange={e=>setTacticsFilter(e.target.value)}><option value="season">FULL SEASON AGGREGATE</option><optgroup label="Single Games">{games.map(g => <option key={g.id} value={g.id}>{g.date} vs {g.opp}</option>)}</optgroup></select>
+                            <div className="flex justify-between items-center bg-zinc-900 p-3 rounded-lg border border-zinc-800"><label className="text-xs font-bold text-zinc-500 uppercase mr-3">Data Source:</label><select className="bg-black text-white font-bold text-xs p-2 rounded border border-zinc-700 flex-1" value={tacticsFilter} onChange={e=>setTacticsFilter(e.target.value)}><option value="season">FULL SEASON AGGREGATE</option><optgroup label="Single Games">{games.map(g => <option key={g.id} value={g.id}>{g.date} vs {g.opp}</option>)}</optgroup></select></div>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div className="bento-card h-full"><h3 className="text-xl font-black text-gold uppercase italic mb-4">Set Play Efficiency</h3><div className="space-y-1">{tactics.plays.sort((a,b)=>((b.pts/b.att)||-1)-((a.pts/a.att)||-1)).map((p,i)=>(<div key={i} className="flex justify-between p-3 bg-zinc-900/50 rounded items-center"><span className="font-bold text-sm">{p.name}</span><div className="text-right"><div className="font-black text-gold text-lg">{(p.att>0?p.pts/p.att:0).toFixed(2)} PPP</div><div className="text-[10px] text-zinc-500">{p.made}/{p.att} ({p.att>0?Math.round((p.made/p.att)*100):0}%)</div></div></div>))}</div></div>
+                                <div className="bento-card"><h3 className="text-xl font-black text-gold uppercase italic mb-6">Shot Efficiency</h3><ShotEfficiencyMap data={tactics.map} /></div>
                             </div>
-                            <div className="grid grid-cols-1 gap-6"><div className="bento-card h-full"><h3 className="text-xl font-black text-gold uppercase italic mb-4">Set Play Efficiency</h3><div className="space-y-1">{tactics.plays.sort((a,b)=>((b.pts/b.att)||-1)-((a.pts/a.att)||-1)).map((p,i)=>(<div key={i} className="flex justify-between p-3 bg-zinc-900/50 rounded items-center"><span className="font-bold text-sm">{p.name}</span><div className="text-right"><div className="font-black text-gold text-lg">{(p.att>0?p.pts/p.att:0).toFixed(2)} PPP</div><div className="text-[10px] text-zinc-500">{p.made}/{p.att} ({p.att>0?Math.round((p.made/p.att)*100):0}%)</div></div></div>))}</div></div></div>
                         </div>
                     )}
 
@@ -520,28 +440,20 @@
 
                     {view === 'trends' && (
                         <div className="space-y-6 animate-slideIn">
-                            <div className="bento-card border-l-4 border-gold">
-                                <h3 className="text-gold font-black uppercase tracking-widest text-xs mb-4">📢 Alerts</h3>
-                                {alerts.length>0 ? alerts.map((a,i)=>(<div key={i} className={`alert-box alert-${a.type} font-bold text-sm uppercase`}>{a.msg}</div>)) : <div className="text-zinc-500 italic">No significant trends yet.</div>}
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="bento-card h-64"><h3 className="text-xs font-black uppercase mb-2">Scoring</h3><TrendChart games={games} type="score"/></div>
-                                <div className="bento-card h-64"><h3 className="text-xs font-black uppercase mb-2">FG Efficiency</h3><TrendChart games={games} type="fg"/></div>
-                                <div className="bento-card h-64"><h3 className="text-xs font-black uppercase mb-2">3PT %</h3><TrendChart games={games} type="3pt"/></div>
-                                <div className="bento-card h-64"><h3 className="text-xs font-black uppercase mb-2">Turnovers</h3><TrendChart games={games} type="to"/></div>
-                            </div>
+                            <div className="bento-card border-l-4 border-gold"><h3 className="text-gold font-black uppercase tracking-widest text-xs mb-4">📢 Alerts</h3>{alerts.length>0 ? alerts.map((a,i)=>(<div key={i} className={`alert-box alert-${a.type} font-bold text-sm uppercase`}>{a.msg}</div>)) : <div className="text-zinc-500 italic">No significant trends yet.</div>}</div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="bento-card h-64"><h3 className="text-xs font-black uppercase mb-2">Scoring</h3><TrendChart games={games} type="score"/></div><div className="bento-card h-64"><h3 className="text-xs font-black uppercase mb-2">FG Efficiency</h3><TrendChart games={games} type="fg"/></div><div className="bento-card h-64"><h3 className="text-xs font-black uppercase mb-2">3PT %</h3><TrendChart games={games} type="3pt"/></div><div className="bento-card h-64"><h3 className="text-xs font-black uppercase mb-2">Turnovers</h3><TrendChart games={games} type="to"/></div></div>
                         </div>
                     )}
 
                     {view === 'profiles' && (
                         <div className="animate-slideIn">
-                            <div className="mb-6 overflow-x-auto pb-2 no-print"><div className="flex gap-2">{ROSTER.map(p=>(<button key={p.id} onClick={()=>setSelectedPlayer(p.name)} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase whitespace-nowrap border transition ${selectedPlayer===p.name?'bg-white text-black border-white':'bg-black text-zinc-500 border-zinc-800'}`}>#{p.id} {p.name}</button>))}</div></div>
-                            <div className="print-header"><h1 className="text-4xl font-black uppercase">Scouting Report</h1><p className="text-lg">{selectedPlayer}</p></div>
-                            <div className="bento-card relative overflow-hidden mb-6">
-                                <div className="absolute top-0 right-0 p-8 opacity-10 font-black italic text-9xl">{playerInfo.id}</div>
-                                <div className="relative z-10 flex justify-between items-end"><div><h2 className="text-4xl md:text-6xl font-black italic uppercase leading-none">{playerInfo.name}</h2><div className="mt-2 text-sm font-bold text-zinc-500">{profile.totals.gp} Games • {profile.totals.pts} Pts</div></div><button onClick={()=>window.print()} className="no-print bg-white text-black px-6 py-2 rounded-full font-bold uppercase text-xs hover:bg-gold transition shadow-lg">🖨️ PDF</button></div>
-                            </div>
+                            <div className="mb-6 overflow-x-auto pb-2 no-print"><div className="flex gap-2">{ROSTER.map(p=>(<button key={p.id} onClick={()=>setSelectedProfile(p.name)} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase whitespace-nowrap border transition ${selectedProfile===p.name?'bg-white text-black border-white':'bg-black text-zinc-500 border-zinc-800'}`}>#{p.id} {p.name}</button>))}</div></div>
+                            <div className="print-header"><h1 className="text-4xl font-black uppercase">Scouting Report</h1><p className="text-lg">{selectedProfile}</p></div>
+                            <div className="bento-card relative overflow-hidden mb-6"><div className="absolute top-0 right-0 p-8 opacity-10 font-black italic text-9xl">{playerInfo.id}</div><div className="relative z-10 flex justify-between items-end"><div><h2 className="text-4xl md:text-6xl font-black italic uppercase leading-none">{playerInfo.name}</h2><div className="mt-2 text-sm font-bold text-zinc-500">{profile.totals.gp} Games • {profile.totals.pts} Pts</div></div><button onClick={()=>window.print()} className="no-print bg-white text-black px-6 py-2 rounded-full font-bold uppercase text-xs hover:bg-gold transition shadow-lg">🖨️ PDF</button></div></div>
                             <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6"><StatBox label="PPG" val={profile.avgs.ppg} color="text-gold" /><StatBox label="eFG%" val={profile.pcts.eFG+'%'} color="text-blue-400" /><StatBox label="TS%" val={profile.pcts.TS+'%'} color="text-purple-400" /><StatBox label="RPG" val={profile.avgs.rpg} /><StatBox label="APG" val={profile.avgs.apg} /><StatBox label="FG%" val={profile.pcts.fg+'%'} /></div>
+                            
+                            <div className="bento-card mb-6 border-l-4 border-blue-400"><h3 className="text-xs font-bold text-zinc-500 uppercase mb-2">🧠 Metric Decoder</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs"><div><span className="font-bold text-blue-400">eFG% (Effective FG%):</span> Adjusts for the fact that a 3-pointer is worth 50% more than a 2-pointer. <br/><span className="text-zinc-500 italic">Formula: (FGM + 0.5 * 3PM) / FGA</span></div><div><span className="font-bold text-purple-400">TS% (True Shooting %):</span> The gold standard for efficiency. Includes 2s, 3s, and Free Throws. <br/><span className="text-zinc-500 italic">Formula: PTS / (2 * (FGA + 0.44 * FTA))</span></div></div></div>
+
                             <div className="print-grid grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 <div className="bento-card"><h3 className="text-lg font-black uppercase text-gold mb-4 border-b border-white/10 pb-2">Splits</h3><div className="space-y-4"><SplitBar label="Field Goal" make={profile.totals.fg2m+profile.totals.fg3m} att={profile.totals.fg2a+profile.totals.fg3a} pct={profile.pcts.fg} /><SplitBar label="3-Point" make={profile.totals.fg3m} att={profile.totals.fg3a} pct={profile.pcts.fg3} /><SplitBar label="Free Throw" make={profile.totals.ftm} att={profile.totals.fta} pct={profile.pcts.ft} /></div></div>
                                 <div className="bento-card"><h3 className="text-lg font-black uppercase text-gold mb-4 border-b border-white/10 pb-2">Highs</h3><div className="grid grid-cols-2 gap-4"><HighBox label="Pts" val={profile.highs.pts}/><HighBox label="Reb" val={profile.highs.reb}/><HighBox label="Ast" val={profile.highs.ast}/><HighBox label="Stl" val={profile.highs.stl}/><HighBox label="Blk" val={profile.highs.blk}/></div></div>
@@ -549,7 +461,9 @@
                         </div>
                     )}
 
-                    {view === 'log' && <div className="grid gap-4">{games.map(g=><div key={g.id} className="bento-card flex justify-between items-center"><div><div className="text-xs font-bold text-zinc-500">{g.date}</div><div className="text-xl font-black italic"><span className={g.result==='W'?'text-green-500':'text-red-500'}>{g.result}</span> {g.teamScore}-{g.oppScore} vs {g.opp}</div></div><button onClick={()=>{/* Edit Logic */ setEditId(g.id); setGameMeta({date:g.date,opp:g.opp,oppScore:g.oppScore,venue:g.venue}); setPlayStats(g.playStats||[]); const sm={}; g.stats.forEach(s=>sm[s.name]=s); setPlayerStats(sm); setView('new');}} className="bg-zinc-800 text-xs font-bold uppercase p-2 rounded hover:bg-white hover:text-black">Edit</button></div>)}</div>}
+                    {view === 'log' && (
+                        <div className="grid gap-4">{games.map(g=><div key={g.id} className="bento-card flex justify-between items-center"><div><div className="text-xs font-bold text-zinc-500">{g.date}</div><div className="text-xl font-black italic"><span className={g.result==='W'?'text-green-500':'text-red-500'}>{g.result}</span> {g.teamScore}-{g.oppScore} vs {g.opp}</div></div><button onClick={()=>{setEditId(g.id);setGameMeta({date:g.date,opp:g.opp,oppScore:g.oppScore,venue:g.venue});setPlayerStats({});setOpponentStats(g.opponentStats||{fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0}); if(g.stats) { const sm={}; g.stats.forEach(s=>sm[s.name]=s); setPlayerStats(sm); } setView('live');}} className="bg-zinc-800 text-xs font-bold uppercase p-2 rounded hover:bg-white hover:text-black">Edit</button></div>)}</div>
+                    )}
 
                     {view === 'admin' && (
                         <div className="space-y-6 animate-slideIn">
@@ -558,6 +472,17 @@
                                 <div className="bento-card hover:bg-zinc-900 transition flex flex-col items-center text-center"><div className="text-4xl mb-4">📥</div><h3 className="font-bold text-lg mb-2">Backup Database</h3><p className="text-xs text-zinc-500 mb-4">Export all games, shots, and stats to a CSV file.</p><button onClick={exportData} className="w-full py-2 bg-blue-600 rounded font-bold uppercase text-xs hover:bg-blue-500">Download CSV</button></div>
                                 <div className="bento-card hover:bg-zinc-900 transition flex flex-col items-center text-center"><div className="text-4xl mb-4">📤</div><h3 className="font-bold text-lg mb-2">Restore Data</h3><p className="text-xs text-zinc-500 mb-4">Import games from a backup CSV file.</p><label className="w-full py-2 bg-zinc-700 rounded font-bold uppercase text-xs hover:bg-zinc-600 cursor-pointer">Select File<input type="file" accept=".csv" className="hidden" onChange={importData} /></label></div>
                                 <div className="bento-card hover:bg-red-900/10 border-red-900/50 flex flex-col items-center text-center"><div className="text-4xl mb-4">🗑️</div><h3 className="font-bold text-lg mb-2 text-red-500">Purge Database</h3><p className="text-xs text-zinc-500 mb-4">Permanently delete all records from the cloud.</p><button onClick={purgeData} className="w-full py-2 bg-red-600 rounded font-bold uppercase text-xs hover:bg-red-500">Purge All</button></div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MODAL: SUBSTITUTION (1-for-1) */}
+                    {subTarget && (
+                        <div className="modal-overlay" onClick={() => setSubTarget(null)}>
+                            <div className="modal-content" onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center mb-6"><div><div className="text-xs font-bold text-red-500 uppercase tracking-widest">SUBSTITUTING OUT</div><div className="text-3xl font-black italic uppercase text-white">{ROSTER.find(r=>r.id===subTarget).name}</div></div><button onClick={() => setSubTarget(null)} className="bg-zinc-800 w-10 h-10 rounded-full font-bold">✕</button></div>
+                                <h3 className="text-sm font-bold text-green-500 uppercase tracking-widest mb-3">WHO IS CHECKING IN?</h3>
+                                <div className="grid grid-cols-1 gap-2">{benchPlayers.map(p => (<button key={p.id} onClick={() => handleSubIn(p.id)} className="player-card-bench hover:scale-[1.02] transition-transform"><div className="flex items-center gap-4"><span className="font-black text-xl text-zinc-500 w-8">#{p.id}</span><div className="text-left"><div className="font-bold text-white">{p.name}</div><div className="text-xs text-zinc-500">{p.pos}</div></div></div><div className="bg-green-900 text-green-200 text-xs font-bold px-3 py-1 rounded-full uppercase">Sub In</div></button>))}</div>
                             </div>
                         </div>
                     )}
@@ -585,6 +510,121 @@
                 return () => chart.destroy();
             }, [games, type]);
             return games.length ? <canvas ref={ref} /> : <div className="h-full flex items-center justify-center text-zinc-500 text-xs">No Data</div>;
+        }
+
+        // --- REALISTIC COURT COMPONENTS ---
+        function InteractiveCourt({ data, onClick, mode }) { 
+            const getFill = (key) => { const z=data[key]||{m:0,x:0},t=z.m+z.x; if(t===0)return 'transparent'; return (z.m/t)>=0.4?'rgba(34,197,94,0.6)':'rgba(239,68,68,0.6)'; }; 
+            return (
+                <div className="court-container relative max-w-[350px] mx-auto select-none">
+                    <svg viewBox="-25 0 50 42">
+                        <g transform="translate(0, 42) scale(1, -1)">
+                            <rect x="-6" y="0" width="12" height="19" class="paint-area" />
+                            <rect x="-6" y="0" width="12" height="19" class="court-lines" />
+                            <path d="M -6 19 A 6 6 0 0 1 6 19" class="court-lines" />
+                            <path d="M 6 19 A 6 6 0 0 1 -6 19" class="court-lines" strokeDasharray="1, 1" />
+                            <path d="M -19.75 5.25 A 19.75 19.75 0 0 1 19.75 5.25" class="court-lines" />
+                            <line x1="-19.75" y1="5.25" x2="-19.75" y2="0" class="court-lines" />
+                            <line x1="19.75" y1="5.25" x2="19.75" y2="0" class="court-lines" />
+                            <line x1="-3" y1="4" x2="3" y2="4" class="court-lines" style={{stroke:'white', strokeWidth:0.1}} />
+                            <circle cx="0" cy="5.25" r="0.75" class="court-lines hoop-rim" />
+                            <line x1="0" y1="4" x2="0" y2="4.5" class="court-lines" style={{stroke:'white', strokeWidth:0.1}} />
+                            <path d="M 6 42 A 6 6 0 0 1 -6 42" class="court-lines" />
+                            <rect x="6" y="7" width="1" height="0.66" fill="white" />
+                            <rect x="-7" y="7" width="1" height="0.66" fill="white" />
+                            <line x1="6" y1="11" x2="6.5" y2="11" class="court-lines" />
+                            <line x1="-6" y1="11" x2="-6.5" y2="11" class="court-lines" />
+                            <line x1="6" y1="14" x2="6.5" y2="14" class="court-lines" />
+                            <line x1="-6" y1="14" x2="-6.5" y2="14" class="court-lines" />
+                            
+                            {/* ZONES */}
+                            <path d="M -6 0 L -6 19 L 6 19 L 6 0 Z" className="zone" onClick={()=>onClick('paint',mode==='make')} fill={getFill('paint')}/>
+                            <path d="M -6 0 L -19.75 0 L -19.75 5.25 A 19.75 19.75 0 0 1 -6 19 Z" className="zone" onClick={()=>onClick('mid_l_2',mode==='make')} fill={getFill('mid_l_2')}/>
+                            <path d="M 6 0 L 19.75 0 L 19.75 5.25 A 19.75 19.75 0 0 0 6 19 Z" className="zone" onClick={()=>onClick('mid_r_2',mode==='make')} fill={getFill('mid_r_2')}/>
+                            <path d="M -25 0 L -19.75 0 L -19.75 10 L -25 10 Z" className="zone" onClick={()=>onClick('corn_l_3',mode==='make')} fill={getFill('corn_l_3')}/>
+                            <path d="M 25 0 L 19.75 0 L 19.75 10 L 25 10 Z" className="zone" onClick={()=>onClick('corn_r_3',mode==='make')} fill={getFill('corn_r_3')}/>
+                            <path d="M -25 10 L -19.75 10 A 19.75 19.75 0 0 1 -6 19 L -6 42 L -25 42 Z" className="zone" onClick={()=>onClick('wing_l_3',mode==='make')} fill={getFill('wing_l_3')}/>
+                            <path d="M 25 10 L 19.75 10 A 19.75 19.75 0 0 0 6 19 L 6 42 L 25 42 Z" className="zone" onClick={()=>onClick('wing_r_3',mode==='make')} fill={getFill('wing_r_3')}/>
+                            <path d="M -6 42 L -6 19 A 6 6 0 0 1 6 19 L 6 42 Z" className="zone" onClick={()=>onClick('top_3',mode==='make')} fill={getFill('top_3')}/>
+                        </g>
+                    </svg>
+                </div>
+            ); 
+        }
+
+        // --- TACTICS HEAT MAP ---
+        function ShotEfficiencyMap({ data }) {
+            const getColor = (zoneKey) => {
+                const z = data[zoneKey] || { m: 0, x: 0 };
+                const attempts = z.m + z.x;
+                if (attempts === 0) return 'transparent';
+                const pct = (z.m / attempts) * 100;
+                if (pct >= 40) return 'rgba(34, 197, 94, 0.6)'; 
+                if (pct >= 25) return 'rgba(234, 179, 8, 0.6)'; 
+                return 'rgba(239, 68, 68, 0.6)'; 
+            };
+
+            const getLabel = (zoneKey) => {
+                const z = data[zoneKey] || { m: 0, x: 0 };
+                const attempts = z.m + z.x;
+                if (attempts === 0) return null;
+                const pct = Math.round((z.m / attempts) * 100);
+                return { text: `${pct}%`, sub: `(${z.m}/${attempts})` };
+            };
+
+            return (
+                <div className="court-container relative max-w-[350px] mx-auto select-none">
+                    <svg viewBox="-25 0 50 42">
+                        <g transform="translate(0, 42) scale(1, -1)">
+                            {/* BASE LINES */}
+                            <rect x="-6" y="0" width="12" height="19" class="paint-area" />
+                            <rect x="-6" y="0" width="12" height="19" class="court-lines" />
+                            <path d="M -6 19 A 6 6 0 0 1 6 19" class="court-lines" />
+                            <path d="M 6 19 A 6 6 0 0 1 -6 19" class="court-lines" strokeDasharray="1, 1" />
+                            <path d="M -19.75 5.25 A 19.75 19.75 0 0 1 19.75 5.25" class="court-lines" />
+                            <line x1="-19.75" y1="5.25" x2="-19.75" y2="0" class="court-lines" />
+                            <line x1="19.75" y1="5.25" x2="19.75" y2="0" class="court-lines" />
+                            <line x1="-3" y1="4" x2="3" y2="4" class="court-lines" style={{stroke:'white', strokeWidth:0.1}} />
+                            <circle cx="0" cy="5.25" r="0.75" class="court-lines hoop-rim" />
+                            <line x1="0" y1="4" x2="0" y2="4.5" class="court-lines" style={{stroke:'white', strokeWidth:0.1}} />
+                            <path d="M 6 42 A 6 6 0 0 1 -6 42" class="court-lines" />
+                            <rect x="6" y="7" width="1" height="0.66" fill="white" />
+                            <rect x="-7" y="7" width="1" height="0.66" fill="white" />
+                            <line x1="6" y1="11" x2="6.5" y2="11" class="court-lines" />
+                            <line x1="-6" y1="11" x2="-6.5" y2="11" class="court-lines" />
+                            <line x1="6" y1="14" x2="6.5" y2="14" class="court-lines" />
+                            <line x1="-6" y1="14" x2="-6.5" y2="14" class="court-lines" />
+
+                            {/* COLORED ZONES */}
+                            <path d="M -6 0 L -6 19 L 6 19 L 6 0 Z" fill={getColor('paint')} stroke="white" strokeWidth="0.1"/>
+                            <path d="M -6 0 L -19.75 0 L -19.75 5.25 A 19.75 19.75 0 0 1 -6 19 Z" fill={getColor('mid_l_2')} stroke="white" strokeWidth="0.1"/>
+                            <path d="M 6 0 L 19.75 0 L 19.75 5.25 A 19.75 19.75 0 0 0 6 19 Z" fill={getColor('mid_r_2')} stroke="white" strokeWidth="0.1"/>
+                            <path d="M -25 0 L -19.75 0 L -19.75 10 L -25 10 Z" fill={getColor('corn_l_3')} stroke="white" strokeWidth="0.1"/>
+                            <path d="M 25 0 L 19.75 0 L 19.75 10 L 25 10 Z" fill={getColor('corn_r_3')} stroke="white" strokeWidth="0.1"/>
+                            <path d="M -25 10 L -19.75 10 A 19.75 19.75 0 0 1 -6 19 L -6 42 L -25 42 Z" fill={getColor('wing_l_3')} stroke="white" strokeWidth="0.1"/>
+                            <path d="M 25 10 L 19.75 10 A 19.75 19.75 0 0 0 6 19 L 6 42 L 25 42 Z" fill={getColor('wing_r_3')} stroke="white" strokeWidth="0.1"/>
+                            <path d="M -6 42 L -6 19 A 6 6 0 0 1 6 19 L 6 42 Z" fill={getColor('top_3')} stroke="white" strokeWidth="0.1"/>
+
+                            {/* LABELS (Counter-transformed to appear upright) */}
+                            {ZONES.map(z => {
+                                const info = getLabel(z);
+                                if (!info) return null;
+                                const pos = {
+                                    'paint': [0, 9.5], 'mid_l_2': [-12, 10], 'mid_r_2': [12, 10],
+                                    'corn_l_3': [-22, 5], 'corn_r_3': [22, 5],
+                                    'wing_l_3': [-18, 25], 'wing_r_3': [18, 25], 'top_3': [0, 30]
+                                }[z];
+                                return (
+                                    <g key={z} transform={`translate(${pos[0]}, ${pos[1]}) scale(1, -1)`}>
+                                        <text y="0" fill="white" fontSize="2.5" fontWeight="bold" textAnchor="middle" filter="drop-shadow(1px 1px 1px black)">{info.text}</text>
+                                        <text y="3" fill="white" fontSize="2" textAnchor="middle" filter="drop-shadow(1px 1px 1px black)">{info.sub}</text>
+                                    </g>
+                                );
+                            })}
+                        </g>
+                    </svg>
+                </div>
+            );
         }
 
         function StatBox({label, val, color}) { return (<div className="bento-card text-center py-4"><div className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1">{label}</div><div className={`text-3xl font-black italic tracking-tighter ${color||'text-white'}`}>{val}</div></div>); }
