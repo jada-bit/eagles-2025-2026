@@ -33,6 +33,16 @@
         .stat-input { background: #111; border: 1px solid #333; color: white; padding: 4px; text-align: center; border-radius: 6px; width: 100%; font-weight: bold; }
         .stat-input:focus { border-color: var(--gold); outline: none; background: #222; }
         
+        /* COURT STYLES */
+        .court-container svg { background-color: #dcb386; border: 2px solid #333; display: block; width: 100%; }
+        .court-lines { fill: none; stroke: white; stroke-width: 0.5; vector-effect: non-scaling-stroke; }
+        .paint-area { fill: #c04e01; fill-opacity: 0.3; }
+        .hoop-rim { stroke: #ff4500; stroke-width: 0.25; }
+        
+        /* ZONES */
+        .zone { cursor: pointer; transition: 0.2s; opacity: 0; fill: transparent; stroke: none; }
+        .zone:hover { opacity: 0.5; fill: #FFB81C; stroke: white; stroke-width: 0.5; }
+
         /* CHAT UI */
         .chat-bubble { padding: 12px 16px; border-radius: 12px; margin-bottom: 10px; max-width: 85%; font-size: 14px; line-height: 1.5; animation: slideIn 0.2s; white-space: pre-wrap; }
         .chat-user { background: #333; align-self: flex-end; margin-left: auto; color: white; border-bottom-right-radius: 2px; }
@@ -83,7 +93,8 @@
             {id: 0, name: "Bela Smith", pos: "G/F"}
         ];
         const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','blk','to'];
-        
+        const ZONES = ['top_3', 'wing_l_3', 'wing_r_3', 'corn_l_3', 'corn_r_3', 'mid_l_2', 'mid_r_2', 'paint'];
+
         // --- MAIN APP COMPONENT ---
         function App() {
             // STATE
@@ -95,14 +106,14 @@
             // DATA ENTRY
             const [gameMeta, setGameMeta] = React.useState({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0, venue: 'Home' });
             const [playerStats, setPlayerStats] = React.useState({});
-            // ShotMap state kept for data compatibility, though unused in UI
-            const [shotMap, setShotMap] = React.useState({ eagles: {}, opp: {} });
+            const [shotMap, setShotMap] = React.useState({ eagles: ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}), opp: {} });
             const [playStats, setPlayStats] = React.useState([
                 { id: 'trans', name: 'TRANSITION', att: 0, made: 0, pts: 0 },
                 { id: 'broken', name: 'BROKEN PLAY', att: 0, made: 0, pts: 0 },
                 { id: 'motion', name: 'Motion Offense', att: 0, made: 0, pts: 0 }
             ]);
             const [newPlayName, setNewPlayName] = React.useState('');
+            const [shotMode, setShotMode] = React.useState('make');
             const [editId, setEditId] = React.useState(null);
 
             // SEARCH / AI STATE
@@ -142,7 +153,7 @@
 
                 if (userQ.includes('best player') || userQ.includes('mvp') || userQ.includes('overall')) {
                     const sorted = [...stats].sort((a,b) => getImpact(b) - getImpact(a));
-                    response = `🏆 MVP: ${sorted[0].name}\nImpact Rating: ${getImpact(sorted[0]).toFixed(1)}`;
+                    response = `🏆 MVP: ${sorted[0].name}\nImpact Rating: ${getImpact(sorted[0]).toFixed(1)}\nRunner Up: ${sorted[1].name}`;
                 }
                 else if (userQ.includes('last shot') || userQ.includes('clutch')) {
                     const pick = [...stats].sort((a,b) => (parseFloat(b.ppg) + (b.fgPct*0.2) + (b.ftPct*0.1)) - (parseFloat(a.ppg) + (a.fgPct*0.2) + (a.ftPct*0.1)))[0];
@@ -192,7 +203,7 @@
                 setChatHistory([...newHistory, {role: 'bot', text: response}]);
             };
 
-            // --- SMART VALIDATION HANDLERS ---
+            // --- SMART VALIDATION HANDLERS (FULL) ---
             const updatePlayerStat = (player, field, value) => {
                 const safeVal = Math.max(0, parseInt(value) || 0);
                 const currentStats = playerStats[player] || {};
@@ -270,10 +281,23 @@
                 }));
                 return Object.values(totals).map(t => {
                     const g = t.games || 1;
+                    const totalFGM = t.fg2m + t.fg3m;
+                    const totalFGA = t.fg2a + t.fg3a;
+                    
+                    // Advanced Metrics
+                    const eFG = totalFGA > 0 ? ((totalFGM + (0.5 * t.fg3m)) / totalFGA) * 100 : 0;
+                    const tsDiv = 2 * (totalFGA + (0.44 * t.fta));
+                    const TS = tsDiv > 0 ? (t.pts / tsDiv) * 100 : 0;
+
                     return {
-                        ...t, ppg:(t.pts/g).toFixed(1), rpg:(t.reb/g).toFixed(1), apg:(t.ast/g).toFixed(1), spg:(t.stl/g).toFixed(1), bpg:(t.blk/g).toFixed(1), topg:(t.to/g).toFixed(1),
-                        fgPct:(t.fg2a+t.fg3a)>0?Math.round(((t.fg2m+t.fg3m)/(t.fg2a+t.fg3a))*100):0,
-                        fg3Pct:t.fg3a>0?Math.round((t.fg3m/t.fg3a)*100):0, ftPct:t.fta>0?Math.round((t.ftm/t.fta)*100):0,
+                        ...t, 
+                        ppg:(t.pts/g).toFixed(1), rpg:(t.reb/g).toFixed(1), apg:(t.ast/g).toFixed(1), 
+                        spg:(t.stl/g).toFixed(1), bpg:(t.blk/g).toFixed(1), topg:(t.to/g).toFixed(1),
+                        fgPct:totalFGA>0?Math.round((totalFGM/totalFGA)*100):0,
+                        fg3Pct:t.fg3a>0?Math.round((t.fg3m/t.fg3a)*100):0, 
+                        ftPct:t.fta>0?Math.round((t.ftm/t.fta)*100):0,
+                        eFG: Math.round(eFG),
+                        TS: Math.round(TS),
                         to: t.to, ast: t.ast
                     };
                 }).sort((a,b) => { const aVal = parseFloat(a[sortConfig.key])||0, bVal = parseFloat(b[sortConfig.key])||0; return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal; });
@@ -282,9 +306,10 @@
             const getTacticalData = () => {
                 let targetGames = tacticsFilter === 'season' ? games : games.filter(g => g.id === tacticsFilter);
                 const aggPlays = {};
-                const aggMap = {}; // Placeholder if map logic is needed later
+                const aggMap = ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {});
                 targetGames.forEach(g => {
                     if(g.playStats) g.playStats.forEach(p => { if(!aggPlays[p.name]) aggPlays[p.name] = { name: p.name, att: 0, made: 0, pts: 0 }; aggPlays[p.name].att += (p.att || 0); aggPlays[p.name].made += (p.made || 0); aggPlays[p.name].pts += (p.pts || (p.made*2) || 0); });
+                    if(g.shotMap && g.shotMap.eagles) ZONES.forEach(z => { const zone = g.shotMap.eagles[z] || {m:0, x:0}; aggMap[z].m += zone.m; aggMap[z].x += zone.x; });
                 });
                 return { plays: Object.values(aggPlays), map: aggMap };
             };
@@ -301,7 +326,24 @@
                     if(pts>highs.pts) highs.pts=pts; if((s.reb||0)>highs.reb) highs.reb=s.reb; if((s.ast||0)>highs.ast) highs.ast=s.ast; if((s.stl||0)>highs.stl) highs.stl=s.stl; if((s.blk||0)>highs.blk) highs.blk=s.blk;
                 });
                 const gp = totals.gp || 1;
-                return { totals, highs, games: pGames, avgs: { ppg:(totals.pts/gp).toFixed(1), rpg:(totals.reb/gp).toFixed(1), apg:(totals.ast/gp).toFixed(1), spg:(totals.stl/gp).toFixed(1), bpg:(totals.blk/gp).toFixed(1), topg:(totals.to/gp).toFixed(1) }, pcts: { fg:(totals.fg2a+totals.fg3a)>0?Math.round(((totals.fg2m+totals.fg3m)/(totals.fg2a+totals.fg3a))*100):0, fg2:totals.fg2a>0?Math.round((totals.fg2m/totals.fg2a)*100):0, fg3:totals.fg3a>0?Math.round((totals.fg3m/totals.fg3a)*100):0, ft:totals.fta>0?Math.round((totals.ftm/totals.fta)*100):0 } };
+                const totalFGM = totals.fg2m + totals.fg3m;
+                const totalFGA = totals.fg2a + totals.fg3a;
+                const eFG = totalFGA > 0 ? ((totalFGM + (0.5 * totals.fg3m)) / totalFGA) * 100 : 0;
+                const tsDiv = 2 * (totalFGA + (0.44 * totals.fta));
+                const TS = tsDiv > 0 ? (totals.pts / tsDiv) * 100 : 0;
+
+                return { 
+                    totals, highs, games: pGames, 
+                    avgs: { ppg:(totals.pts/gp).toFixed(1), rpg:(totals.reb/gp).toFixed(1), apg:(totals.ast/gp).toFixed(1), spg:(totals.stl/gp).toFixed(1), bpg:(totals.blk/gp).toFixed(1), topg:(totals.to/gp).toFixed(1) }, 
+                    pcts: { 
+                        fg:totalFGA>0?Math.round((totalFGM/totalFGA)*100):0, 
+                        fg2:totals.fg2a>0?Math.round((totals.fg2m/totals.fg2a)*100):0, 
+                        fg3:totals.fg3a>0?Math.round((totals.fg3m/totals.fg3a)*100):0, 
+                        ft:totals.fta>0?Math.round((totals.ftm/totals.fta)*100):0,
+                        eFG: Math.round(eFG),
+                        TS: Math.round(TS)
+                    } 
+                };
             };
 
             const generateAlerts = () => {
@@ -421,7 +463,8 @@
                                     <div className="flex gap-2 mt-4"><input className="bg-black border border-zinc-700 rounded p-2 text-xs flex-1 text-white font-bold" placeholder="New Play..." value={newPlayName} onChange={e=>setNewPlayName(e.target.value)} /><button onClick={()=>{if(newPlayName){setPlayStats([...playStats,{id:Date.now(),name:newPlayName,att:0,made:0,pts:0}]);setNewPlayName('');}}} className="bg-gold text-black font-bold text-xs px-3 rounded uppercase">Add</button></div>
                                 </div>
                                 <div className="lg:col-span-8 bento-card">
-                                    <div className="flex justify-between mb-4"><h3 className="font-black text-gold uppercase">Input</h3></div>
+                                    <div className="flex justify-between mb-4"><h3 className="font-black text-gold uppercase">Input</h3><div className="flex bg-black rounded border border-zinc-800 p-1"><button onClick={()=>setShotMode('make')} className={`px-3 py-1 text-[10px] font-black uppercase rounded ${shotMode==='make'?'bg-green-600 text-white':'text-zinc-500'}`}>Make</button><button onClick={()=>setShotMode('miss')} className={`px-3 py-1 text-[10px] font-black uppercase rounded ${shotMode==='miss'?'bg-red-600 text-white':'text-zinc-500'}`}>Miss</button></div></div>
+                                    <InteractiveCourt data={shotMap.eagles} mode={shotMode} onClick={(z,m)=>{const c=shotMap.eagles[z]||{m:0,x:0};setShotMap({...shotMap,eagles:{...shotMap.eagles,[z]:{m:c.m+(m?1:0),x:c.x+(m?0:1)}}})}} />
                                     <div className="overflow-x-auto mt-4"><table className="w-full text-xs"><thead><tr className="text-zinc-500 border-b border-zinc-800"><th className="p-2 text-left">PLAYER</th>{STAT_FIELDS.map(f=><th key={f} className="p-1 uppercase text-center">{f.replace('fg','').replace('m','')}</th>)}</tr></thead><tbody>{ROSTER.map(p=>{const s=playerStats[p.name]||{};return(<tr key={p.id} className="border-b border-white/5"><td className="p-2 font-bold whitespace-nowrap">{p.name}</td>{STAT_FIELDS.map(f=><td key={f} className="p-1"><input type="number" className="stat-input" value={s[f]||''} onChange={e=>updatePlayerStat(p.name, f, e.target.value)}/></td>)}</tr>)})}</tbody></table></div>
                                 </div>
                             </div>
@@ -478,18 +521,19 @@
                                 <label className="text-xs font-bold text-zinc-500 uppercase mr-3">Data Source:</label>
                                 <select className="bg-black text-white font-bold text-xs p-2 rounded border border-zinc-700 flex-1" value={tacticsFilter} onChange={e=>setTacticsFilter(e.target.value)}><option value="season">FULL SEASON AGGREGATE</option><optgroup label="Single Games">{games.map(g => <option key={g.id} value={g.id}>{g.date} vs {g.opp}</option>)}</optgroup></select>
                             </div>
-                            <div className="grid grid-cols-1 gap-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 <div className="bento-card h-full">
                                     <h3 className="text-xl font-black text-gold uppercase italic mb-4">Set Play Efficiency</h3>
                                     <div className="space-y-1">{tactics.plays.sort((a,b)=>((b.pts/b.att)||-1)-((a.pts/a.att)||-1)).map((p,i)=>(<div key={i} className="flex justify-between p-3 bg-zinc-900/50 rounded items-center"><span className="font-bold text-sm">{p.name}</span><div className="text-right"><div className="font-black text-gold text-lg">{(p.att>0?p.pts/p.att:0).toFixed(2)} PPP</div><div className="text-[10px] text-zinc-500">{p.made}/{p.att} ({p.att>0?Math.round((p.made/p.att)*100):0}%)</div></div></div>))}</div>
                                 </div>
+                                <div className="bento-card"><h3 className="text-xl font-black text-gold uppercase italic mb-6">Shot Efficiency</h3><ShotEfficiencyMap data={tactics.map} /></div>
                             </div>
                         </div>
                     )}
 
                     {view === 'stats' && (
                         <div className="bento-card overflow-hidden animate-slideIn">
-                             <div className="overflow-x-auto"><table className="w-full text-left border-collapse stat-table"><thead><tr><th onClick={()=>handleSort('name')}>Player</th><th onClick={()=>handleSort('ppg')} className="text-gold">PPG</th><th onClick={()=>handleSort('rpg')}>RPG</th><th onClick={()=>handleSort('apg')}>APG</th><th onClick={()=>handleSort('spg')}>SPG</th><th onClick={()=>handleSort('bpg')}>BPG</th><th onClick={()=>handleSort('topg')} className="text-red-400">TO</th><th onClick={()=>handleSort('fgPct')}>FG%</th><th onClick={()=>handleSort('fg3Pct')}>3P%</th><th onClick={()=>handleSort('ftPct')}>FT%</th></tr></thead><tbody className="text-xs font-bold divide-y divide-white/5">{seasonStats.map(p=>(<tr key={p.name} className="stat-row"><td className="p-3 sticky left-0 bg-zinc-900/50">{p.name}</td><td className="p-3 text-gold stat-val">{p.ppg}</td><td className="p-3 stat-val">{p.rpg}</td><td className="p-3 stat-val">{p.apg}</td><td className="p-3 stat-val">{p.spg}</td><td className="p-3 stat-val">{p.bpg}</td><td className="p-3 stat-val text-zinc-400">{p.topg}</td><td className="p-3 stat-val">{p.fgPct}%</td><td className="p-3 stat-val">{p.fg3Pct}%</td><td className="p-3 stat-val">{p.ftPct}%</td></tr>))}</tbody></table></div>
+                             <div className="overflow-x-auto"><table className="w-full text-left border-collapse stat-table"><thead><tr><th onClick={()=>handleSort('name')}>Player</th><th onClick={()=>handleSort('ppg')} className="text-gold">PPG</th><th onClick={()=>handleSort('rpg')}>RPG</th><th onClick={()=>handleSort('apg')}>APG</th><th onClick={()=>handleSort('spg')}>SPG</th><th onClick={()=>handleSort('bpg')}>BPG</th><th onClick={()=>handleSort('topg')} className="text-red-400">TO</th><th onClick={()=>handleSort('fgPct')}>FG%</th><th onClick={()=>handleSort('eFG')} className="text-blue-400">eFG%</th><th onClick={()=>handleSort('TS')} className="text-purple-400">TS%</th></tr></thead><tbody className="text-xs font-bold divide-y divide-white/5">{seasonStats.map(p=>(<tr key={p.name} className="stat-row"><td className="p-3 sticky left-0 bg-zinc-900/50">{p.name}</td><td className="p-3 text-gold stat-val">{p.ppg}</td><td className="p-3 stat-val">{p.rpg}</td><td className="p-3 stat-val">{p.apg}</td><td className="p-3 stat-val">{p.spg}</td><td className="p-3 stat-val">{p.bpg}</td><td className="p-3 stat-val text-zinc-400">{p.topg}</td><td className="p-3 stat-val">{p.fgPct}%</td><td className="p-3 stat-val text-blue-400">{p.eFG}%</td><td className="p-3 stat-val text-purple-400">{p.TS}%</td></tr>))}</tbody></table></div>
                         </div>
                     )}
 
@@ -516,7 +560,17 @@
                                 <div className="absolute top-0 right-0 p-8 opacity-10 font-black italic text-9xl">{playerInfo.id}</div>
                                 <div className="relative z-10 flex justify-between items-end"><div><h2 className="text-4xl md:text-6xl font-black italic uppercase leading-none">{playerInfo.name}</h2><div className="mt-2 text-sm font-bold text-zinc-500">{profile.totals.gp} Games • {profile.totals.pts} Pts</div></div><button onClick={()=>window.print()} className="no-print bg-white text-black px-6 py-2 rounded-full font-bold uppercase text-xs hover:bg-gold transition shadow-lg">🖨️ PDF</button></div>
                             </div>
-                            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6"><StatBox label="PPG" val={profile.avgs.ppg} color="text-gold" /><StatBox label="RPG" val={profile.avgs.rpg} /><StatBox label="APG" val={profile.avgs.apg} /><StatBox label="SPG" val={profile.avgs.spg} /><StatBox label="FG%" val={profile.pcts.fg+'%'} /><StatBox label="3PT%" val={profile.pcts.fg3+'%'} /></div>
+                            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6"><StatBox label="PPG" val={profile.avgs.ppg} color="text-gold" /><StatBox label="eFG%" val={profile.pcts.eFG+'%'} color="text-blue-400" /><StatBox label="TS%" val={profile.pcts.TS+'%'} color="text-purple-400" /><StatBox label="RPG" val={profile.avgs.rpg} /><StatBox label="APG" val={profile.avgs.apg} /><StatBox label="FG%" val={profile.pcts.fg+'%'} /></div>
+                            
+                            {/* METRIC DECODER */}
+                            <div className="bento-card mb-6 border-l-4 border-blue-400">
+                                <h3 className="text-xs font-bold text-zinc-500 uppercase mb-2">🧠 Metric Decoder</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                    <div><span className="font-bold text-blue-400">eFG% (Effective FG%):</span> Adjusts for the fact that a 3-pointer is worth 50% more than a 2-pointer. <br/><span className="text-zinc-500 italic">Formula: (FGM + 0.5 * 3PM) / FGA</span></div>
+                                    <div><span className="font-bold text-purple-400">TS% (True Shooting %):</span> The gold standard for efficiency. Includes 2s, 3s, and Free Throws. <br/><span className="text-zinc-500 italic">Formula: PTS / (2 * (FGA + 0.44 * FTA))</span></div>
+                                </div>
+                            </div>
+
                             <div className="print-grid grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 <div className="bento-card"><h3 className="text-lg font-black uppercase text-gold mb-4 border-b border-white/10 pb-2">Splits</h3><div className="space-y-4"><SplitBar label="Field Goal" make={profile.totals.fg2m+profile.totals.fg3m} att={profile.totals.fg2a+profile.totals.fg3a} pct={profile.pcts.fg} /><SplitBar label="3-Point" make={profile.totals.fg3m} att={profile.totals.fg3a} pct={profile.pcts.fg3} /><SplitBar label="Free Throw" make={profile.totals.ftm} att={profile.totals.fta} pct={profile.pcts.ft} /></div></div>
                                 <div className="bento-card"><h3 className="text-lg font-black uppercase text-gold mb-4 border-b border-white/10 pb-2">Highs</h3><div className="grid grid-cols-2 gap-4"><HighBox label="Pts" val={profile.highs.pts}/><HighBox label="Reb" val={profile.highs.reb}/><HighBox label="Ast" val={profile.highs.ast}/><HighBox label="Stl" val={profile.highs.stl}/><HighBox label="Blk" val={profile.highs.blk}/></div></div>
@@ -562,6 +616,120 @@
                 return () => chart.destroy();
             }, [games, type]);
             return games.length ? <canvas ref={ref} /> : <div className="h-full flex items-center justify-center text-zinc-500 text-xs">No Data</div>;
+        }
+
+        // --- REALISTIC COURT COMPONENTS ---
+        function InteractiveCourt({ data, onClick, mode }) { 
+            const getFill = (key) => { const z=data[key]||{m:0,x:0},t=z.m+z.x; if(t===0)return 'transparent'; return (z.m/t)>=0.4?'rgba(34,197,94,0.6)':'rgba(239,68,68,0.6)'; }; 
+            return (
+                <div className="court-container relative max-w-[350px] mx-auto select-none">
+                    <svg viewBox="-25 0 50 42">
+                        <g transform="translate(0, 42) scale(1, -1)">
+                            <rect x="-6" y="0" width="12" height="19" class="paint-area" />
+                            <rect x="-6" y="0" width="12" height="19" class="court-lines" />
+                            <path d="M -6 19 A 6 6 0 0 1 6 19" class="court-lines" />
+                            <path d="M 6 19 A 6 6 0 0 1 -6 19" class="court-lines" strokeDasharray="1, 1" />
+                            <path d="M -19.75 5.25 A 19.75 19.75 0 0 1 19.75 5.25" class="court-lines" />
+                            <line x1="-19.75" y1="5.25" x2="-19.75" y2="0" class="court-lines" />
+                            <line x1="19.75" y1="5.25" x2="19.75" y2="0" class="court-lines" />
+                            <line x1="-3" y1="4" x2="3" y2="4" class="court-lines" style={{stroke:'white', strokeWidth:0.1}} />
+                            <circle cx="0" cy="5.25" r="0.75" class="court-lines hoop-rim" />
+                            <line x1="0" y1="4" x2="0" y2="4.5" class="court-lines" style={{stroke:'white', strokeWidth:0.1}} />
+                            <path d="M 6 42 A 6 6 0 0 1 -6 42" class="court-lines" />
+                            <rect x="6" y="7" width="1" height="0.66" fill="white" />
+                            <rect x="-7" y="7" width="1" height="0.66" fill="white" />
+                            <line x1="6" y1="11" x2="6.5" y2="11" class="court-lines" />
+                            <line x1="-6" y1="11" x2="-6.5" y2="11" class="court-lines" />
+                            <line x1="6" y1="14" x2="6.5" y2="14" class="court-lines" />
+                            <line x1="-6" y1="14" x2="-6.5" y2="14" class="court-lines" />
+                            {/* ZONES */}
+                            <path d="M -6 0 L -6 19 L 6 19 L 6 0 Z" className="zone" onClick={()=>onClick('paint',mode==='make')} fill={getFill('paint')}/>
+                            <path d="M -6 0 L -19.75 0 L -19.75 5.25 A 19.75 19.75 0 0 1 -6 19 Z" className="zone" onClick={()=>onClick('mid_l_2',mode==='make')} fill={getFill('mid_l_2')}/>
+                            <path d="M 6 0 L 19.75 0 L 19.75 5.25 A 19.75 19.75 0 0 0 6 19 Z" className="zone" onClick={()=>onClick('mid_r_2',mode==='make')} fill={getFill('mid_r_2')}/>
+                            <path d="M -25 0 L -19.75 0 L -19.75 10 L -25 10 Z" className="zone" onClick={()=>onClick('corn_l_3',mode==='make')} fill={getFill('corn_l_3')}/>
+                            <path d="M 25 0 L 19.75 0 L 19.75 10 L 25 10 Z" className="zone" onClick={()=>onClick('corn_r_3',mode==='make')} fill={getFill('corn_r_3')}/>
+                            <path d="M -25 10 L -19.75 10 A 19.75 19.75 0 0 1 -6 19 L -6 42 L -25 42 Z" className="zone" onClick={()=>onClick('wing_l_3',mode==='make')} fill={getFill('wing_l_3')}/>
+                            <path d="M 25 10 L 19.75 10 A 19.75 19.75 0 0 0 6 19 L 6 42 L 25 42 Z" className="zone" onClick={()=>onClick('wing_r_3',mode==='make')} fill={getFill('wing_r_3')}/>
+                            <path d="M -6 42 L -6 19 A 6 6 0 0 1 6 19 L 6 42 Z" className="zone" onClick={()=>onClick('top_3',mode==='make')} fill={getFill('top_3')}/>
+                        </g>
+                    </svg>
+                </div>
+            ); 
+        }
+
+        // --- TACTICS HEAT MAP ---
+        function ShotEfficiencyMap({ data }) {
+            const getColor = (zoneKey) => {
+                const z = data[zoneKey] || { m: 0, x: 0 };
+                const attempts = z.m + z.x;
+                if (attempts === 0) return 'transparent';
+                const pct = (z.m / attempts) * 100;
+                if (pct >= 40) return 'rgba(34, 197, 94, 0.6)'; 
+                if (pct >= 25) return 'rgba(234, 179, 8, 0.6)'; 
+                return 'rgba(239, 68, 68, 0.6)'; 
+            };
+
+            const getLabel = (zoneKey) => {
+                const z = data[zoneKey] || { m: 0, x: 0 };
+                const attempts = z.m + z.x;
+                if (attempts === 0) return null;
+                const pct = Math.round((z.m / attempts) * 100);
+                return { text: `${pct}%`, sub: `(${z.m}/${attempts})` };
+            };
+
+            return (
+                <div className="court-container relative max-w-[350px] mx-auto select-none">
+                    <svg viewBox="-25 0 50 42">
+                        <g transform="translate(0, 42) scale(1, -1)">
+                            {/* BASE LINES */}
+                            <rect x="-6" y="0" width="12" height="19" class="paint-area" />
+                            <rect x="-6" y="0" width="12" height="19" class="court-lines" />
+                            <path d="M -6 19 A 6 6 0 0 1 6 19" class="court-lines" />
+                            <path d="M 6 19 A 6 6 0 0 1 -6 19" class="court-lines" strokeDasharray="1, 1" />
+                            <path d="M -19.75 5.25 A 19.75 19.75 0 0 1 19.75 5.25" class="court-lines" />
+                            <line x1="-19.75" y1="5.25" x2="-19.75" y2="0" class="court-lines" />
+                            <line x1="19.75" y1="5.25" x2="19.75" y2="0" class="court-lines" />
+                            <line x1="-3" y1="4" x2="3" y2="4" class="court-lines" style={{stroke:'white', strokeWidth:0.1}} />
+                            <circle cx="0" cy="5.25" r="0.75" class="court-lines hoop-rim" />
+                            <line x1="0" y1="4" x2="0" y2="4.5" class="court-lines" style={{stroke:'white', strokeWidth:0.1}} />
+                            <path d="M 6 42 A 6 6 0 0 1 -6 42" class="court-lines" />
+                            <rect x="6" y="7" width="1" height="0.66" fill="white" />
+                            <rect x="-7" y="7" width="1" height="0.66" fill="white" />
+                            <line x1="6" y1="11" x2="6.5" y2="11" class="court-lines" />
+                            <line x1="-6" y1="11" x2="-6.5" y2="11" class="court-lines" />
+                            <line x1="6" y1="14" x2="6.5" y2="14" class="court-lines" />
+                            <line x1="-6" y1="14" x2="-6.5" y2="14" class="court-lines" />
+
+                            {/* COLORED ZONES */}
+                            <path d="M -6 0 L -6 19 L 6 19 L 6 0 Z" fill={getColor('paint')} stroke="white" strokeWidth="0.1"/>
+                            <path d="M -6 0 L -19.75 0 L -19.75 5.25 A 19.75 19.75 0 0 1 -6 19 Z" fill={getColor('mid_l_2')} stroke="white" strokeWidth="0.1"/>
+                            <path d="M 6 0 L 19.75 0 L 19.75 5.25 A 19.75 19.75 0 0 0 6 19 Z" fill={getColor('mid_r_2')} stroke="white" strokeWidth="0.1"/>
+                            <path d="M -25 0 L -19.75 0 L -19.75 10 L -25 10 Z" fill={getColor('corn_l_3')} stroke="white" strokeWidth="0.1"/>
+                            <path d="M 25 0 L 19.75 0 L 19.75 10 L 25 10 Z" fill={getColor('corn_r_3')} stroke="white" strokeWidth="0.1"/>
+                            <path d="M -25 10 L -19.75 10 A 19.75 19.75 0 0 1 -6 19 L -6 42 L -25 42 Z" fill={getColor('wing_l_3')} stroke="white" strokeWidth="0.1"/>
+                            <path d="M 25 10 L 19.75 10 A 19.75 19.75 0 0 0 6 19 L 6 42 L 25 42 Z" fill={getColor('wing_r_3')} stroke="white" strokeWidth="0.1"/>
+                            <path d="M -6 42 L -6 19 A 6 6 0 0 1 6 19 L 6 42 Z" fill={getColor('top_3')} stroke="white" strokeWidth="0.1"/>
+
+                            {/* LABELS (Counter-transformed to appear upright) */}
+                            {ZONES.map(z => {
+                                const info = getLabel(z);
+                                if (!info) return null;
+                                const pos = {
+                                    'paint': [0, 9.5], 'mid_l_2': [-12, 10], 'mid_r_2': [12, 10],
+                                    'corn_l_3': [-22, 5], 'corn_r_3': [22, 5],
+                                    'wing_l_3': [-18, 25], 'wing_r_3': [18, 25], 'top_3': [0, 30]
+                                }[z];
+                                return (
+                                    <g key={z} transform={`translate(${pos[0]}, ${pos[1]}) scale(1, -1)`}>
+                                        <text y="0" fill="white" fontSize="2.5" fontWeight="bold" textAnchor="middle" filter="drop-shadow(1px 1px 1px black)">{info.text}</text>
+                                        <text y="3" fill="white" fontSize="2" textAnchor="middle" filter="drop-shadow(1px 1px 1px black)">{info.sub}</text>
+                                    </g>
+                                );
+                            })}
+                        </g>
+                    </svg>
+                </div>
+            );
         }
 
         function StatBox({label, val, color}) { return (<div className="bento-card text-center py-4"><div className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1">{label}</div><div className={`text-3xl font-black italic tracking-tighter ${color||'text-white'}`}>{val}</div></div>); }
