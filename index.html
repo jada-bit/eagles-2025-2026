@@ -87,8 +87,6 @@
             {id: 0, name: "Bela Smith", pos: "G/F"}
         ];
         const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','blk','to'];
-        
-        // --- UPDATED ZONES (SIMPLIFIED 8) ---
         const ZONES = ['top_3', 'wing_l_3', 'wing_r_3', 'corn_l_3', 'corn_r_3', 'mid_l_2', 'mid_r_2', 'paint'];
 
         // --- MAIN APP COMPONENT ---
@@ -492,7 +490,7 @@
                                     <h3 className="text-xl font-black text-gold uppercase italic mb-4">Set Play Efficiency</h3>
                                     <div className="space-y-1">{tactics.plays.sort((a,b)=>((b.pts/b.att)||-1)-((a.pts/a.att)||-1)).map((p,i)=>(<div key={i} className="flex justify-between p-3 bg-zinc-900/50 rounded items-center"><span className="font-bold text-sm">{p.name}</span><div className="text-right"><div className="font-black text-gold text-lg">{(p.att>0?p.pts/p.att:0).toFixed(2)} PPP</div><div className="text-[10px] text-zinc-500">{p.made}/{p.att} ({p.att>0?Math.round((p.made/p.att)*100):0}%)</div></div></div>))}</div>
                                 </div>
-                                <div className="bento-card"><h3 className="text-xl font-black text-gold uppercase italic mb-6">Heat Map</h3><HeatMapCourt data={tactics.map} /></div>
+                                <div className="bento-card"><h3 className="text-xl font-black text-gold uppercase italic mb-6">Shot Efficiency</h3><ShotEfficiencyMap data={tactics.map} /></div>
                             </div>
                         </div>
                     )}
@@ -581,7 +579,6 @@
                 <div className="relative max-w-[350px] mx-auto select-none">
                     <svg viewBox="0 0 100 100" className="court-svg">
                         <rect width="100" height="100" fill="#111" stroke="#333" strokeWidth="2"/>
-                        {/* 3PT Line - Lowered Arc */}
                         <path d="M 10,100 L 10,35 Q 50,-15 90,35 L 90,100" fill="none" stroke="white" strokeWidth="1"/>
                         <path d="M 35,100 L 35,55 L 65,55 L 65,100" fill={getFill('paint')} stroke="white" strokeWidth="1" onClick={()=>onClick('paint',mode==='make')}/>
                         <path d="M 65,55 A 15,15 0 0,0 35,55" fill={getFill('paint')} stroke="white" strokeWidth="1" onClick={()=>onClick('paint',mode==='make')}/>
@@ -597,54 +594,92 @@
                         <rect x="65" y="90" width="2" height="2" fill="white"/>
                         <line x1="45" y1="92" x2="55" y2="92" stroke="white" strokeWidth="1"/>
                         <circle cx="50" cy="88" r="2" fill="none" stroke="white" strokeWidth="1"/>
-                        
-                        {/* Updated Click Zones for Lower Arc */}
-                        <path d="M 0,100 L 10,100 L 10,40 L 0,40 Z" className="zone" onClick={()=>onClick('corn_l',mode==='make')} fill={getFill('corn_l')}/>
-                        <path d="M 90,100 L 100,100 L 100,40 L 90,40 Z" className="zone" onClick={()=>onClick('corn_r',mode==='make')} fill={getFill('corn_r')}/>
-                        <path d="M 0,40 L 10,40 L 30,15 L 0,15 Z" className="zone" onClick={()=>onClick('wing_l',mode==='make')} fill={getFill('wing_l')}/>
-                        <path d="M 100,40 L 90,40 L 70,15 L 100,15 Z" className="zone" onClick={()=>onClick('wing_r',mode==='make')} fill={getFill('wing_r')}/>
-                        <path d="M 30,15 L 70,15 L 65,35 L 35,35 Z" className="zone" onClick={()=>onClick('top',mode==='make')} fill={getFill('top')}/>
-                        
-                        <path d="M 10,100 L 35,100 L 35,55 L 10,40 Z" className="zone" onClick={()=>onClick('mid_l',mode==='make')} fill={getFill('mid_l')}/>
-                        <path d="M 90,100 L 65,100 L 65,55 L 90,40 Z" className="zone" onClick={()=>onClick('mid_r',mode==='make')} fill={getFill('mid_r')}/>
-                        <path d="M 35,55 L 65,55 L 65,35 L 35,35 Z" className="zone" onClick={()=>onClick('mid_c',mode==='make')} fill={getFill('mid_c')}/>
-                        
+                        <path d="M 0,100 L 10,100 L 10,40 L 0,40 Z" className="zone" onClick={()=>onClick('corn_l_3',mode==='make')} fill={getFill('corn_l_3')}/>
+                        <path d="M 90,100 L 100,100 L 100,40 L 90,40 Z" className="zone" onClick={()=>onClick('corn_r_3',mode==='make')} fill={getFill('corn_r_3')}/>
+                        <path d="M 0,40 L 10,40 L 30,15 L 0,15 Z" className="zone" onClick={()=>onClick('wing_l_3',mode==='make')} fill={getFill('wing_l_3')}/>
+                        <path d="M 100,40 L 90,40 L 70,15 L 100,15 Z" className="zone" onClick={()=>onClick('wing_r_3',mode==='make')} fill={getFill('wing_r_3')}/>
+                        <path d="M 30,15 L 70,15 L 65,35 L 35,35 Z" className="zone" onClick={()=>onClick('top_3',mode==='make')} fill={getFill('top_3')}/>
+                        <path d="M 10,100 L 35,100 L 35,55 L 10,40 Z" className="zone" onClick={()=>onClick('mid_l_2',mode==='make')} fill={getFill('mid_l_2')}/>
+                        <path d="M 90,100 L 65,100 L 65,55 L 90,40 Z" className="zone" onClick={()=>onClick('mid_r_2',mode==='make')} fill={getFill('mid_r_2')}/>
+                        <path d="M 35,55 L 65,55 L 65,35 L 35,35 Z" className="zone" onClick={()=>onClick('paint',mode==='make')} fill={getFill('paint')}/>
                         <text x="50" y="80" className="zone-label" fill="white" fontSize="4" textAnchor="middle" opacity="0.3">PAINT</text>
                     </svg>
                 </div>
             ); 
         }
 
-        function HeatMapCourt({ data }) { 
-            const getFill = (key) => { const z=data[key]||{m:0,x:0},t=z.m+z.x; if(t===0) return 'rgba(255,255,255,0.05)'; const pct=z.m/t; if(pct>=0.5)return 'rgba(34,197,94,0.7)'; if(pct>=0.4)return 'rgba(59,130,246,0.7)'; if(pct>=0.3)return 'rgba(234,179,8,0.7)'; return 'rgba(239,68,68,0.7)'; }; 
+        // NEW COMPONENT: Shot Efficiency Map
+        function ShotEfficiencyMap({ data }) {
+            // Helper to determine color based on efficiency
+            const getColor = (zoneKey) => {
+                const z = data[zoneKey] || { m: 0, x: 0 };
+                const attempts = z.m + z.x;
+                if (attempts === 0) return 'transparent';
+                
+                const pct = (z.m / attempts) * 100;
+                
+                // Color Logic: Red (>40%), Yellow (25-40%), Red (<25%)
+                if (pct >= 40) return 'rgba(34, 197, 94, 0.6)'; // Green (Hot)
+                if (pct >= 25) return 'rgba(234, 179, 8, 0.6)'; // Yellow (Warm)
+                return 'rgba(239, 68, 68, 0.6)'; // Red (Cold)
+            };
+
+            const getLabel = (zoneKey) => {
+                const z = data[zoneKey] || { m: 0, x: 0 };
+                const attempts = z.m + z.x;
+                if (attempts === 0) return null;
+                const pct = Math.round((z.m / attempts) * 100);
+                return { text: `${pct}%`, sub: `(${z.m}/${attempts})` };
+            };
+
             return (
                 <div className="relative max-w-[350px] mx-auto select-none">
                     <svg viewBox="0 0 100 100" className="court-svg">
+                        {/* Base Court Lines (Non-interactive) */}
                         <rect width="100" height="100" fill="#111" stroke="#333" strokeWidth="2"/>
-                        <path d="M 10,100 L 10,35 Q 50,-15 90,35 L 90,100" fill="none" stroke="white" strokeWidth="1" strokeOpacity="0.3"/>
-                        <path d="M 35,100 L 35,55 L 65,55 L 65,100" fill={getFill('paint')} stroke="white" strokeWidth="1" strokeOpacity="0.3"/>
-                        <path d="M 65,55 A 15,15 0 0,0 35,55" fill={getFill('paint')} stroke="white" strokeWidth="1" strokeOpacity="0.3"/>
-                        <path d="M 0,100 L 10,100 L 10,40 L 0,40 Z" fill={getFill('corn_l')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
-                        <path d="M 90,100 L 100,100 L 100,40 L 90,40 Z" fill={getFill('corn_r')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
-                        <path d="M 0,40 L 10,40 L 30,15 L 0,15 Z" fill={getFill('wing_l')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
-                        <path d="M 100,40 L 90,40 L 70,15 L 100,15 Z" fill={getFill('wing_r')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
-                        <path d="M 30,15 L 70,15 L 65,35 L 35,35 Z" fill={getFill('top')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
-                        <path d="M 10,100 L 35,100 L 35,55 L 10,40 Z" fill={getFill('mid_l')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
-                        <path d="M 90,100 L 65,100 L 65,55 L 90,40 Z" fill={getFill('mid_r')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
-                        <path d="M 35,55 L 65,55 L 65,35 L 35,35 Z" fill={getFill('mid_c')} stroke="white" strokeWidth="0.5" strokeOpacity="0.2"/>
-                        {ZONES.map(z=>{
-                            const d=data[z]||{m:0,x:0},t=d.m+d.x;
-                            if(t<1)return null;
-                            const pct=Math.round((d.m/t)*100);
-                            const pos={
-                                paint:[50,75], mid_l:[22,75], mid_r:[78,75], mid_c:[50,45],
-                                corn_l:[5,80], corn_r:[95,80], wing_l:[15,25], wing_r:[85,25], top:[50,15]
+                        <path d="M 10,100 L 10,35 Q 50,-15 90,35 L 90,100" fill="none" stroke="white" strokeWidth="1"/>
+                        <path d="M 35,100 L 35,55 L 65,55 L 65,100" fill="none" stroke="white" strokeWidth="1"/>
+                        <path d="M 65,55 A 15,15 0 0,0 35,55" fill="none" stroke="white" strokeWidth="1"/>
+                        <path d="M 35,55 A 15,15 0 0,0 65,55" fill="transparent" stroke="white" strokeWidth="1" strokeDasharray="3,3"/>
+                        <path d="M 35,0 A 15,15 0 0,0 65,0" fill="none" stroke="white" strokeWidth="1"/>
+                        <rect x="33" y="90" width="2" height="2" fill="white"/>
+                        <rect x="65" y="90" width="2" height="2" fill="white"/>
+                        <line x1="45" y1="92" x2="55" y2="92" stroke="white" strokeWidth="1"/>
+                        <circle cx="50" cy="88" r="2" fill="none" stroke="white" strokeWidth="1"/>
+
+                        {/* Colored Zones (The Heatmap Layer) */}
+                        <path d="M 0,100 L 10,100 L 10,40 L 0,40 Z" fill={getColor('corn_l_3')} stroke="white" strokeWidth="0.5"/>
+                        <path d="M 90,100 L 100,100 L 100,40 L 90,40 Z" fill={getColor('corn_r_3')} stroke="white" strokeWidth="0.5"/>
+                        <path d="M 0,40 L 10,40 L 30,15 L 0,15 Z" fill={getColor('wing_l_3')} stroke="white" strokeWidth="0.5"/>
+                        <path d="M 100,40 L 90,40 L 70,15 L 100,15 Z" fill={getColor('wing_r_3')} stroke="white" strokeWidth="0.5"/>
+                        <path d="M 30,15 L 70,15 L 65,35 L 35,35 Z" fill={getColor('top_3')} stroke="white" strokeWidth="0.5"/>
+                        <path d="M 10,100 L 35,100 L 35,55 L 10,40 Z" fill={getColor('mid_l_2')} stroke="white" strokeWidth="0.5"/>
+                        <path d="M 90,100 L 65,100 L 65,55 L 90,40 Z" fill={getColor('mid_r_2')} stroke="white" strokeWidth="0.5"/>
+                        <path d="M 35,55 L 65,55 L 65,35 L 35,35 Z" fill={getColor('paint')} stroke="white" strokeWidth="0.5"/>
+                        <path d="M 35,100 L 65,100 L 65,55 L 35,55 Z" fill={getColor('paint')} stroke="white" strokeWidth="0.5"/> 
+
+                        {/* Text Overlay Layer */}
+                        {ZONES.map(z => {
+                            const info = getLabel(z);
+                            if (!info) return null;
+                            // Approximate center points for text
+                            const pos = {
+                                'paint': [50, 75], 'top_3': [50, 15], 
+                                'mid_l_2': [22, 75], 'mid_r_2': [78, 75], 
+                                'wing_l_3': [15, 25], 'wing_r_3': [85, 25], 
+                                'corn_l_3': [5, 80], 'corn_r_3': [95, 80]
                             }[z];
-                            return <text key={z} x={pos[0]} y={pos[1]} fill="white" fontSize="4" fontWeight="900" textAnchor="middle" filter="drop-shadow(1px 1px 1px black)">{pct}%</text>
+                            
+                            return (
+                                <g key={z}>
+                                    <text x={pos[0]} y={pos[1]} fill="white" fontSize="4" fontWeight="bold" textAnchor="middle" filter="drop-shadow(1px 1px 1px black)">{info.text}</text>
+                                    <text x={pos[0]} y={pos[1] + 4} fill="white" fontSize="3" textAnchor="middle" filter="drop-shadow(1px 1px 1px black)">{info.sub}</text>
+                                </g>
+                            );
                         })}
                     </svg>
                 </div>
-            ); 
+            );
         }
 
         function StatBox({label, val, color}) { return (<div className="bento-card text-center py-4"><div className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1">{label}</div><div className={`text-3xl font-black italic tracking-tighter ${color||'text-white'}`}>{val}</div></div>); }
