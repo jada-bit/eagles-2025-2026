@@ -77,14 +77,14 @@
         .toast { padding: 10px 16px; border-radius: 8px; color: white; font-weight: bold; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.8); display: flex; align-items: center; gap: 8px; background: #222; border: 1px solid #444; animation: slideDown 0.2s; }
         .toast-success { border-left: 4px solid var(--green); } .toast-error { border-left: 4px solid var(--red); } .toast-persist { border-left: 4px solid var(--blue); }
 
-        /* EVENT FEED */
-        .event-feed { background: #111; border-top: 1px solid #333; overflow-y: auto; max-height: 150px; padding: 10px; display: flex; flex-direction: column-reverse; gap: 6px; }
-        .event-item { background: #222; border: 1px solid #333; padding: 8px 12px; border-radius: 6px; font-size: 11px; display: flex; justify-content: space-between; align-items: center; animation: slideInLeft 0.2s; cursor: pointer; border-left: 3px solid var(--gold); }
-        .event-item:hover { background: #333; border-color: #555; }
-        .undo-hint { color: #ef4444; font-weight: 900; font-size: 10px; uppercase; }
+        /* EVENT FEED - UPDATED FOR FAT FINGERS */
+        .event-feed { background: #111; border-top: 1px solid #333; overflow-y: auto; max-height: 200px; padding: 12px; display: flex; flex-direction: column-reverse; gap: 8px; box-shadow: inset 0 10px 10px -10px rgba(0,0,0,0.5); }
+        .event-item { background: #222; border: 1px solid #333; padding: 12px 16px; border-radius: 8px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; animation: slideInLeft 0.2s; cursor: pointer; border-left: 4px solid var(--gold); min-height: 44px; transition: 0.1s; }
+        .event-item:hover { background: #333; border-color: #555; transform: translateX(2px); }
+        .undo-hint { color: #ef4444; font-weight: 900; font-size: 11px; text-transform: uppercase; background: rgba(239, 68, 68, 0.1); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.3); }
 
         /* UTILS */
-        .sub-icon { position: absolute; top: 4px; right: 4px; font-size: 10px; background: #333; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; border: 1px solid #555; }
+        .sub-icon { position: absolute; top: 4px; right: 4px; font-size: 10px; background: #333; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; border: 1px solid #555; }
         .sub-icon:hover { background: var(--gold); color: black; }
         .player-card-bench { background: #111; border: 1px solid #333; border-radius: 8px; padding: 12px; cursor: pointer; opacity: 0.6; display: flex; align-items: center; justify-content: space-between; transition: 0.2s; }
         .player-card-bench:hover { border-color: var(--gold); opacity: 1; background: #222; }
@@ -150,6 +150,10 @@
             ], 'eagles_plays');
             const [eventLog, setEventLog] = useStickyState([], 'eagles_events');
             
+            // MISSING STATE FIXED
+            const [newPlayName, setNewPlayName] = React.useState('');
+            const [shotMode, setShotMode] = React.useState('make');
+            
             // UI
             const [selectedPlayer, setSelectedPlayer] = React.useState(null); 
             const [subTarget, setSubTarget] = React.useState(null); 
@@ -192,6 +196,17 @@
 
                 const eventId = Date.now();
                 const logItem = { id: eventId, stat: statKey, val: pointVal, type: 'player', pid: selectedPlayer, name: '', desc: '' };
+                
+                // Determine Label Logic (FIXED TYPO)
+                const isMake = statKey.endsWith('m');
+                const actionType = isMake ? 'MAKE' : (statKey.endsWith('a') ? 'MISS' : '');
+                let shotType = '';
+                if(statKey.includes('fg2')) shotType = '2PT';
+                else if(statKey.includes('fg3')) shotType = '3PT';
+                else if(statKey.includes('ft')) shotType = 'FT';
+                else shotType = statKey.toUpperCase(); // Reb, Ast, etc.
+                
+                const label = `${shotType} ${actionType}`.trim();
 
                 // OPPONENT LOGIC
                 if (selectedPlayer === OPPONENT_ID) {
@@ -200,16 +215,15 @@
                     if (statKey === 'fg2m') updates['fg2a'] = (opponentStats.fg2a || 0) + 1;
                     if (statKey === 'fg3m') updates['fg3a'] = (opponentStats.fg3a || 0) + 1;
                     if (statKey === 'ftm') updates['fta'] = (opponentStats.fta || 0) + 1;
-                    
                     setOpponentStats(prev => ({ ...prev, ...updates }));
                     if (pointVal > 0) setGameMeta(prev => ({ ...prev, oppScore: prev.oppScore + pointVal }));
                     
                     logItem.type = 'opp';
                     logItem.name = 'Opponent';
-                    logItem.desc = `${statKey.toUpperCase().replace('M',' MAKE')} ${pointVal>0?`(+${pointVal})`:''}`;
-                    setEventLog(prev => [logItem, ...prev].slice(0, 20)); // Keep last 20
+                    logItem.desc = `${label} ${pointVal>0?`(+${pointVal})`:''}`;
+                    setEventLog(prev => [logItem, ...prev].slice(0, 20)); 
                     
-                    showToast(`Opponent: ${logItem.desc}`);
+                    showToast(`Opponent: ${label}`);
                     setSelectedPlayer(null);
                     return;
                 }
@@ -225,10 +239,10 @@
                 setPlayerStats(prev => ({ ...prev, [pName]: { ...prev[pName], ...updates } }));
                 
                 logItem.name = pName.split(' ')[0];
-                logItem.desc = statKey.replace('fg','').replace('m',' Make').replace('a',' Miss').toUpperCase();
+                logItem.desc = label;
                 setEventLog(prev => [logItem, ...prev].slice(0, 20));
 
-                showToast(`${logItem.name}: ${logItem.desc}`);
+                showToast(`${logItem.name}: ${label} ${pointVal>0?`(+${pointVal})`:''}`);
                 setSelectedPlayer(null); 
             };
 
@@ -317,7 +331,6 @@
                     if(editId) await db.collection('games').doc(editId).update(payload); 
                     else await db.collection('games').add(payload); 
                     showToast("Game Saved Successfully!", "success"); 
-                    // CLEAR STORAGE
                     setPlayerStats({}); setOpponentStats({fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0}); setEventLog([]);
                     setGameMeta({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0 }); setEditId(null); setView('log'); 
                 } 
@@ -570,121 +583,6 @@
                 return () => chart.destroy();
             }, [games, type]);
             return games.length ? <canvas ref={ref} /> : <div className="h-full flex items-center justify-center text-zinc-500 text-xs">No Data</div>;
-        }
-
-        // --- REALISTIC COURT COMPONENTS ---
-        function InteractiveCourt({ data, onClick, mode }) { 
-            const getFill = (key) => { const z=data[key]||{m:0,x:0},t=z.m+z.x; if(t===0)return 'transparent'; return (z.m/t)>=0.4?'rgba(34,197,94,0.6)':'rgba(239,68,68,0.6)'; }; 
-            return (
-                <div className="court-container relative max-w-[350px] mx-auto select-none">
-                    <svg viewBox="-25 0 50 42">
-                        <g transform="translate(0, 42) scale(1, -1)">
-                            <rect x="-6" y="0" width="12" height="19" class="paint-area" />
-                            <rect x="-6" y="0" width="12" height="19" class="court-lines" />
-                            <path d="M -6 19 A 6 6 0 0 1 6 19" class="court-lines" />
-                            <path d="M 6 19 A 6 6 0 0 1 -6 19" class="court-lines" stroke-dasharray="1, 1" />
-                            <path d="M -19.75 5.25 A 19.75 19.75 0 0 1 19.75 5.25" class="court-lines" />
-                            <line x1="-19.75" y1="5.25" x2="-19.75" y2="0" class="court-lines" />
-                            <line x1="19.75" y1="5.25" x2="19.75" y2="0" class="court-lines" />
-                            <line x1="-3" y1="4" x2="3" y2="4" class="court-lines" style={{stroke:'white', strokeWidth:0.1}} />
-                            <circle cx="0" cy="5.25" r="0.75" class="court-lines hoop-rim" />
-                            <line x1="0" y1="4" x2="0" y2="4.5" class="court-lines" style={{stroke:'white', strokeWidth:0.1}} />
-                            <path d="M 6 42 A 6 6 0 0 1 -6 42" class="court-lines" />
-                            <rect x="6" y="7" width="1" height="0.66" fill="white" />
-                            <rect x="-7" y="7" width="1" height="0.66" fill="white" />
-                            <line x1="6" y1="11" x2="6.5" y2="11" class="court-lines" />
-                            <line x1="-6" y1="11" x2="-6.5" y2="11" class="court-lines" />
-                            <line x1="6" y1="14" x2="6.5" y2="14" class="court-lines" />
-                            <line x1="-6" y1="14" x2="-6.5" y2="14" class="court-lines" />
-                            
-                            {/* ZONES */}
-                            <path d="M -6 0 L -6 19 L 6 19 L 6 0 Z" className="zone" onClick={()=>onClick('paint',mode==='make')} fill={getFill('paint')}/>
-                            <path d="M -6 0 L -19.75 0 L -19.75 5.25 A 19.75 19.75 0 0 1 -6 19 Z" className="zone" onClick={()=>onClick('mid_l_2',mode==='make')} fill={getFill('mid_l_2')}/>
-                            <path d="M 6 0 L 19.75 0 L 19.75 5.25 A 19.75 19.75 0 0 0 6 19 Z" className="zone" onClick={()=>onClick('mid_r_2',mode==='make')} fill={getFill('mid_r_2')}/>
-                            <path d="M -25 0 L -19.75 0 L -19.75 10 L -25 10 Z" className="zone" onClick={()=>onClick('corn_l_3',mode==='make')} fill={getFill('corn_l_3')}/>
-                            <path d="M 25 0 L 19.75 0 L 19.75 10 L 25 10 Z" className="zone" onClick={()=>onClick('corn_r_3',mode==='make')} fill={getFill('corn_r_3')}/>
-                            <path d="M -25 10 L -19.75 10 A 19.75 19.75 0 0 1 -6 19 L -6 42 L -25 42 Z" className="zone" onClick={()=>onClick('wing_l_3',mode==='make')} fill={getFill('wing_l_3')}/>
-                            <path d="M 25 10 L 19.75 10 A 19.75 19.75 0 0 0 6 19 L 6 42 L 25 42 Z" className="zone" onClick={()=>onClick('wing_r_3',mode==='make')} fill={getFill('wing_r_3')}/>
-                            <path d="M -6 42 L -6 19 A 6 6 0 0 1 6 19 L 6 42 Z" className="zone" onClick={()=>onClick('top_3',mode==='make')} fill={getFill('top_3')}/>
-                        </g>
-                    </svg>
-                </div>
-            ); 
-        }
-
-        // --- TACTICS HEAT MAP ---
-        function ShotEfficiencyMap({ data }) {
-            const getColor = (zoneKey) => {
-                const z = data[zoneKey] || { m: 0, x: 0 };
-                const attempts = z.m + z.x;
-                if (attempts === 0) return 'transparent';
-                const pct = (z.m / attempts) * 100;
-                if (pct >= 40) return 'rgba(34, 197, 94, 0.6)'; 
-                if (pct >= 25) return 'rgba(234, 179, 8, 0.6)'; 
-                return 'rgba(239, 68, 68, 0.6)'; 
-            };
-
-            const getLabel = (zoneKey) => {
-                const z = data[zoneKey] || { m: 0, x: 0 };
-                const attempts = z.m + z.x;
-                if (attempts === 0) return null;
-                const pct = Math.round((z.m / attempts) * 100);
-                return { text: `${pct}%`, sub: `(${z.m}/${attempts})` };
-            };
-
-            return (
-                <div className="court-container relative max-w-[350px] mx-auto select-none">
-                    <svg viewBox="-25 0 50 42">
-                        <g transform="translate(0, 42) scale(1, -1)">
-                            {/* BASE LINES */}
-                            <rect x="-6" y="0" width="12" height="19" class="paint-area" />
-                            <rect x="-6" y="0" width="12" height="19" class="court-lines" />
-                            <path d="M -6 19 A 6 6 0 0 1 6 19" class="court-lines" />
-                            <path d="M 6 19 A 6 6 0 0 1 -6 19" class="court-lines" stroke-dasharray="1, 1" />
-                            <path d="M -19.75 5.25 A 19.75 19.75 0 0 1 19.75 5.25" class="court-lines" />
-                            <line x1="-19.75" y1="5.25" x2="-19.75" y2="0" class="court-lines" />
-                            <line x1="19.75" y1="5.25" x2="19.75" y2="0" class="court-lines" />
-                            <line x1="-3" y1="4" x2="3" y2="4" class="court-lines" style={{stroke:'white', strokeWidth:0.1}} />
-                            <circle cx="0" cy="5.25" r="0.75" class="court-lines hoop-rim" />
-                            <line x1="0" y1="4" x2="0" y2="4.5" class="court-lines" style={{stroke:'white', strokeWidth:0.1}} />
-                            <path d="M 6 42 A 6 6 0 0 1 -6 42" class="court-lines" />
-                            <rect x="6" y="7" width="1" height="0.66" fill="white" />
-                            <rect x="-7" y="7" width="1" height="0.66" fill="white" />
-                            <line x1="6" y1="11" x2="6.5" y2="11" class="court-lines" />
-                            <line x1="-6" y1="11" x2="-6.5" y2="11" class="court-lines" />
-                            <line x1="6" y1="14" x2="6.5" y2="14" class="court-lines" />
-                            <line x1="-6" y1="14" x2="-6.5" y2="14" class="court-lines" />
-
-                            {/* COLORED ZONES */}
-                            <path d="M -6 0 L -6 19 L 6 19 L 6 0 Z" fill={getColor('paint')} stroke="white" strokeWidth="0.1"/>
-                            <path d="M -6 0 L -19.75 0 L -19.75 5.25 A 19.75 19.75 0 0 1 -6 19 Z" fill={getColor('mid_l_2')} stroke="white" strokeWidth="0.1"/>
-                            <path d="M 6 0 L 19.75 0 L 19.75 5.25 A 19.75 19.75 0 0 0 6 19 Z" fill={getColor('mid_r_2')} stroke="white" strokeWidth="0.1"/>
-                            <path d="M -25 0 L -19.75 0 L -19.75 10 L -25 10 Z" fill={getColor('corn_l_3')} stroke="white" strokeWidth="0.1"/>
-                            <path d="M 25 0 L 19.75 0 L 19.75 10 L 25 10 Z" fill={getColor('corn_r_3')} stroke="white" strokeWidth="0.1"/>
-                            <path d="M -25 10 L -19.75 10 A 19.75 19.75 0 0 1 -6 19 L -6 42 L -25 42 Z" fill={getColor('wing_l_3')} stroke="white" strokeWidth="0.1"/>
-                            <path d="M 25 10 L 19.75 10 A 19.75 19.75 0 0 0 6 19 L 6 42 L 25 42 Z" fill={getColor('wing_r_3')} stroke="white" strokeWidth="0.1"/>
-                            <path d="M -6 42 L -6 19 A 6 6 0 0 1 6 19 L 6 42 Z" fill={getColor('top_3')} stroke="white" strokeWidth="0.1"/>
-
-                            {/* LABELS (Counter-transformed to appear upright) */}
-                            {ZONES.map(z => {
-                                const info = getLabel(z);
-                                if (!info) return null;
-                                const pos = {
-                                    'paint': [0, 9.5], 'mid_l_2': [-12, 10], 'mid_r_2': [12, 10],
-                                    'corn_l_3': [-22, 5], 'corn_r_3': [22, 5],
-                                    'wing_l_3': [-18, 25], 'wing_r_3': [18, 25], 'top_3': [0, 30]
-                                }[z];
-                                return (
-                                    <g key={z} transform={`translate(${pos[0]}, ${pos[1]}) scale(1, -1)`}>
-                                        <text y="0" fill="white" fontSize="2.5" fontWeight="bold" textAnchor="middle" filter="drop-shadow(1px 1px 1px black)">{info.text}</text>
-                                        <text y="3" fill="white" fontSize="2" textAnchor="middle" filter="drop-shadow(1px 1px 1px black)">{info.sub}</text>
-                                    </g>
-                                );
-                            })}
-                        </g>
-                    </svg>
-                </div>
-            );
         }
 
         function StatBox({label, val, color}) { return (<div className="bento-card text-center py-4"><div className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1">{label}</div><div className={`text-3xl font-black italic tracking-tighter ${color||'text-white'}`}>{val}</div></div>); }
