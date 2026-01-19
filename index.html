@@ -43,18 +43,21 @@
         .bg-action { background: #1e3a8a; color: white; }
         .bg-neg { background: #3f3f46; color: #a1a1aa; }
 
-        /* EVENT FEED (FAT FINGER FRIENDLY) */
-        .event-feed { background: #111; border-top: 1px solid #333; overflow-y: auto; height: 400px; padding: 10px; display: flex; flex-direction: column-reverse; gap: 8px; -webkit-overflow-scrolling: touch; }
+        /* EVENT FEED */
+        .event-feed { background: #111; border-top: 1px solid #333; overflow-y: auto; height: 300px; padding: 10px; display: flex; flex-direction: column-reverse; gap: 8px; -webkit-overflow-scrolling: touch; }
         .event-item { background: #222; border: 1px solid #333; padding: 12px 16px; border-radius: 8px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; animation: slideInLeft 0.2s; cursor: pointer; border-left: 4px solid var(--gold); min-height: 50px; }
         .event-item:hover { background: #333; border-color: #555; }
         .undo-hint { color: #ef4444; font-weight: 900; font-size: 11px; text-transform: uppercase; padding: 4px 8px; border: 1px solid rgba(239,68,68,0.3); border-radius: 4px; background: rgba(239,68,68,0.1); }
 
-        /* ALERTS */
+        /* ALERTS & SUMMARIES */
         .alert-ticker { background: #222; padding: 8px 12px; border-bottom: 1px solid #333; display: flex; gap: 8px; overflow-x: auto; white-space: nowrap; }
         .live-alert { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: bold; animation: slideIn 0.3s; }
         .live-alert.bad { background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.5); color: #fca5a5; }
         .live-alert.warn { background: rgba(234,179,8,0.2); border: 1px solid rgba(234,179,8,0.5); color: #fcd34d; }
         .live-alert.good { background: rgba(34,197,94,0.2); border: 1px solid rgba(34,197,94,0.5); color: #86efac; }
+        .trend-card { background: #222; border-left: 4px solid; padding: 15px; border-radius: 8px; margin-bottom: 10px; }
+        .trend-title { font-weight: 900; font-size: 14px; text-transform: uppercase; margin-bottom: 4px; }
+        .trend-desc { font-size: 13px; color: #aaa; line-height: 1.4; }
 
         /* TABLE & GENERAL */
         .stat-table th { position: sticky; top: 0; background: #111; z-index: 10; font-size: 10px; text-transform: uppercase; color: #888; padding: 10px; cursor: pointer; }
@@ -62,9 +65,10 @@
         .stat-row:hover { background: rgba(255,255,255,0.05); }
         .stat-input { background: #111; border: 1px solid #333; color: white; padding: 4px; text-align: center; border-radius: 4px; width: 100%; font-weight: bold; font-size: 12px; }
         .stepper-btn { width: 20px; height: 24px; display: flex; align-items: center; justify-content: center; background: #222; border: 1px solid #333; color: #888; font-size: 10px; cursor: pointer; border-radius: 4px; }
+        .sub-icon { position: absolute; top: 4px; right: 4px; font-size: 10px; background: #333; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; border: 1px solid #555; }
+        .sub-icon:hover { background: var(--gold); color: black; }
         .player-card-bench { background: #111; border: 1px solid #333; border-radius: 8px; padding: 12px; cursor: pointer; opacity: 0.6; display: flex; align-items: center; justify-content: space-between; transition: 0.2s; }
         .player-card-bench:hover { border-color: var(--gold); opacity: 1; background: #222; }
-        .sub-icon { position: absolute; top: 4px; right: 4px; font-size: 10px; background: #333; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; border: 1px solid #555; }
 
         /* CHAT UI */
         .chat-bubble { padding: 12px 16px; border-radius: 12px; margin-bottom: 10px; max-width: 85%; font-size: 14px; line-height: 1.5; animation: slideIn 0.2s; white-space: pre-wrap; }
@@ -72,14 +76,6 @@
         .chat-bot { background: var(--gold); color: black; align-self: flex-start; font-weight: 600; border-bottom-left-radius: 2px; box-shadow: 0 2px 10px rgba(255,184,28,0.2); }
         .suggestion-chip { background: rgba(255, 184, 28, 0.1); border: 1px solid rgba(255, 184, 28, 0.3); color: var(--gold); padding: 6px 12px; border-radius: 99px; font-size: 11px; font-weight: bold; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
         .suggestion-chip:hover { background: var(--gold); color: black; }
-
-        /* REALISTIC COURT */
-        .court-container svg { background-color: #dcb386; border: 2px solid #333; display: block; width: 100%; }
-        .court-lines { fill: none; stroke: white; stroke-width: 0.17; vector-effect: non-scaling-stroke; }
-        .paint-area { fill: #c04e01; fill-opacity: 0.3; }
-        .hoop-rim { fill: none; stroke: #ff4500; stroke-width: 0.25; }
-        .zone { cursor: pointer; transition: 0.2s; opacity: 0; fill: transparent; stroke: none; }
-        .zone:hover { opacity: 0.5; fill: #FFB81C; stroke: white; stroke-width: 0.2; }
 
         /* MODALS & TOAST */
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); backdrop-filter: blur(8px); z-index: 50; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s; }
@@ -109,7 +105,6 @@
             {id: 0, name: "Bela Smith", pos: "G/F"}
         ];
         const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','blk','to','pf'];
-        const ZONES = ['top_3', 'wing_l_3', 'wing_r_3', 'corn_l_3', 'corn_r_3', 'mid_l_2', 'mid_r_2', 'paint'];
         const OPPONENT_ID = 'OPP';
 
         // --- HELPER HOOK FOR LOCAL STORAGE ---
@@ -144,17 +139,13 @@
             ], 'eagles_plays');
             const [eventLog, setEventLog] = useStickyState([], 'eagles_events');
             
-            // MISSING STATE RESTORED
+            // UI STATES
             const [newPlayName, setNewPlayName] = React.useState('');
-            const [shotMode, setShotMode] = React.useState('make'); // For Court Widget
-            
-            // UI
             const [selectedPlayer, setSelectedPlayer] = React.useState(null); 
             const [subTarget, setSubTarget] = React.useState(null); 
             const [editId, setEditId] = React.useState(null);
             
-            // ANALYTICS & TACTICS STATE
-            const [tacticsFilter, setTacticsFilter] = React.useState('season');
+            // ANALYTICS STATE
             const [selectedProfile, setSelectedProfile] = React.useState(ROSTER[0].name);
             const [sortConfig, setSortConfig] = React.useState({ key: 'ppg', direction: 'desc' });
             
@@ -191,14 +182,13 @@
                 const eventId = Date.now();
                 const logItem = { id: eventId, stat: statKey, val: pointVal, type: 'player', pid: selectedPlayer, name: '', desc: '' };
                 
-                // Determine Label Logic (FIXED)
                 const isMake = statKey.endsWith('m');
                 const actionType = isMake ? 'MAKE' : (statKey.endsWith('a') ? 'MISS' : '');
                 let shotType = '';
                 if(statKey.includes('fg2')) shotType = '2PT';
                 else if(statKey.includes('fg3')) shotType = '3PT';
                 else if(statKey.includes('ft')) shotType = 'FT';
-                else shotType = statKey.toUpperCase(); // Reb, Ast, etc.
+                else shotType = statKey.toUpperCase(); 
                 
                 const label = `${shotType} ${actionType}`.trim();
 
@@ -211,10 +201,8 @@
                     if (statKey === 'ftm') updates['fta'] = (opponentStats.fta || 0) + 1;
                     setOpponentStats(prev => ({ ...prev, ...updates }));
                     if (pointVal > 0) setGameMeta(prev => ({ ...prev, oppScore: prev.oppScore + pointVal }));
-                    logItem.type = 'opp';
-                    logItem.name = 'Opponent';
-                    logItem.desc = `${label} ${pointVal>0?`(+${pointVal})`:''}`;
-                    setEventLog(prev => [logItem, ...prev].slice(0, 30)); // Expanded history
+                    logItem.type = 'opp'; logItem.name = 'Opponent'; logItem.desc = `${label} ${pointVal>0?`(+${pointVal})`:''}`;
+                    setEventLog(prev => [logItem, ...prev].slice(0, 30)); 
                     showToast(`Opponent: ${label}`);
                     setSelectedPlayer(null);
                     return;
@@ -228,8 +216,7 @@
                 if (statKey === 'fg3m') updates['fg3a'] = (playerStats[pName]?.['fg3a'] || 0) + 1;
                 if (statKey === 'ftm') updates['fta'] = (playerStats[pName]?.['fta'] || 0) + 1;
                 setPlayerStats(prev => ({ ...prev, [pName]: { ...prev[pName], ...updates } }));
-                logItem.name = pName.split(' ')[0];
-                logItem.desc = label;
+                logItem.name = pName.split(' ')[0]; logItem.desc = label;
                 setEventLog(prev => [logItem, ...prev].slice(0, 30));
                 showToast(`${logItem.name}: ${label} ${pointVal>0?`(+${pointVal})`:''}`);
                 setSelectedPlayer(null); 
@@ -237,7 +224,6 @@
 
             const handleUndo = (event) => {
                 if(!confirm(`Undo ${event.name} ${event.desc}?`)) return;
-
                 if (event.type === 'opp') {
                     setOpponentStats(prev => {
                         let u = { [event.stat]: Math.max(0, prev[event.stat] - 1) };
@@ -291,9 +277,7 @@
                 let teamPF = 0, teamTO = 0, teamReb = 0;
                 let alerts = [];
                 Object.entries(playerStats).forEach(([name, s]) => {
-                    teamPF += (s.pf || 0);
-                    teamTO += (s.to || 0);
-                    teamReb += (s.reb || 0);
+                    teamPF += (s.pf || 0); teamTO += (s.to || 0); teamReb += (s.reb || 0);
                     if((s.to || 0) >= 4) alerts.push({ msg: `⚠️ ${name.split(' ')[0]}: 4+ TOs`, type: 'bad' });
                     if((s.pf || 0) >= 3) alerts.push({ msg: `⚠️ ${name.split(' ')[0]}: Foul Trouble (${s.pf})`, type: 'warn' });
                     const fga = (s.fg2a || 0) + (s.fg3a || 0);
@@ -321,12 +305,12 @@
                     else await db.collection('games').add(payload); 
                     showToast("Game Saved Successfully!", "success"); 
                     setPlayerStats({}); setOpponentStats({fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0}); setEventLog([]);
-                    setGameMeta({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0 }); setEditId(null); setView('log'); 
+                    setGameMeta({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0, venue: 'Home' }); setEditId(null); setView('log'); 
                 } 
                 catch(e) { showToast("Error Saving: " + e.message, "error"); }
             };
 
-            // --- DATA PROCESSORS (SAFE & CRASH-PROOF) ---
+            // --- DATA PROCESSORS ---
             const updatePlayerStat = (player, field, value) => { const safeVal = Math.max(0, parseInt(value) || 0); const currentStats = playerStats[player] || {}; let updates = { [field]: safeVal }; if (field.endsWith('m')) { const attKey = field.replace('m', 'a'); if (safeVal > (currentStats[attKey] || 0)) updates[attKey] = safeVal; } else if (field.endsWith('a')) { const makeKey = field.replace('a', 'm'); if (safeVal < (currentStats[makeKey] || 0)) updates[makeKey] = safeVal; } setPlayerStats(prev => ({ ...prev, [player]: { ...prev[player], ...updates } })); };
             
             const getSeasonStats = () => { 
@@ -369,50 +353,29 @@
                 return { totals, highs, games: pGames, avgs: { ppg:(totals.pts/gp).toFixed(1), rpg:(totals.reb/gp).toFixed(1), apg:(totals.ast/gp).toFixed(1), spg:(totals.stl/gp).toFixed(1), bpg:(totals.blk/gp).toFixed(1), topg:(totals.to/gp).toFixed(1) }, pcts: { fg:totalFGA>0?Math.round((totalFGM/totalFGA)*100):0, fg2:totals.fg2a>0?Math.round((totals.fg2m/totals.fg2a)*100):0, fg3:totals.fg3a>0?Math.round((totals.fg3m/totals.fg3a)*100):0, ft:totals.fta>0?Math.round((totals.ftm/totals.fta)*100):0, eFG: Math.round(eFG), TS: Math.round(TS) } }; 
             };
 
-            const getTacticalData = () => { 
-                let targetGames = tacticsFilter === 'season' ? games : games.filter(g => g.id === tacticsFilter); 
-                const aggPlays = {}; const aggMap = ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}); 
-                targetGames.forEach(g => { 
-                    if(g.playStats) g.playStats.forEach(p => { if(!aggPlays[p.name]) aggPlays[p.name] = { name: p.name, att: 0, made: 0, pts: 0 }; aggPlays[p.name].att += (p.att || 0); aggPlays[p.name].made += (p.made || 0); aggPlays[p.name].pts += (p.pts || (p.made*2) || 0); }); 
-                    if(g.shotMap && g.shotMap.eagles) ZONES.forEach(z => { const zone = g.shotMap.eagles[z] || {m:0, x:0}; aggMap[z].m += zone.m; aggMap[z].x += zone.x; }); 
-                }); 
-                return { plays: Object.values(aggPlays), map: aggMap }; 
-            };
-            
-            // --- AI ---
-            const handleSearch = (e, manualQuery) => {
-                if(e) e.preventDefault();
-                const qText = manualQuery || query;
-                if(!qText.trim()) return;
-                const userQ = qText.toLowerCase();
-                const newHistory = [...chatHistory, {role: 'user', text: qText}];
-                setQuery('');
+            const getTrendSummaries = () => {
+                if(games.length < 2) return [];
+                const sorted = [...games].sort((a,b) => new Date(b.date) - new Date(a.date));
+                const last3 = sorted.slice(0, 3);
+                const seasonStats = getSeasonStats();
                 
-                let response = "I didn't quite catch that. Check the 'Capabilities' box.";
-                const stats = getSeasonStats();
-                const getImpact = (p) => (parseFloat(p.ppg)*1) + (parseFloat(p.rpg)*1.5) + (parseFloat(p.apg)*1.5) + (parseFloat(p.spg)*3) + (parseFloat(p.bpg)*3) - (parseFloat(p.topg)*2);
+                let summaries = [];
+                
+                // Scoring Trend
+                const avgLast3 = last3.reduce((a,g)=>a+(g.teamScore||0),0)/last3.length;
+                const avgSeason = seasonStats.reduce((a,p)=>a+parseFloat(p.ppg),0); // Total team PPG is roughly sum of player averages but better calculated from game totals
+                const avgSeasonGames = sorted.reduce((a,g)=>a+(g.teamScore||0),0)/sorted.length;
+                
+                const diffScore = avgLast3 - avgSeasonGames;
+                if(diffScore > 5) summaries.push({ title: "🔥 Hot Offense", desc: `Scoring +${diffScore.toFixed(1)} PPG in last 3 games vs season avg.`, type: "good" });
+                else if(diffScore < -5) summaries.push({ title: "❄️ Scoring Slump", desc: `Offense is down ${Math.abs(diffScore).toFixed(1)} PPG in last 3 games.`, type: "bad" });
 
-                if (userQ.includes('best player') || userQ.includes('mvp') || userQ.includes('overall')) {
-                    const sorted = [...stats].sort((a,b) => getImpact(b) - getImpact(a));
-                    response = sorted.length > 0 ? `🏆 MVP: ${sorted[0].name}\nImpact Rating: ${getImpact(sorted[0]).toFixed(1)}\nRunner Up: ${sorted[1]?.name || 'N/A'}` : "Not enough data yet.";
-                } else if (userQ.includes('clutch')) {
-                    const pick = [...stats].sort((a,b) => (parseFloat(b.ppg) + (b.fgPct*0.2) + (b.ftPct*0.1)) - (parseFloat(a.ppg) + (a.fgPct*0.2) + (a.ftPct*0.1)))[0];
-                    response = pick ? `🏀 CLUTCH: ${pick.name} (${pick.ppg} PPG, ${pick.ftPct}% FT).` : "Need more games to decide.";
-                } else if (userQ.includes('defense') || userQ.includes('stop')) {
-                    const pick = [...stats].sort((a,b) => (parseFloat(b.spg) + parseFloat(b.bpg)) - (parseFloat(a.spg) + parseFloat(a.bpg)))[0];
-                    response = pick ? `🛡️ DEFENSE: ${pick.name} (${pick.spg} STL, ${pick.bpg} BLK).` : "Need more data.";
-                } else if (userQ.includes('handle')) {
-                    const pick = [...stats].sort((a,b) => (b.ast/(b.to+0.1)) - (a.ast/(a.to+0.1)))[0];
-                    response = pick ? `🧠 FLOOR GENERAL: ${pick.name} (AST/TO: ${(pick.ast/(pick.to||1)).toFixed(2)}).` : "Need more data.";
-                } else {
-                    const playerFound = ROSTER.find(p => userQ.includes(p.name.toLowerCase()));
-                    if(playerFound) {
-                        const s = stats.find(x => x.name === playerFound.name);
-                        if(s) response = `ℹ️ ${playerFound.name}: ${s.ppg} PPG, ${s.rpg} RPG, ${s.eFG}% eFG.`;
-                        else response = `ℹ️ ${playerFound.name}: No stats recorded yet.`;
-                    }
-                }
-                setChatHistory([...newHistory, {role: 'bot', text: response}]);
+                // Turnover Trend
+                const toLast3 = last3.reduce((a,g)=>a + (g.stats||[]).reduce((x,s)=>x+(s.to||0),0),0)/last3.length;
+                if(toLast3 > 15) summaries.push({ title: "⚠️ Ball Security", desc: `Averaging ${toLast3.toFixed(1)} turnovers in last 3 games.`, type: "bad" });
+                else if(toLast3 < 10) summaries.push({ title: "🔒 Safe Hands", desc: `Only ${toLast3.toFixed(1)} turnovers/game recently.`, type: "good" });
+
+                return summaries;
             };
 
             const handlePlayUpdate = (index, points) => { const newPlays = [...playStats]; newPlays[index].att += 1; if (points > 0) { newPlays[index].made += 1; newPlays[index].pts += points; } setPlayStats(newPlays); };
@@ -425,11 +388,13 @@
 
             const clipboard = getClipboardData();
             const seasonStats = getSeasonStats();
-            const tactics = getTacticalData();
             const profile = getPlayerData(selectedProfile);
             const playerInfo = ROSTER.find(p => p.name === selectedProfile);
             const activePlayers = ROSTER.filter(p => activeLineup.includes(p.id));
             const benchPlayers = ROSTER.filter(p => !activeLineup.includes(p.id));
+            
+            // TRENDS
+            const trendSummaries = getTrendSummaries();
             
             // INSIGHTS
             const insights = getGameInsights();
@@ -441,7 +406,7 @@
                     <div className="flex flex-col md:flex-row justify-between items-center mb-6 bg-zinc-900 p-4 rounded-xl border border-white/10 sticky top-2 z-50 shadow-xl no-print">
                         <div className="flex items-center gap-2 mb-4 md:mb-0"><span className="text-2xl">🦅</span><h1 className="text-xl font-black italic uppercase">Eagles <span className="text-gold">Analytics</span></h1></div>
                         <nav className="flex gap-1 overflow-x-auto w-full md:w-auto pb-1 no-scrollbar">
-                            {['live', 'new', 'clipboard', 'ask coach', 'tactics', 'stats', 'trends', 'profiles', 'log', 'admin'].map(t => (<button key={t} onClick={()=>setView(t)} className={`nav-btn ${view===t?'active-nav':'inactive-nav'}`}>{t}</button>))}
+                            {['live', 'new', 'clipboard', 'ask coach', 'trends', 'stats', 'profiles', 'log', 'admin'].map(t => (<button key={t} onClick={()=>setView(t)} className={`nav-btn ${view===t?'active-nav':'inactive-nav'}`}>{t}</button>))}
                         </nav>
                     </div>
 
@@ -566,12 +531,23 @@
                         </div>
                     )}
 
-                    {view === 'tactics' && (
+                    {view === 'trends' && (
                         <div className="space-y-6 animate-slideIn">
-                            <div className="flex justify-between items-center bg-zinc-900 p-3 rounded-lg border border-zinc-800"><label className="text-xs font-bold text-zinc-500 uppercase mr-3">Data Source:</label><select className="bg-black text-white font-bold text-xs p-2 rounded border border-zinc-700 flex-1" value={tacticsFilter} onChange={e=>setTacticsFilter(e.target.value)}><option value="season">FULL SEASON AGGREGATE</option><optgroup label="Single Games">{games.map(g => <option key={g.id} value={g.id}>{g.date} vs {g.opp}</option>)}</optgroup></select></div>
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                <div className="bento-card h-full"><h3 className="text-xl font-black text-gold uppercase italic mb-4">Set Play Efficiency</h3><div className="space-y-1">{tactics.plays.sort((a,b)=>((b.pts/b.att)||-1)-((a.pts/a.att)||-1)).map((p,i)=>(<div key={i} className="flex justify-between p-3 bg-zinc-900/50 rounded items-center"><span className="font-bold text-sm">{p.name}</span><div className="text-right"><div className="font-black text-gold text-lg">{(p.att>0?p.pts/p.att:0).toFixed(2)} PPP</div><div className="text-[10px] text-zinc-500">{p.made}/{p.att} ({p.att>0?Math.round((p.made/p.att)*100):0}%)</div></div></div>))}</div></div>
-                                <div className="bento-card"><h3 className="text-xl font-black text-gold uppercase italic mb-6">Shot Efficiency</h3><ShotEfficiencyMap data={tactics.map} /></div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {trendSummaries.length > 0 ? trendSummaries.map((t,i)=>(
+                                    <div key={i} className={`trend-card border-${t.type==='good'?'green-500':(t.type==='bad'?'red-500':'yellow-500')}`}>
+                                        <div className="trend-title text-white">{t.title}</div>
+                                        <div className="trend-desc">{t.desc}</div>
+                                    </div>
+                                )) : <div className="col-span-3 text-center text-zinc-500 p-4">Need at least 2 games to analyze trends.</div>}
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div className="bento-card h-64"><h3 className="text-xs font-black uppercase mb-2">Scoring</h3><TrendChart games={games} type="score"/></div>
+                                <div className="bento-card h-64"><h3 className="text-xs font-black uppercase mb-2">FG Efficiency</h3><TrendChart games={games} type="fg"/></div>
+                                <div className="bento-card h-64"><h3 className="text-xs font-black uppercase mb-2">3PT %</h3><TrendChart games={games} type="3pt"/></div>
+                                <div className="bento-card h-64"><h3 className="text-xs font-black uppercase mb-2">Turnovers</h3><TrendChart games={games} type="to"/></div>
+                                <div className="bento-card h-64"><h3 className="text-xs font-black uppercase mb-2">Rebounds</h3><TrendChart games={games} type="reb"/></div>
+                                <div className="bento-card h-64"><h3 className="text-xs font-black uppercase mb-2">Free Throws</h3><TrendChart games={games} type="ft"/></div>
                             </div>
                         </div>
                     )}
@@ -579,13 +555,6 @@
                     {view === 'stats' && (
                         <div className="bento-card overflow-hidden animate-slideIn">
                              <div className="overflow-x-auto"><table className="w-full text-left border-collapse stat-table"><thead><tr><th onClick={()=>handleSort('name')}>Player</th><th onClick={()=>handleSort('ppg')} className="text-gold">PPG</th><th onClick={()=>handleSort('rpg')}>RPG</th><th onClick={()=>handleSort('apg')}>APG</th><th onClick={()=>handleSort('spg')}>SPG</th><th onClick={()=>handleSort('bpg')}>BPG</th><th onClick={()=>handleSort('topg')} className="text-red-400">TO</th><th onClick={()=>handleSort('fgPct')}>FG%</th><th onClick={()=>handleSort('eFG')} className="text-blue-400">eFG%</th><th onClick={()=>handleSort('TS')} className="text-purple-400">TS%</th></tr></thead><tbody className="text-xs font-bold divide-y divide-white/5">{seasonStats.map(p=>(<tr key={p.name} className="stat-row"><td className="p-3 sticky left-0 bg-zinc-900/50">{p.name}</td><td className="p-3 text-gold stat-val">{p.ppg}</td><td className="p-3 stat-val">{p.rpg}</td><td className="p-3 stat-val">{p.apg}</td><td className="p-3 stat-val">{p.spg}</td><td className="p-3 stat-val">{p.bpg}</td><td className="p-3 stat-val text-zinc-400">{p.topg}</td><td className="p-3 stat-val">{p.fgPct}%</td><td className="p-3 stat-val text-blue-400">{p.eFG}%</td><td className="p-3 stat-val text-purple-400">{p.TS}%</td></tr>))}</tbody></table></div>
-                        </div>
-                    )}
-
-                    {view === 'trends' && (
-                        <div className="space-y-6 animate-slideIn">
-                            <div className="bento-card border-l-4 border-gold"><h3 className="text-gold font-black uppercase tracking-widest text-xs mb-4">📢 Alerts</h3>{alerts.length>0 ? alerts.map((a,i)=>(<div key={i} className={`alert-box alert-${a.type} font-bold text-sm uppercase`}>{a.msg}</div>)) : <div className="text-zinc-500 italic">No significant trends yet.</div>}</div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="bento-card h-64"><h3 className="text-xs font-black uppercase mb-2">Scoring</h3><TrendChart games={games} type="score"/></div><div className="bento-card h-64"><h3 className="text-xs font-black uppercase mb-2">FG Efficiency</h3><TrendChart games={games} type="fg"/></div><div className="bento-card h-64"><h3 className="text-xs font-black uppercase mb-2">3PT %</h3><TrendChart games={games} type="3pt"/></div><div className="bento-card h-64"><h3 className="text-xs font-black uppercase mb-2">Turnovers</h3><TrendChart games={games} type="to"/></div></div>
                         </div>
                     )}
 
@@ -644,12 +613,17 @@
                 const sorted = [...games].reverse();
                 const labels = sorted.map(g => (g.opp || 'Unk').substring(0,4));
                 let d1=[], d2=[], label1='', label2='', color1='#FFB81C', color2='#ef4444';
+                
                 if (type === 'score') { label1='Us'; label2='Them'; d1=sorted.map(g=>g.teamScore||0); d2=sorted.map(g=>g.oppScore||0); }
                 else if (type === 'fg') { label1='FG%'; d1=sorted.map(g=>{let m=0,a=0;(g.stats||[]).forEach(s=>{m+=(s.fg2m+s.fg3m);a+=(s.fg2a+s.fg3a)}); return a>0?((m/a)*100).toFixed(1):0;}); }
                 else if (type === '3pt') { label1='3PT%'; d1=sorted.map(g=>{let m=0,a=0;(g.stats||[]).forEach(s=>{m+=s.fg3m;a+=s.fg3a}); return a>0?((m/a)*100).toFixed(1):0;}); }
                 else if (type === 'to') { label1='TO'; d1=sorted.map(g=>(g.stats||[]).reduce((acc,s)=>acc+(s.to||0),0)); color1='#ef4444'; }
+                else if (type === 'reb') { label1='REB'; d1=sorted.map(g=>(g.stats||[]).reduce((acc,s)=>acc+(s.reb||0),0)); color1='#3b82f6'; }
+                else if (type === 'ft') { label1='FT%'; d1=sorted.map(g=>{let m=0,a=0;(g.stats||[]).forEach(s=>{m+=s.ftm;a+=s.fta}); return a>0?((m/a)*100).toFixed(1):0;}); color1='#22c55e'; }
+
                 const datasets = [{ label:label1, data:d1, borderColor:color1, backgroundColor:color1, tension:0.3 }];
                 if(d2.length) datasets.push({ label:label2, data:d2, borderColor:color2, backgroundColor:color2, tension:0.3 });
+                
                 const chart = new Chart(ref.current.getContext('2d'), { type: type==='to'?'bar':'line', data:{labels,datasets}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:'white'}}}, scales:{y:{grid:{color:'#333'},ticks:{color:'#888'}}, x:{grid:{display:false}}}}});
                 return () => chart.destroy();
             }, [games, type]);
