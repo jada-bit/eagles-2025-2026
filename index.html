@@ -33,17 +33,15 @@
         .stat-input { background: #111; border: 1px solid #333; color: white; padding: 4px; text-align: center; border-radius: 6px; width: 100%; font-weight: bold; }
         .stat-input:focus { border-color: var(--gold); outline: none; background: #222; }
         
-        /* COURT STYLES (MATCHING YOUR REQUEST) */
-        .court-floor { fill: #dcb386; }
-        .court-line { fill: none; stroke: white; stroke-width: 0.17; vector-effect: non-scaling-stroke; }
-        .three-point-line { fill: none; stroke: white; stroke-width: 0.35; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; }
-        .paint-area { fill: #374151; fill-opacity: 0.9; }
-        .hoop-rim { fill: none; stroke: #ef4444; stroke-width: 0.25; }
-        .court-container svg { border: 2px solid #333; display: block; width: 100%; }
+        /* COURT STYLES */
+        .court-container svg { background-color: #dcb386; border: 2px solid #333; display: block; width: 100%; }
+        .court-lines { fill: none; stroke: white; stroke-width: 0.5; vector-effect: non-scaling-stroke; }
+        .paint-area { fill: #c04e01; fill-opacity: 0.3; }
+        .hoop-rim { stroke: #ff4500; stroke-width: 0.25; }
         
         /* ZONES */
         .zone { cursor: pointer; transition: 0.2s; opacity: 0; fill: transparent; stroke: none; }
-        .zone:hover { opacity: 0.5; fill: #FFB81C; stroke: white; stroke-width: 0.2; }
+        .zone:hover { opacity: 0.5; fill: #FFB81C; stroke: white; stroke-width: 0.5; }
 
         /* CHAT UI */
         .chat-bubble { padding: 12px 16px; border-radius: 12px; margin-bottom: 10px; max-width: 85%; font-size: 14px; line-height: 1.5; animation: slideIn 0.2s; white-space: pre-wrap; }
