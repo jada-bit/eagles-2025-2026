@@ -142,7 +142,7 @@
             {id: 10, name: "Reese Jackson", pos: "F"}, {id: 32, name: "Gia Comey", pos: "F"}, 
             {id: 23, name: "Olivia Dozier", pos: "G/F"}, {id: 44, name: "Olivia Fraser", pos: "G/F"},
             {id: 34, name: "Dani Cardona", pos: "C"}, {id: 15, name: "Alexa Troiano", pos: "C"},
-            {id: 0, name: "Bela Smith", pos: "G/F"}
+            {id: 0, name: "Bela Smith", pos: "C"} // FIXED: Changed pos to C
         ];
         const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','blk','to','pf'];
         const ZONES = ['top_3', 'wing_l_3', 'wing_r_3', 'corn_l_3', 'corn_r_3', 'mid_l_2', 'mid_r_2', 'paint'];
@@ -242,7 +242,8 @@
 
             // --- LIVE LOGIC ---
             const handleStatClick = (statKey, pointVal = 0) => {
-                if (!selectedPlayer) return showToast("⚠️ Select a Player or Opponent First!", "error");
+                // FIXED: Changed !selectedPlayer to explicit null check to support ID 0
+                if (selectedPlayer === null) return showToast("⚠️ Select a Player or Opponent First!", "error");
 
                 const eventId = Date.now();
                 const isMake = statKey.endsWith('m');
@@ -321,7 +322,8 @@
             };
 
             const handleSubIn = (benchPid) => {
-                if(!subTarget) return;
+                // FIXED: Changed !subTarget to explicit null check to support ID 0
+                if(subTarget === null) return;
                 const newLineup = activeLineup.map(id => id === subTarget ? benchPid : id);
                 setActiveLineup(newLineup);
                 const pIn = ROSTER.find(r => r.id === benchPid).name;
@@ -679,7 +681,7 @@
                     )}
 
                     {/* MODAL: SUBSTITUTION (1-for-1) */}
-                    {subTarget && (
+                    {subTarget !== null && ( 
                         <div className="modal-overlay" onClick={() => setSubTarget(null)}>
                             <div className="modal-content" onClick={e => e.stopPropagation()}>
                                 <div className="flex justify-between items-center mb-6"><div><div className="text-xs font-bold text-red-500 uppercase tracking-widest">SUBSTITUTING OUT</div><div className="text-3xl font-black italic uppercase text-white">{ROSTER.find(r=>r.id===subTarget).name}</div></div><button onClick={() => setSubTarget(null)} className="bg-zinc-800 w-10 h-10 rounded-full font-bold">✕</button></div>
