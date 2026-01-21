@@ -101,6 +101,15 @@
         .player-card-bench { background: #111; border: 1px solid #333; border-radius: 8px; padding: 12px; cursor: pointer; opacity: 0.6; display: flex; align-items: center; justify-content: space-between; transition: 0.2s; }
         .player-card-bench:hover { border-color: var(--gold); opacity: 1; background: #222; }
 
+        /* CLIPBOARD & DASHBOARD STYLES */
+        .leader-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .leader-row:last-child { border-bottom: none; }
+        .rank-badge { background: #333; color: #888; width: 18px; height: 18px; border-radius: 50%; font-size: 9px; font-weight: 900; display: flex; align-items: center; justify-content: center; margin-right: 8px; }
+        .leader-row:first-child .rank-badge { background: var(--gold); color: black; }
+        .leader-name { font-size: 13px; font-weight: bold; color: #eee; }
+        .leader-val { font-size: 15px; font-weight: 900; color: white; }
+        .leader-sub { font-size: 9px; font-bold; color: #666; margin-left: 4px; text-transform: uppercase; }
+
         /* CHAT UI */
         .chat-bubble { padding: 12px 16px; border-radius: 12px; margin-bottom: 10px; max-width: 85%; font-size: 14px; line-height: 1.5; animation: slideIn 0.2s; white-space: pre-wrap; }
         .chat-user { background: #333; align-self: flex-end; margin-left: auto; color: white; border-bottom-right-radius: 2px; }
@@ -601,9 +610,46 @@
 
                     {view === 'clipboard' && (
                         <div className="space-y-6 animate-slideIn">
-                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3"><MiniStat label="Record" value={clipboard.team.record} /><MiniStat label="PPG" value={clipboard.team.ppg} color="text-gold" /><MiniStat label="Opp PPG" value={clipboard.team.opp} color="text-red-400" /><MiniStat label="RPG" value={clipboard.team.rpg} /><MiniStat label="APG" value={clipboard.team.apg} /><MiniStat label="Stocks" value={clipboard.team.stocks} sub="(Stl+Blk)" /><MiniStat label="TO/G" value={clipboard.team.topg} color="text-zinc-400" /></div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><Leaderboard title="Scoring Leaders" icon="🔥" players={clipboard.scorers} valFunc={p=>(p.pts/p.gp).toFixed(1)} label="PPG" /><Leaderboard title="Glass Cleaners" icon="💪" players={clipboard.rebounders} valFunc={p=>(p.reb/p.gp).toFixed(1)} label="RPG" /><Leaderboard title="Snipers (3PT%)" icon="🎯" players={clipboard.snipers} valFunc={p=>Math.round((p.fg3m/p.fg3a)*100)+'%'} label="3PT%" /><Leaderboard title="Free Throws" icon="🔒" players={clipboard.freeThrowers} valFunc={p=>Math.round((p.ftm/p.fta)*100)+'%'} label="FT%" /></div>
-                            <div className="bento-card border-t-4 border-gold"><h3 className="text-sm font-black text-zinc-500 uppercase tracking-widest mb-4">🏆 Season Honor Roll</h3><div className="grid grid-cols-2 md:grid-cols-5 gap-4"><HonorCard label="Pts" data={clipboard.seasonHighs.pts} color="text-white" /><HonorCard label="Ast" data={clipboard.seasonHighs.ast} color="text-blue-400" /><HonorCard label="Reb" data={clipboard.seasonHighs.reb} color="text-green-400" /><HonorCard label="Stl" data={clipboard.seasonHighs.stl} color="text-gold" /><HonorCard label="Blk" data={clipboard.seasonHighs.blk} color="text-red-400" /></div></div>
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-2xl font-black italic uppercase text-white tracking-tighter">Season <span className="text-gold">Overview</span></h2>
+                                <div className="text-xs font-bold text-zinc-500 uppercase tracking-widest">{games.length} Games Played</div>
+                            </div>
+
+                            {/* Team Stats Strip */}
+                            <div className="bento-card">
+                                <div className="grid grid-cols-3 md:grid-cols-7 gap-4 divide-y md:divide-y-0 md:divide-x divide-zinc-800 text-center">
+                                    <StatItem label="Record" value={clipboard.team.record} />
+                                    <StatItem label="PPG" value={clipboard.team.ppg} color="text-gold" />
+                                    <StatItem label="Opp PPG" value={clipboard.team.opp} color="text-red-400" />
+                                    <StatItem label="Diff" value={(clipboard.team.ppg - clipboard.team.opp).toFixed(1)} color={(clipboard.team.ppg - clipboard.team.opp) > 0 ? "text-green-500" : "text-zinc-500"} prefix={true}/>
+                                    <StatItem label="RPG" value={clipboard.team.rpg} />
+                                    <StatItem label="APG" value={clipboard.team.apg} />
+                                    <StatItem label="TO/G" value={clipboard.team.topg} color="text-zinc-400" />
+                                </div>
+                            </div>
+
+                            {/* Leaderboards */}
+                            <div>
+                                <h3 className="text-sm font-black text-zinc-500 uppercase tracking-widest mb-3">Team Leaders</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <Leaderboard title="Points" icon="🔥" players={clipboard.scorers} valFunc={p=>(p.pts/p.gp).toFixed(1)} label="PPG" />
+                                    <Leaderboard title="Rebounds" icon="💪" players={clipboard.rebounders} valFunc={p=>(p.reb/p.gp).toFixed(1)} label="RPG" />
+                                    <Leaderboard title="3-Point %" icon="🎯" players={clipboard.snipers} valFunc={p=>Math.round((p.fg3m/p.fg3a)*100)+'%'} label="3PT%" />
+                                    <Leaderboard title="Free Throw %" icon="🔒" players={clipboard.freeThrowers} valFunc={p=>Math.round((p.ftm/p.fta)*100)+'%'} label="FT%" />
+                                </div>
+                            </div>
+
+                            {/* Honor Roll */}
+                            <div className="bento-card border-l-4 border-gold">
+                                <h3 className="text-sm font-black text-zinc-500 uppercase tracking-widest mb-4">🏆 Single Game Highs</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                    <HonorCard label="Points" data={clipboard.seasonHighs.pts} color="text-white" />
+                                    <HonorCard label="Assists" data={clipboard.seasonHighs.ast} color="text-blue-400" />
+                                    <HonorCard label="Rebounds" data={clipboard.seasonHighs.reb} color="text-green-400" />
+                                    <HonorCard label="Steals" data={clipboard.seasonHighs.stl} color="text-gold" />
+                                    <HonorCard label="Blocks" data={clipboard.seasonHighs.blk} color="text-red-400" />
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -798,7 +844,8 @@
             );
         }
 
-        function MiniStat({label, value, color, sub}) { return (<div className="bento-card flex flex-col items-center justify-center py-4"><div className="text-[9px] font-black uppercase text-zinc-500 tracking-widest mb-1">{label}</div><div className={`text-2xl lg:text-3xl font-black italic tracking-tighter ${color||'text-white'}`}>{value}</div>{sub && <div className="text-[8px] text-zinc-600 font-bold">{sub}</div>}</div>); }
+        // New helper for Dashboard strip
+        function StatItem({label, value, color, prefix}) { return (<div className="flex flex-col items-center justify-center p-2"><div className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1">{label}</div><div className={`text-2xl font-black italic tracking-tighter ${color||'text-white'}`}>{prefix && value > 0 ? '+' : ''}{value}</div></div>); }
         function Leaderboard({ title, icon, players, valFunc, label }) { return (<div className="bento-card h-full"><div className="flex items-center gap-2 mb-4 border-b border-white/5 pb-2"><span className="text-lg">{icon}</span><h3 className="text-sm font-black uppercase text-zinc-400 tracking-wider">{title}</h3></div><div className="space-y-1">{players.map((p, i) => (<div key={i} className="leader-row"><div className="flex items-center gap-2"><span className="rank-badge">{i+1}</span><span className="leader-name">{p.name.split(' ')[0]} {p.name.split(' ')[1][0]}.</span></div><div className="flex items-end"><span className="leader-val">{valFunc(p)}</span>{i===0 && <span className="leader-sub">{label}</span>}</div></div>))}</div></div>); }
         function HonorCard({ label, data, color }) { return (<div className="bg-black/40 border border-white/5 p-3 rounded-lg text-center"><div className="text-[9px] font-bold text-zinc-500 uppercase">{label}</div><div className={`text-2xl font-black ${color}`}>{data.val}</div>{data.val>0 && <div className="text-[8px] text-zinc-400 mt-1">{data.player.split(' ')[0]}</div>}</div>); }
         function TrendChart({ games, type }) {
@@ -808,7 +855,6 @@
                 const sorted = [...games].reverse();
                 const labels = sorted.map(g => (g.opp || 'Unk').substring(0,4));
                 let d1=[], d2=[], label1='', label2='', color1='#FFB81C', color2='#ef4444';
-                // FIXED: Added safe checks (||0) for all stats to prevent NaN errors
                 if (type === 'score') { label1='Us'; label2='Them'; d1=sorted.map(g=>g.teamScore||0); d2=sorted.map(g=>g.oppScore||0); }
                 else if (type === 'fg') { label1='FG%'; d1=sorted.map(g=>{let m=0,a=0;(g.stats||[]).forEach(s=>{m+=((s.fg2m||0)+(s.fg3m||0));a+=((s.fg2a||0)+(s.fg3a||0))}); return a>0?((m/a)*100).toFixed(1):0;}); }
                 else if (type === '3pt') { label1='3PT%'; d1=sorted.map(g=>{let m=0,a=0;(g.stats||[]).forEach(s=>{m+=(s.fg3m||0);a+=(s.fg3a||0)}); return a>0?((m/a)*100).toFixed(1):0;}); }
