@@ -3,6 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <!-- iOS APP CONFIGURATION -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Eagles Stats">
+    <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/391/eagle_1f985.png">
+    
     <title>Eagles Analytics - Master Command</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -751,17 +758,6 @@
                                     </div>
                                 );
                             })}
-                        </div>
-                    )}
-
-                    {view === 'admin' && (
-                        <div className="space-y-6 animate-slideIn">
-                            <h2 className="text-2xl font-black italic uppercase text-gold">System Admin</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="bento-card hover:bg-zinc-900 transition flex flex-col items-center text-center"><div className="text-4xl mb-4">📥</div><h3 className="font-bold text-lg mb-2">Backup Database</h3><p className="text-xs text-zinc-500 mb-4">Export all games, shots, and stats to a CSV file.</p><button onClick={exportData} className="w-full py-2 bg-blue-600 rounded font-bold uppercase text-xs hover:bg-blue-500">Download CSV</button></div>
-                                <div className="bento-card hover:bg-zinc-900 transition flex flex-col items-center text-center"><div className="text-4xl mb-4">📤</div><h3 className="font-bold text-lg mb-2">Restore Data</h3><p className="text-xs text-zinc-500 mb-4">Import games from a backup CSV file.</p><label className="w-full py-2 bg-zinc-700 rounded font-bold uppercase text-xs hover:bg-zinc-600 cursor-pointer">Select File<input type="file" accept=".csv" className="hidden" onChange={importData} /></label></div>
-                                <div className="bento-card hover:bg-red-900/10 border-red-900/50 flex flex-col items-center text-center"><div className="text-4xl mb-4">🗑️</div><h3 className="font-bold text-lg mb-2 text-red-500">Purge Database</h3><p className="text-xs text-zinc-500 mb-4">Permanently delete all records from the cloud.</p><button onClick={purgeData} className="w-full py-2 bg-red-600 rounded font-bold uppercase text-xs hover:bg-red-500">Purge All</button></div>
-                            </div>
                         </div>
                     )}
 
