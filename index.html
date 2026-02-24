@@ -59,9 +59,9 @@
         /* SNAPSHOT DESIGN (NEW) */
         .snap-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
         .snap-stat-box { background: #111; border: 1px solid #333; padding: 12px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .snap-stat-label { font-size: 10px; font-black; color: #666; uppercase; letter-spacing: 1px; }
-        .snap-stat-val { font-size: 24px; font-black; line-height: 1; margin-top: 4px; }
-        .snap-stat-sub { font-size: 10px; font-bold; color: #888; margin-top: 2px; }
+        .snap-stat-label { font-size: 10px; font-weight: 900; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+        .snap-stat-val { font-size: 24px; font-weight: 900; line-height: 1; margin-top: 4px; }
+        .snap-stat-sub { font-size: 10px; font-weight: bold; color: #888; margin-top: 2px; }
         
         .outlier-section { margin-top: 10px; }
         .outlier-card { display: flex; align-items: center; gap: 10px; padding: 10px; background: #222; border-radius: 8px; margin-bottom: 6px; border-left: 4px solid #555; }
@@ -115,7 +115,7 @@
         .leader-row:first-child .rank-badge { background: var(--gold); color: black; }
         .leader-name { font-size: 13px; font-weight: bold; color: #eee; }
         .leader-val { font-size: 15px; font-weight: 900; color: white; }
-        .leader-sub { font-size: 9px; font-bold; color: #666; margin-left: 4px; text-transform: uppercase; }
+        .leader-sub { font-size: 9px; font-weight: bold; color: #666; margin-left: 4px; text-transform: uppercase; }
 
         /* CHAT UI */
         .chat-bubble { padding: 12px 16px; border-radius: 12px; margin-bottom: 10px; max-width: 85%; font-size: 14px; line-height: 1.5; animation: slideIn 0.2s; white-space: pre-wrap; }
@@ -138,6 +138,15 @@
         .toast-container { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; flex-direction: column; gap: 5px; width: 90%; max-width: 400px; }
         .toast { padding: 10px 16px; border-radius: 8px; color: white; font-weight: bold; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.8); display: flex; align-items: center; gap: 8px; background: #222; border: 1px solid #444; animation: slideDown 0.2s; }
         .toast-success { border-left: 4px solid var(--green); } .toast-error { border-left: 4px solid var(--red); } .toast-persist { border-left: 4px solid var(--blue); }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; color: black !important; }
+            .bento-card { background: white !important; border: 1px solid #ccc !important; color: black !important; box-shadow: none !important; }
+            .text-white { color: black !important; }
+            .bg-zinc-900 { background: white !important; border: 1px solid #ccc !important; }
+            .bg-black { background: white !important; }
+        }
 
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
@@ -431,6 +440,78 @@
                 catch(e) { showToast("Error Saving: " + e.message, "error"); }
             };
 
+            // --- NEW END OF SEASON REPORT COMPILER ---
+            // This isolates the "Games Played" fix ONLY to the new tab, without breaking existing systems
+            const getEndSeasonReport = () => {
+                const totals = {};
+                ROSTER.forEach(p => totals[p.name] = { ...p, gp: 0, pts:0, reb:0, ast:0, stl:0, blk:0, to:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0, pf:0 });
+
+                games.forEach(g => {
+                    g.stats.forEach(s => {
+                        if (totals[s.name]) {
+                            // FIX: Only count as a game played if they actually recorded a stat in the game
+                            const hasStats = s.fg2a > 0 || s.fg3a > 0 || s.fta > 0 || s.reb > 0 || s.ast > 0 || s.stl > 0 || s.blk > 0 || s.to > 0 || s.pf > 0;
+                            if (hasStats) totals[s.name].gp++;
+
+                            totals[s.name].fg2m += (s.fg2m||0);
+                            totals[s.name].fg2a += (s.fg2a||0);
+                            totals[s.name].fg3m += (s.fg3m||0);
+                            totals[s.name].fg3a += (s.fg3a||0);
+                            totals[s.name].ftm += (s.ftm||0);
+                            totals[s.name].fta += (s.fta||0);
+                            totals[s.name].reb += (s.reb||0);
+                            totals[s.name].ast += (s.ast||0);
+                            totals[s.name].stl += (s.stl||0);
+                            totals[s.name].blk += (s.blk||0);
+                            totals[s.name].to += (s.to||0);
+                            totals[s.name].pf += (s.pf||0);
+                            totals[s.name].pts += ((s.fg2m||0)*2+(s.fg3m||0)*3+(s.ftm||0));
+                        }
+                    });
+                });
+
+                // Calculate exact averages based on accurate GP
+                const processed = Object.values(totals).map(t => {
+                    const gp = t.gp || 1; // avoid division by zero
+                    const fgm = t.fg2m + t.fg3m;
+                    const fga = t.fg2a + t.fg3a;
+                    return {
+                        ...t,
+                        ppg: (t.pts / gp).toFixed(1),
+                        rpg: (t.reb / gp).toFixed(1),
+                        apg: (t.ast / gp).toFixed(1),
+                        spg: (t.stl / gp).toFixed(1),
+                        bpg: (t.blk / gp).toFixed(1),
+                        topg: (t.to / gp).toFixed(1),
+                        fgPct: fga > 0 ? ((fgm/fga)*100).toFixed(1) : '0.0',
+                        fg3Pct: t.fg3a > 0 ? ((t.fg3m/t.fg3a)*100).toFixed(1) : '0.0',
+                        ftPct: t.fta > 0 ? ((t.ftm/t.fta)*100).toFixed(1) : '0.0'
+                    };
+                });
+
+                // Only show active players who played at least 1 game
+                const active = processed.filter(p => p.gp > 0);
+
+                // Helper to get Top 3 leaders
+                const getLeaders = (key, minKey, minVal) => {
+                    return [...active]
+                        .filter(p => minKey ? p[minKey] >= minVal : true)
+                        .sort((a,b) => parseFloat(b[key]) - parseFloat(a[key]))
+                        .slice(0, 3);
+                };
+
+                return {
+                    all: active.sort((a,b) => b.pts - a.pts), // Sort master list by total points
+                    pts: getLeaders('ppg'),
+                    reb: getLeaders('rpg'),
+                    ast: getLeaders('apg'),
+                    stl: getLeaders('spg'),
+                    blk: getLeaders('bpg'),
+                    fg3Pct: getLeaders('fg3Pct', 'fg3a', 15), // Min 15 attempts for percentage leaders
+                    ftPct: getLeaders('ftPct', 'fta', 15)     // Min 15 attempts for percentage leaders
+                };
+            };
+
             // --- DATA PROCESSORS ---
             const updatePlayerStat = (player, field, value) => { const safeVal = Math.max(0, parseInt(value) || 0); const currentStats = playerStats[player] || {}; let updates = { [field]: safeVal }; if (field.endsWith('m')) { const attKey = field.replace('m', 'a'); if (safeVal > (currentStats[attKey] || 0)) updates[attKey] = safeVal; } else if (field.endsWith('a')) { const makeKey = field.replace('a', 'm'); if (safeVal < (currentStats[makeKey] || 0)) updates[makeKey] = safeVal; } setPlayerStats(prev => ({ ...prev, [player]: { ...prev[player], ...updates } })); };
             const getSeasonStats = () => { const totals = {}; ROSTER.forEach(p => totals[p.name] = { name: p.name, pos: p.pos, games: 0, pts:0, reb:0, ast:0, stl:0, blk:0, to:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0 }); games.forEach(g => g.stats.forEach(s => { if (totals[s.name]) { const t = totals[s.name]; t.games++; t.fg2m+=(s.fg2m||0); t.fg2a+=(s.fg2a||0); t.fg3m+=(s.fg3m||0); t.fg3a+=(s.fg3a||0); t.ftm+=(s.ftm||0); t.fta+=(s.fta||0); t.reb+=(s.reb||0); t.ast+=(s.ast||0); t.stl+=(s.stl||0); t.blk+=(s.blk||0); t.to+=(s.to||0); t.pts+=((s.fg2m||0)*2+(s.fg3m||0)*3+(s.ftm||0)); } })); return Object.values(totals).map(t => { const g = t.games || 1; const totalFGM = t.fg2m + t.fg3m; const totalFGA = t.fg2a + t.fg3a; const eFG = totalFGA > 0 ? ((totalFGM + (0.5 * t.fg3m)) / totalFGA) * 100 : 0; const tsDiv = 2 * (totalFGA + (0.44 * t.fta)); const TS = tsDiv > 0 ? (t.pts / tsDiv) * 100 : 0; return { ...t, ppg:(t.pts/g).toFixed(1), rpg:(t.reb/g).toFixed(1), apg:(t.ast/g).toFixed(1), spg:(t.stl/g).toFixed(1), bpg:(t.blk/g).toFixed(1), topg:(t.to/g).toFixed(1), fgPct:totalFGA>0?Math.round((totalFGM/totalFGA)*100):0, fg3Pct:t.fg3a>0?Math.round((t.fg3m/t.fg3a)*100):0, ftPct:t.fta>0?Math.round((t.ftm/t.fta)*100):0, eFG: Math.round(eFG), TS: Math.round(TS), to:t.to, ast:t.ast }; }).sort((a,b) => { const aVal = parseFloat(a[sortConfig.key])||0, bVal = parseFloat(b[sortConfig.key])||0; return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal; }); };
@@ -501,7 +582,8 @@
                     <div className="flex flex-col md:flex-row justify-between items-center mb-6 bg-zinc-900 p-4 rounded-xl border border-white/10 sticky top-2 z-50 shadow-xl no-print">
                         <div className="flex items-center gap-2 mb-4 md:mb-0"><span className="text-2xl">🦅</span><h1 className="text-xl font-black italic uppercase">Eagles <span className="text-gold">Analytics</span></h1></div>
                         <nav className="flex gap-1 overflow-x-auto w-full md:w-auto pb-1 no-scrollbar">
-                            {['live', 'new', 'clipboard', 'ask coach', 'trends', 'stats', 'profiles', 'log', 'admin'].map(t => (<button key={t} onClick={()=>setView(t)} className={`nav-btn ${view===t?'active-nav':'inactive-nav'}`}>{t}</button>))}
+                            {/* ADDED 'season report' to navigation */}
+                            {['live', 'new', 'clipboard', 'ask coach', 'trends', 'stats', 'profiles', 'log', 'season report', 'admin'].map(t => (<button key={t} onClick={()=>setView(t)} className={`nav-btn ${view===t?'active-nav':'inactive-nav'}`}>{t}</button>))}
                         </nav>
                     </div>
 
@@ -614,6 +696,80 @@
                             <button onClick={saveGame} className="w-full py-4 bg-gold hover:bg-white text-black font-black uppercase text-xl rounded-xl shadow-lg transition-all">Save Game</button>
                         </div>
                     )}
+
+                    {/* SEASON REPORT (NEW TAB) */}
+                    {view === 'season report' && (() => {
+                        const reportData = getEndSeasonReport();
+                        return (
+                            <div className="space-y-8 animate-slideIn bg-zinc-900 p-6 rounded-xl border border-white/10">
+                                <div className="flex justify-between items-end border-b border-zinc-700 pb-4">
+                                    <div>
+                                        <h2 className="text-3xl font-black italic uppercase text-gold tracking-tighter">End of Season Report</h2>
+                                        <div className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{games.length} Games Total</div>
+                                    </div>
+                                    <button onClick={() => window.print()} className="no-print bg-white text-black px-6 py-2 rounded-full font-bold uppercase text-xs hover:bg-gold transition shadow-lg">🖨️ Print PDF</button>
+                                </div>
+
+                                {/* Leaders Section */}
+                                <div>
+                                    <h3 className="text-xl font-black uppercase text-white mb-4">Stat Leaders (Averages)</h3>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <LeaderboardCard title="Points (PPG)" data={reportData.pts} dataKey="ppg" />
+                                        <LeaderboardCard title="Rebounds (RPG)" data={reportData.reb} dataKey="rpg" />
+                                        <LeaderboardCard title="Assists (APG)" data={reportData.ast} dataKey="apg" />
+                                        <LeaderboardCard title="Steals (SPG)" data={reportData.stl} dataKey="spg" />
+                                        <LeaderboardCard title="Blocks (BPG)" data={reportData.blk} dataKey="bpg" />
+                                        <LeaderboardCard title="3PT % (Min 15 Att)" data={reportData.fg3Pct} dataKey="fg3Pct" suffix="%" />
+                                        <LeaderboardCard title="FT % (Min 15 Att)" data={reportData.ftPct} dataKey="ftPct" suffix="%" />
+                                    </div>
+                                </div>
+
+                                {/* Full Roster Table */}
+                                <div className="overflow-x-auto mt-8">
+                                    <h3 className="text-xl font-black uppercase text-white mb-4">Complete Player Breakdown</h3>
+                                    <table className="w-full text-xs text-left border-collapse">
+                                        <thead className="bg-black text-gold">
+                                            <tr>
+                                                <th className="p-2 border border-zinc-700">Player</th>
+                                                <th className="p-2 border border-zinc-700 text-center">GP</th>
+                                                <th className="p-2 border border-zinc-700 text-center text-white">Total PTS</th>
+                                                <th className="p-2 border border-zinc-700 text-center text-gold">PPG</th>
+                                                <th className="p-2 border border-zinc-700 text-center">Total REB</th>
+                                                <th className="p-2 border border-zinc-700 text-center text-blue-400">RPG</th>
+                                                <th className="p-2 border border-zinc-700 text-center">Total AST</th>
+                                                <th className="p-2 border border-zinc-700 text-center text-green-400">APG</th>
+                                                <th className="p-2 border border-zinc-700 text-center">SPG</th>
+                                                <th className="p-2 border border-zinc-700 text-center">BPG</th>
+                                                <th className="p-2 border border-zinc-700 text-center">FG%</th>
+                                                <th className="p-2 border border-zinc-700 text-center">3PT%</th>
+                                                <th className="p-2 border border-zinc-700 text-center">FT%</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-zinc-800 bg-zinc-900/50">
+                                            {reportData.all.map(p => (
+                                                <tr key={p.id} className="hover:bg-zinc-800">
+                                                    <td className="p-2 border border-zinc-700 font-bold">{p.name}</td>
+                                                    <td className="p-2 border border-zinc-700 text-center text-zinc-400">{p.gp}</td>
+                                                    <td className="p-2 border border-zinc-700 text-center font-bold text-white">{p.pts}</td>
+                                                    <td className="p-2 border border-zinc-700 text-center font-bold text-gold">{p.ppg}</td>
+                                                    <td className="p-2 border border-zinc-700 text-center text-zinc-400">{p.reb}</td>
+                                                    <td className="p-2 border border-zinc-700 text-center font-bold text-blue-400">{p.rpg}</td>
+                                                    <td className="p-2 border border-zinc-700 text-center text-zinc-400">{p.ast}</td>
+                                                    <td className="p-2 border border-zinc-700 text-center font-bold text-green-400">{p.apg}</td>
+                                                    <td className="p-2 border border-zinc-700 text-center">{p.spg}</td>
+                                                    <td className="p-2 border border-zinc-700 text-center">{p.bpg}</td>
+                                                    <td className="p-2 border border-zinc-700 text-center">{p.fgPct}%</td>
+                                                    <td className="p-2 border border-zinc-700 text-center">{p.fg3Pct}%</td>
+                                                    <td className="p-2 border border-zinc-700 text-center">{p.ftPct}%</td>
+                                                </tr>
+                                            ))}
+                                            {reportData.all.length === 0 && <tr><td colSpan="13" className="p-4 text-center italic text-zinc-500">No stats recorded yet.</td></tr>}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {view === 'clipboard' && (
                         <div className="space-y-6 animate-slideIn">
@@ -844,6 +1000,27 @@
         function StatItem({label, value, color, prefix}) { return (<div className="flex flex-col items-center justify-center p-2"><div className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1">{label}</div><div className={`text-2xl font-black italic tracking-tighter ${color||'text-white'}`}>{prefix && value > 0 ? '+' : ''}{value}</div></div>); }
         function Leaderboard({ title, icon, players, valFunc, label }) { return (<div className="bento-card h-full"><div className="flex items-center gap-2 mb-4 border-b border-white/5 pb-2"><span className="text-lg">{icon}</span><h3 className="text-sm font-black uppercase text-zinc-400 tracking-wider">{title}</h3></div><div className="space-y-1">{players.map((p, i) => (<div key={i} className="leader-row"><div className="flex items-center gap-2"><span className="rank-badge">{i+1}</span><span className="leader-name">{p.name.split(' ')[0]} {p.name.split(' ')[1][0]}.</span></div><div className="flex items-end"><span className="leader-val">{valFunc(p)}</span>{i===0 && <span className="leader-sub">{label}</span>}</div></div>))}</div></div>); }
         function HonorCard({ label, data, color }) { return (<div className="bg-black/40 border border-white/5 p-3 rounded-lg text-center"><div className="text-[9px] font-bold text-zinc-500 uppercase">{label}</div><div className={`text-2xl font-black ${color}`}>{data.val}</div>{data.val>0 && <div className="text-[8px] text-zinc-400 mt-1">{data.player.split(' ')[0]}</div>}</div>); }
+        
+        // NEW Helper for End of Season Tab
+        function LeaderboardCard({ title, data, dataKey, suffix = '' }) {
+            return (
+                <div className="bg-black border border-zinc-800 p-4 rounded-lg">
+                    <h4 className="text-[10px] font-black uppercase text-zinc-500 mb-3">{title}</h4>
+                    <div className="space-y-2">
+                        {data.length > 0 ? data.map((p, i) => (
+                            <div key={i} className="flex justify-between items-center">
+                                <div className="flex items-center gap-2">
+                                    <span className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-black ${i === 0 ? 'bg-gold text-black' : 'bg-zinc-800 text-zinc-400'}`}>{i + 1}</span>
+                                    <span className="text-sm font-bold">{p.name.split(' ')[0]} {p.name.split(' ')[1][0]}.</span>
+                                </div>
+                                <span className="font-black text-white">{p[dataKey]}{suffix}</span>
+                            </div>
+                        )) : <div className="text-xs text-zinc-600 italic">No qualified players</div>}
+                    </div>
+                </div>
+            );
+        }
+
         function TrendChart({ games, type }) {
             const ref = React.useRef(null);
             React.useEffect(() => {
