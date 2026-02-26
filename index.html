@@ -440,8 +440,7 @@
                 catch(e) { showToast("Error Saving: " + e.message, "error"); }
             };
 
-            // --- NEW END OF SEASON REPORT COMPILER ---
-            // This isolates the "Games Played" fix ONLY to the new tab, without breaking existing systems
+            // --- END OF SEASON REPORT COMPILER ---
             const getEndSeasonReport = () => {
                 const totals = {};
                 ROSTER.forEach(p => totals[p.name] = { ...p, gp: 0, pts:0, reb:0, ast:0, stl:0, blk:0, to:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0, pf:0 });
@@ -449,7 +448,7 @@
                 games.forEach(g => {
                     g.stats.forEach(s => {
                         if (totals[s.name]) {
-                            // FIX: Only count as a game played if they actually recorded a stat in the game
+                            // Only count as a game played if they actually recorded a stat in the game
                             const hasStats = s.fg2a > 0 || s.fg3a > 0 || s.fta > 0 || s.reb > 0 || s.ast > 0 || s.stl > 0 || s.blk > 0 || s.to > 0 || s.pf > 0;
                             if (hasStats) totals[s.name].gp++;
 
@@ -477,6 +476,8 @@
                     const fga = t.fg2a + t.fg3a;
                     return {
                         ...t,
+                        fgm, // Added for total views
+                        fga, // Added for total views
                         ppg: (t.pts / gp).toFixed(1),
                         rpg: (t.reb / gp).toFixed(1),
                         apg: (t.ast / gp).toFixed(1),
@@ -508,7 +509,7 @@
                     stl: getLeaders('spg'),
                     blk: getLeaders('bpg'),
                     fg3Pct: getLeaders('fg3Pct', 'fg3a', 15), // Min 15 attempts for percentage leaders
-                    ftPct: getLeaders('ftPct', 'fta', 15)     // Min 15 attempts for percentage leaders
+                    ftPct: getLeaders('ftPct', 'fta', 15)      // Min 15 attempts for percentage leaders
                 };
             };
 
@@ -697,7 +698,7 @@
                         </div>
                     )}
 
-                    {/* SEASON REPORT (NEW TAB) */}
+                    {/* SEASON REPORT (NEW TAB WITH BOTH TOTALS AND AVERAGES) */}
                     {view === 'season report' && (() => {
                         const reportData = getEndSeasonReport();
                         return (
@@ -724,46 +725,69 @@
                                     </div>
                                 </div>
 
-                                {/* Full Roster Table */}
+                                {/* Full Roster Table - NOW WITH TOTALS AND AVERAGES */}
                                 <div className="overflow-x-auto mt-8">
-                                    <h3 className="text-xl font-black uppercase text-white mb-4">Complete Player Breakdown</h3>
+                                    <h3 className="text-xl font-black uppercase text-white mb-4">Complete Player Breakdown (Totals & Averages)</h3>
                                     <table className="w-full text-xs text-left border-collapse">
                                         <thead className="bg-black text-gold">
                                             <tr>
-                                                <th className="p-2 border border-zinc-700">Player</th>
+                                                <th className="p-2 border border-zinc-700 whitespace-nowrap">Player</th>
                                                 <th className="p-2 border border-zinc-700 text-center">GP</th>
-                                                <th className="p-2 border border-zinc-700 text-center text-white">Total PTS</th>
+                                                <th className="p-2 border border-zinc-700 text-center text-white">PTS</th>
                                                 <th className="p-2 border border-zinc-700 text-center text-gold">PPG</th>
-                                                <th className="p-2 border border-zinc-700 text-center">Total REB</th>
+                                                <th className="p-2 border border-zinc-700 text-center">REB</th>
                                                 <th className="p-2 border border-zinc-700 text-center text-blue-400">RPG</th>
-                                                <th className="p-2 border border-zinc-700 text-center">Total AST</th>
+                                                <th className="p-2 border border-zinc-700 text-center">AST</th>
                                                 <th className="p-2 border border-zinc-700 text-center text-green-400">APG</th>
-                                                <th className="p-2 border border-zinc-700 text-center">SPG</th>
-                                                <th className="p-2 border border-zinc-700 text-center">BPG</th>
+                                                <th className="p-2 border border-zinc-700 text-center">STL</th>
+                                                <th className="p-2 border border-zinc-700 text-center text-yellow-400">SPG</th>
+                                                <th className="p-2 border border-zinc-700 text-center">BLK</th>
+                                                <th className="p-2 border border-zinc-700 text-center text-purple-400">BPG</th>
+                                                <th className="p-2 border border-zinc-700 text-center">TO</th>
+                                                <th className="p-2 border border-zinc-700 text-center text-red-400">TOPG</th>
+                                                <th className="p-2 border border-zinc-700 text-center whitespace-nowrap">FGM-A</th>
                                                 <th className="p-2 border border-zinc-700 text-center">FG%</th>
+                                                <th className="p-2 border border-zinc-700 text-center whitespace-nowrap">3PM-A</th>
                                                 <th className="p-2 border border-zinc-700 text-center">3PT%</th>
+                                                <th className="p-2 border border-zinc-700 text-center whitespace-nowrap">FTM-A</th>
                                                 <th className="p-2 border border-zinc-700 text-center">FT%</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-zinc-800 bg-zinc-900/50">
                                             {reportData.all.map(p => (
                                                 <tr key={p.id} className="hover:bg-zinc-800">
-                                                    <td className="p-2 border border-zinc-700 font-bold">{p.name}</td>
+                                                    <td className="p-2 border border-zinc-700 font-bold whitespace-nowrap">{p.name}</td>
                                                     <td className="p-2 border border-zinc-700 text-center text-zinc-400">{p.gp}</td>
+                                                    
                                                     <td className="p-2 border border-zinc-700 text-center font-bold text-white">{p.pts}</td>
                                                     <td className="p-2 border border-zinc-700 text-center font-bold text-gold">{p.ppg}</td>
+                                                    
                                                     <td className="p-2 border border-zinc-700 text-center text-zinc-400">{p.reb}</td>
                                                     <td className="p-2 border border-zinc-700 text-center font-bold text-blue-400">{p.rpg}</td>
+                                                    
                                                     <td className="p-2 border border-zinc-700 text-center text-zinc-400">{p.ast}</td>
                                                     <td className="p-2 border border-zinc-700 text-center font-bold text-green-400">{p.apg}</td>
-                                                    <td className="p-2 border border-zinc-700 text-center">{p.spg}</td>
-                                                    <td className="p-2 border border-zinc-700 text-center">{p.bpg}</td>
-                                                    <td className="p-2 border border-zinc-700 text-center">{p.fgPct}%</td>
-                                                    <td className="p-2 border border-zinc-700 text-center">{p.fg3Pct}%</td>
-                                                    <td className="p-2 border border-zinc-700 text-center">{p.ftPct}%</td>
+                                                    
+                                                    <td className="p-2 border border-zinc-700 text-center text-zinc-400">{p.stl}</td>
+                                                    <td className="p-2 border border-zinc-700 text-center font-bold text-yellow-400">{p.spg}</td>
+                                                    
+                                                    <td className="p-2 border border-zinc-700 text-center text-zinc-400">{p.blk}</td>
+                                                    <td className="p-2 border border-zinc-700 text-center font-bold text-purple-400">{p.bpg}</td>
+                                                    
+                                                    <td className="p-2 border border-zinc-700 text-center text-zinc-400">{p.to}</td>
+                                                    <td className="p-2 border border-zinc-700 text-center font-bold text-red-400">{p.topg}</td>
+                                                    
+                                                    <td className="p-2 border border-zinc-700 text-center text-zinc-400 whitespace-nowrap">{p.fgm}-{p.fga}</td>
+                                                    <td className="p-2 border border-zinc-700 text-center font-bold">{p.fgPct}%</td>
+                                                    
+                                                    <td className="p-2 border border-zinc-700 text-center text-zinc-400 whitespace-nowrap">{p.fg3m}-{p.fg3a}</td>
+                                                    <td className="p-2 border border-zinc-700 text-center font-bold">{p.fg3Pct}%</td>
+                                                    
+                                                    <td className="p-2 border border-zinc-700 text-center text-zinc-400 whitespace-nowrap">{p.ftm}-{p.fta}</td>
+                                                    <td className="p-2 border border-zinc-700 text-center font-bold">{p.ftPct}%</td>
                                                 </tr>
                                             ))}
-                                            {reportData.all.length === 0 && <tr><td colSpan="13" className="p-4 text-center italic text-zinc-500">No stats recorded yet.</td></tr>}
+                                            {reportData.all.length === 0 && <tr><td colSpan="20" className="p-4 text-center italic text-zinc-500">No stats recorded yet.</td></tr>}
                                         </tbody>
                                     </table>
                                 </div>
