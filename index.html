@@ -284,7 +284,16 @@
                 { id: 'broken', name: 'BROKEN PLAY', att: 0, made: 0, pts: 0 },
                 { id: 'motion', name: 'Motion Offense', att: 0, made: 0, pts: 0 }
             ]);
-            const defaultLineup = () => SEED_TEAMS.varsity.slice(0, 5).map(p => p.id);
+            // FIXED: this used to always pull from SEED_TEAMS.varsity regardless of which team was
+            // active, so starting a JV game before a lineup had ever been saved for JV would seed the
+            // "on court" starters using VARSITY jersey numbers — any JV player who happened to share one
+            // of those numbers would show up pre-selected as a starter she was never subbed into. Now
+            // it always builds the default from the currently active team's own (active) roster.
+            const defaultLineup = () => {
+                const teamRoster = rosterData[activeTeam] || [];
+                const activeTeamRoster = teamRoster.filter(p => p.active !== false);
+                return (activeTeamRoster.length ? activeTeamRoster : teamRoster).slice(0, 5).map(p => p.id);
+            };
 
             const [gameMeta, setGameMetaRaw] = useStickyState(defaultGameMeta(), 'eagles_meta');
             const [playerStats, setPlayerStatsRaw] = useStickyState({}, 'eagles_stats');
