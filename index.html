@@ -497,6 +497,14 @@
             const updateRosterPlayer = (team, id, fields) => {
                 if(!requireEditor()) return;
                 const current = rosterData[team] || [];
+                // NEW: block editing a player's jersey number to one that's already taken on this
+                // team's roster. Without this, two players end up sharing an id, and anything that
+                // looks a player up by id (active lineup, live stat entry) can silently grab the wrong
+                // one, or a starter can vanish from the lineup entirely if their old number is now gone.
+                if (fields.id !== undefined && fields.id !== id && current.some(p => p.id === fields.id)) {
+                    showToast("That jersey number is already taken by another player on this roster", "error");
+                    return;
+                }
                 saveRoster(team, current.map(p => p.id === id ? { ...p, ...fields } : p));
             };
 
@@ -590,9 +598,18 @@
             }, [selectedPlayer, pendingShotStat]);
             const logShot = (pid, isThree, made, x, y) => {
                 if (!requireEditor()) return;
-                setShotLog(prev => [...prev, { id: Date.now(), pid, x, y, isThree, made }]);
+                setShotLog(prev => [...prev, { id: Date.now(), team: 'us', pid, x, y, isThree, made }]);
                 setSelectedPlayer(pid);
                 setPendingShotStat({ statKey: made ? (isThree?'fg3m':'fg2m') : (isThree?'fg3a':'fg2a'), pointVal: made ? (isThree?3:2) : 0, forPid: pid });
+            };
+            // NEW: same idea as logShot, but for the opponent — no player picker (you said you don't
+            // need per-player tracking for them), just location + made/missed, so you can still see
+            // *where* they're getting shots up without adding a step to enter it.
+            const logOpponentShot = (isThree, made, x, y) => {
+                if (!requireEditor()) return;
+                setShotLog(prev => [...prev, { id: Date.now(), team: 'opp', x, y, isThree, made }]);
+                setSelectedPlayer(OPPONENT_ID);
+                setPendingShotStat({ statKey: made ? (isThree?'fg3m':'fg2m') : (isThree?'fg3a':'fg2a'), pointVal: made ? (isThree?3:2) : 0, forPid: OPPONENT_ID });
             };
 
             const handleUndo = (event) => {
@@ -633,6 +650,16 @@
                 const pIn = ROSTER.find(r => r.id === benchPid).name;
                 showToast(`🔄 ${pIn.split(' ')[0]} Checked In`);
                 setSubTarget(null);
+            };
+
+            // NEW: repairs the active lineup if a slot no longer matches any current roster player —
+            // e.g. someone's jersey number got changed in Manage Roster, so the id saved in the lineup
+            // doesn't point to anyone anymore and that starter silently disappears from the live view.
+            const fixLineup = () => {
+                if (!requireEditor()) return;
+                if (!confirm("Reset the active lineup to the first 5 players on the current roster?")) return;
+                setActiveLineup(ROSTER.slice(0, 5).map(p => p.id));
+                showToast("Lineup reset to match current roster", "info");
             };
 
             const resetLiveGame = () => {
@@ -1028,6 +1055,12 @@
                             {authReady && !isEditor && (
                                 <div className="bg-yellow-900/30 border border-yellow-700 text-yellow-300 text-xs font-bold uppercase text-center py-2 rounded-lg mb-2">👁️ View Only — sign in on the Admin tab to record stats</div>
                             )}
+                            {activeLineup.length > 0 && activePlayers.length < activeLineup.length && (
+                                <div className="bg-red-900/30 border border-red-700 text-red-300 text-xs font-bold uppercase text-center py-2 rounded-lg mb-2 flex items-center justify-between gap-2 px-3">
+                                    <span>⚠️ Only {activePlayers.length}/{activeLineup.length} starters found — a lineup slot doesn't match the current roster (probably a jersey number changed)</span>
+                                    <button onClick={fixLineup} className="underline whitespace-nowrap">Fix Lineup</button>
+                                </div>
+                            )}
                             <div className="live-header">
                                 <div className="score-box"><div className="score-label">EAGLES</div><div className="score-val text-gold">{getTeamScore()}</div>
                                     <div className="timeout-pills">
@@ -1093,9 +1126,8 @@
                                     {selectedPlayer === OPPONENT_ID ? (
                                         <>
                                             <div className="h-10 flex items-center justify-center text-red-400 font-bold uppercase text-xs border-b border-red-900/30">TRACKING OPPONENT SCORING</div>
-                                            <div className="flex gap-2 flex-1"><button onClick={() => handleStatClick('fg2m', 2)} className="kb-stat-btn bg-make text-xl">Opp 2PT (+2)</button><button onClick={() => handleStatClick('fg2a')} className="kb-stat-btn bg-miss text-xl">Opp 2PT Miss</button></div>
-                                            <div className="flex gap-2 flex-1"><button onClick={() => handleStatClick('fg3m', 3)} className="kb-stat-btn bg-make text-xl">Opp 3PT (+3)</button><button onClick={() => handleStatClick('fg3a')} className="kb-stat-btn bg-miss text-xl">Opp 3PT Miss</button></div>
-                                            <div className="flex gap-2 flex-1"><button onClick={() => handleStatClick('ftm', 1)} className="kb-stat-btn bg-make text-xl">Opp FT (+1)</button><button onClick={() => handleStatClick('fta')} className="kb-stat-btn bg-miss text-xl">Opp FT Miss</button></div>
+                                            <OpponentShotChartPanel onCommit={logOpponentShot} />
+                                            <div className="flex gap-2"><button onClick={() => handleStatClick('ftm', 1)} className="kb-stat-btn bg-make text-xl" style={{minHeight:'44px'}}>Opp FT (+1)</button><button onClick={() => handleStatClick('fta')} className="kb-stat-btn bg-miss text-xl" style={{minHeight:'44px'}}>Opp FT Miss</button></div>
                                         </>
                                     ) : (
                                         <>
@@ -1299,23 +1331,34 @@
                     {view === 'tactics' && (() => {
                         const targetGames = tacticsFilter === 'season' ? visibleGames : visibleGames.filter(g => g.id === tacticsFilter);
                         const allShots = targetGames.flatMap(g => g.shotLog || []);
+                        const usShots = allShots.filter(s => (s.team || 'us') === 'us');
+                        const oppShots = allShots.filter(s => s.team === 'opp');
                         return (
                             <div className="space-y-6 animate-slideIn">
                                 <div className="flex justify-between items-center bg-zinc-900 p-3 rounded-lg border border-zinc-800"><label className="text-xs font-bold text-zinc-500 uppercase mr-3">Data Source:</label><select className="bg-black text-white font-bold text-xs p-2 rounded border border-zinc-700 flex-1" value={tacticsFilter} onChange={e=>setTacticsFilter(e.target.value)}><option value="season">FULL SEASON AGGREGATE</option><optgroup label="Single Games">{visibleGames.map(g => <option key={g.id} value={g.id}>{g.date} vs {g.opp}</option>)}</optgroup></select></div>
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                    <div className="bento-card h-full">
-                                        <h3 className="text-xl font-black text-gold uppercase italic mb-2">💪 Lineup +/-</h3>
-                                        <p className="text-xs text-zinc-500 mb-4">Point differential while each player is on the court — computed automatically from subs and scoring. No extra taps needed to see this.</p>
-                                        {lineupPlusMinus.length > 0 ? (
-                                            <div className="space-y-1">{lineupPlusMinus.map((p,i)=>(<div key={i} className="flex justify-between p-3 bg-zinc-900/50 rounded items-center"><span className="font-bold text-sm">{p.name}</span><span className={`font-black text-lg ${p.net>0?'text-green-500':(p.net<0?'text-red-500':'text-zinc-400')}`}>{p.net>0?'+':''}{p.net}</span></div>))}</div>
-                                        ) : <div className="text-zinc-500 text-xs italic py-8 text-center">No lineup data yet — this fills in automatically as you track live games.</div>}
-                                    </div>
-                                    <div className="bento-card">
-                                        <h3 className="text-xl font-black text-gold uppercase italic mb-2">🎯 Shot Chart</h3>
-                                        <p className="text-xs text-zinc-500 mb-4">Every shot logged with "LOG SHOT" on the Live tab, plotted here — green makes, red misses.</p>
-                                        {allShots.length > 0 ? (
-                                            <CourtSVG>{allShots.map(s => <circle key={s.id} cx={s.x} cy={s.y} r="6" fill={s.made ? '#22c55e' : '#ef4444'} fillOpacity="0.8" stroke="white" strokeWidth="1" />)}</CourtSVG>
-                                        ) : <div className="text-zinc-500 text-xs italic py-8 text-center">No shots logged yet — use "LOG SHOT" on the Live tab and they'll show up here.</div>}
+                                <div className="bento-card">
+                                    <h3 className="text-xl font-black text-gold uppercase italic mb-2">💪 Lineup +/-</h3>
+                                    <p className="text-xs text-zinc-500 mb-4">Point differential while each player is on the court — computed automatically from subs and scoring. No extra taps needed to see this.</p>
+                                    {lineupPlusMinus.length > 0 ? (
+                                        <div className="space-y-1">{lineupPlusMinus.map((p,i)=>(<div key={i} className="flex justify-between p-3 bg-zinc-900/50 rounded items-center"><span className="font-bold text-sm">{p.name}</span><span className={`font-black text-lg ${p.net>0?'text-green-500':(p.net<0?'text-red-500':'text-zinc-400')}`}>{p.net>0?'+':''}{p.net}</span></div>))}</div>
+                                    ) : <div className="text-zinc-500 text-xs italic py-8 text-center">No lineup data yet — this fills in automatically as you track live games.</div>}
+                                </div>
+                                <div className="bento-card">
+                                    <h3 className="text-xl font-black text-gold uppercase italic mb-2">🎯 Shot Chart</h3>
+                                    <p className="text-xs text-zinc-500 mb-4">Every shot logged with "LOG SHOT" on the Live tab, plotted here — green makes, red misses. Opponent shots aren't attributed to a player, just location, so you can see where they're getting shots up.</p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <div className="text-xs font-black text-gold uppercase mb-2 text-center">Us ({usShots.length})</div>
+                                            {usShots.length > 0 ? (
+                                                <CourtSVG>{usShots.map(s => <circle key={s.id} cx={s.x} cy={s.y} r="6" fill={s.made ? '#22c55e' : '#ef4444'} fillOpacity="0.8" stroke="white" strokeWidth="1" />)}</CourtSVG>
+                                            ) : <div className="text-zinc-500 text-xs italic py-8 text-center">No shots logged yet.</div>}
+                                        </div>
+                                        <div>
+                                            <div className="text-xs font-black text-red-400 uppercase mb-2 text-center">Opponent ({oppShots.length})</div>
+                                            {oppShots.length > 0 ? (
+                                                <CourtSVG>{oppShots.map(s => <circle key={s.id} cx={s.x} cy={s.y} r="6" fill={s.made ? '#22c55e' : '#ef4444'} fillOpacity="0.8" stroke="white" strokeWidth="1" />)}</CourtSVG>
+                                            ) : <div className="text-zinc-500 text-xs italic py-8 text-center">No opponent shots logged yet.</div>}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1567,6 +1610,7 @@ service cloud.firestore {
                                 <RosterManager
                                     rosterData={rosterData}
                                     rosterLoaded={rosterLoaded}
+                                    initialTeam={activeTeam}
                                     onAdd={addRosterPlayer}
                                     onUpdate={updateRosterPlayer}
                                     onRemove={removeRosterPlayer}
@@ -1688,12 +1732,51 @@ service cloud.firestore {
             );
         }
 
+        // NEW: opponent version of the shot chart — same tap-the-court flow, but skips the "who shot
+        // it" step entirely (no per-player opponent tracking), since the point is just seeing WHERE
+        // they're getting shots up, not attributing them to a specific player.
+        function OpponentShotChartPanel({ onCommit }) {
+            const [step, setStep] = React.useState('location');
+            const [pending, setPending] = React.useState(null);
+
+            const handleTap = (x, y) => { setPending({ x, y, isThree: isThreePointShot(x, y) }); setStep('result'); };
+            const startOver = () => { setStep('location'); setPending(null); };
+            const commit = (made) => {
+                onCommit(pending.isThree, made, pending.x, pending.y);
+                startOver();
+            };
+
+            return (
+                <div className="bg-black/30 rounded-xl p-2 border border-red-900/30">
+                    <div className="text-center text-xs font-black uppercase mb-1.5">
+                        {step === 'location' && <span className="text-zinc-400">🏀 Tap Where Opponent Shot</span>}
+                        {step === 'result' && <span className={pending.isThree ? 'text-blue-400' : 'text-gold'}>Opp {pending.isThree ? '3PT' : '2PT'} — Made or Missed?</span>}
+                    </div>
+                    <div style={{maxWidth: '300px', margin: '0 auto'}}>
+                        <CourtSVG onTap={step === 'location' ? handleTap : undefined}>
+                            {pending && <circle cx={pending.x} cy={pending.y} r="9" fill="#ef4444" stroke="white" strokeWidth="2" />}
+                        </CourtSVG>
+                    </div>
+                    {step === 'result' && (
+                        <div className="flex gap-2 mt-2">
+                            <button onClick={()=>commit(true)} className="flex-1 kb-stat-btn bg-make" style={{minHeight:'46px'}}>MADE</button>
+                            <button onClick={()=>commit(false)} className="flex-1 kb-stat-btn bg-miss" style={{minHeight:'46px'}}>MISSED</button>
+                        </div>
+                    )}
+                    {step !== 'location' && <button onClick={startOver} className="w-full text-center text-[10px] text-zinc-500 hover:text-white underline mt-1.5">← Start Over</button>}
+                </div>
+            );
+        }
+
         // NEW: roster editor used inside the "Manage Roster" modal. Lets you switch between Varsity/JV,
         // edit a player's name/number/position inline, remove a player, or add a new one. Every change
         // is written straight to Firestore (via the onAdd/onUpdate/onRemove callbacks from App), so it
         // shows up on every device within a second or two — no app update or code edit needed.
-        function RosterManager({ rosterData, rosterLoaded, onAdd, onUpdate, onRemove }) {
-            const [team, setTeam] = React.useState('varsity');
+        function RosterManager({ rosterData, rosterLoaded, initialTeam, onAdd, onUpdate, onRemove }) {
+            // CHANGED: was hardcoded to 'varsity' regardless of which team you were actually viewing in
+            // the app — easy to add/edit a player on the wrong team's roster without noticing. Now opens
+            // on whichever team is currently active.
+            const [team, setTeam] = React.useState(initialTeam || 'varsity');
             const [newName, setNewName] = React.useState('');
             const [newNum, setNewNum] = React.useState('');
             const [newPos, setNewPos] = React.useState('G');
