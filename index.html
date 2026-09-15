@@ -292,7 +292,7 @@
             // scores (see applyScoreToLineup below) — no extra taps needed, since it's derived entirely
             // from stats you're already recording (who's on court + who scored). Feeds the "Tactics" tab.
             const [plusMinus, setPlusMinusRaw] = useStickyState({}, 'eagles_plusminus');
-            // NEW: shot locations tapped on the shot chart (see ShotChartModal) — saved per game so a
+            // NEW: shot locations tapped on the shot chart (see ShotChartPanel) — saved per game so a
             // shot heatmap can be built later. Not yet visualized anywhere, just captured for now.
             const [shotLog, setShotLogRaw] = useStickyState([], 'eagles_shotlog');
             
@@ -369,7 +369,6 @@
             const [subTarget, setSubTarget] = React.useState(null); 
             const [editId, setEditId] = React.useState(null);
             const [showSnapshot, setShowSnapshot] = React.useState(false);
-            const [showShotChart, setShowShotChart] = React.useState(false);
             const [shotMode, setShotMode] = React.useState('make'); 
             const [viewGame, setViewGame] = React.useState(null);
             
@@ -1090,7 +1089,7 @@
                                     <button onClick={saveGame} className="mt-auto w-full py-4 bg-blue-700 hover:bg-blue-600 rounded font-black uppercase text-xs">SAVE GAME</button>
                                     <button onClick={resetLiveGame} className="mt-2 w-full py-3 bg-zinc-900 text-red-500 font-bold text-xs rounded hover:bg-red-900/20">RESET / CLEAR GAME</button>
                                 </div>
-                                <div className="w-2/3 h-full flex flex-col gap-2">
+                                <div className="w-2/3 h-full flex flex-col gap-2 overflow-y-auto custom-scrollbar">
                                     {selectedPlayer === OPPONENT_ID ? (
                                         <>
                                             <div className="h-10 flex items-center justify-center text-red-400 font-bold uppercase text-xs border-b border-red-900/30">TRACKING OPPONENT SCORING</div>
@@ -1100,10 +1099,10 @@
                                         </>
                                     ) : (
                                         <>
-                                            <div className="h-2/5"><button onClick={()=>setShowShotChart(true)} className="kb-stat-btn bg-action w-full h-full flex-col gap-1"><span className="text-3xl">🏀</span><span>LOG SHOT (2PT / 3PT)</span></button></div>
-                                            <div className="flex gap-2 h-1/5"><button onClick={() => handleStatClick('ftm', 1)} className="kb-stat-btn bg-make">FT MAKE (+1)</button><button onClick={() => handleStatClick('fta')} className="kb-stat-btn bg-miss">FT MISS</button></div>
-                                            <div className="flex gap-2 h-1/5"><button onClick={() => handleStatClick('reb')} className="kb-stat-btn bg-action">REBOUND</button><button onClick={() => handleStatClick('ast')} className="kb-stat-btn bg-action">ASSIST</button><button onClick={() => handleStatClick('stl')} className="kb-stat-btn bg-action">STEAL</button></div>
-                                            <div className="flex gap-2 h-1/5"><button onClick={() => handleStatClick('blk')} className="kb-stat-btn bg-action">BLOCK</button><button onClick={() => handleStatClick('to')} className="kb-stat-btn bg-neg">TURNOVER</button><button onClick={() => handleStatClick('pf')} className="kb-stat-btn bg-neg">FOUL</button></div>
+                                            <ShotChartPanel activePlayers={activePlayers} onCommit={logShot} />
+                                            <div className="flex gap-2"><button onClick={() => handleStatClick('ftm', 1)} className="kb-stat-btn bg-make" style={{minHeight:'44px'}}>FT MAKE (+1)</button><button onClick={() => handleStatClick('fta')} className="kb-stat-btn bg-miss" style={{minHeight:'44px'}}>FT MISS</button></div>
+                                            <div className="flex gap-2"><button onClick={() => handleStatClick('reb')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>REBOUND</button><button onClick={() => handleStatClick('ast')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>ASSIST</button><button onClick={() => handleStatClick('stl')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>STEAL</button></div>
+                                            <div className="flex gap-2"><button onClick={() => handleStatClick('blk')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>BLOCK</button><button onClick={() => handleStatClick('to')} className="kb-stat-btn bg-neg" style={{minHeight:'44px'}}>TURNOVER</button><button onClick={() => handleStatClick('pf')} className="kb-stat-btn bg-neg" style={{minHeight:'44px'}}>FOUL</button></div>
                                         </>
                                     )}
                                 </div>
@@ -1590,14 +1589,6 @@ service cloud.firestore {
                             </div>
                         </div>
                     )}
-
-                    {showShotChart && (
-                        <ShotChartModal
-                            activePlayers={activePlayers}
-                            onClose={() => setShowShotChart(false)}
-                            onCommit={(pid, isThree, made, x, y) => { logShot(pid, isThree, made, x, y); setShowShotChart(false); }}
-                        />
-                    )}
                 </div>
             );
         }
@@ -1649,7 +1640,9 @@ service cloud.firestore {
         // isThree, made, x, y) once all three are chosen; App wires that into the existing stat-tracking
         // pipeline (see logShot). Free throws are NOT part of this flow — they still use the regular
         // FT MAKE/MISS buttons in the live keypad, since a free throw doesn't have a variable location.
-        function ShotChartModal({ activePlayers, onClose, onCommit }) {
+        // Rendered directly inline in the live tab (not a popup) so it's always visible alongside the
+        // rest of the keypad.
+        function ShotChartPanel({ activePlayers, onCommit }) {
             const [step, setStep] = React.useState('location');
             const [pending, setPending] = React.useState(null);
             const [pendingPlayer, setPendingPlayer] = React.useState(null);
@@ -1663,37 +1656,34 @@ service cloud.firestore {
             };
 
             return (
-                <div className="modal-overlay" onClick={onClose}>
-                    <div className="modal-content" style={{maxWidth: '420px'}} onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center mb-3">
-                            <h3 className="text-lg font-black uppercase text-gold">
-                                {step === 'location' && 'Tap The Shot Location'}
-                                {step === 'player' && (pending.isThree ? '🔵 3PT — Who Shot It?' : '🟡 2PT — Who Shot It?')}
-                                {step === 'result' && `${pendingPlayer.name.split(' ')[0]} — Made or Missed?`}
-                            </h3>
-                            <button onClick={onClose} className="text-2xl">✕</button>
-                        </div>
+                <div className="bg-black/30 rounded-xl p-2 border border-zinc-800">
+                    <div className="text-center text-xs font-black uppercase mb-1.5">
+                        {step === 'location' && <span className="text-zinc-400">🏀 Tap The Shot Location</span>}
+                        {step === 'player' && <span className={pending.isThree ? 'text-blue-400' : 'text-gold'}>{pending.isThree ? '🔵 3PT' : '🟡 2PT'} — Who Shot It?</span>}
+                        {step === 'result' && <span className="text-white">{pendingPlayer.name.split(' ')[0]} — Made or Missed?</span>}
+                    </div>
+                    <div style={{maxWidth: '300px', margin: '0 auto'}}>
                         <CourtSVG onTap={step === 'location' ? handleTap : undefined}>
                             {pending && <circle cx={pending.x} cy={pending.y} r="9" fill={pending.isThree ? '#3b82f6' : '#FFB81C'} stroke="white" strokeWidth="2" />}
                         </CourtSVG>
-                        {step === 'player' && (
-                            <div className="grid grid-cols-3 gap-2 mt-4">
-                                {activePlayers.map(p => (
-                                    <button key={p.id} onClick={()=>pickPlayer(p)} className="kb-player-btn" style={{minHeight:'64px'}}>
-                                        <div className="text-sm font-black leading-none">{p.name.split(' ')[0]}</div>
-                                        <div className="text-[10px] text-zinc-500 mt-1">#{p.id}</div>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                        {step === 'result' && (
-                            <div className="flex gap-3 mt-4">
-                                <button onClick={()=>commit(true)} className="flex-1 kb-stat-btn bg-make text-lg" style={{minHeight:'72px'}}>MADE</button>
-                                <button onClick={()=>commit(false)} className="flex-1 kb-stat-btn bg-miss text-lg" style={{minHeight:'72px'}}>MISSED</button>
-                            </div>
-                        )}
-                        {step !== 'location' && <button onClick={startOver} className="mt-3 text-xs text-zinc-500 hover:text-white underline">← Start Over</button>}
                     </div>
+                    {step === 'player' && (
+                        <div className="grid grid-cols-3 gap-1.5 mt-2">
+                            {activePlayers.map(p => (
+                                <button key={p.id} onClick={()=>pickPlayer(p)} className="kb-player-btn" style={{minHeight:'50px'}}>
+                                    <div className="text-xs font-black leading-none">{p.name.split(' ')[0]}</div>
+                                    <div className="text-[9px] text-zinc-500 mt-1">#{p.id}</div>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    {step === 'result' && (
+                        <div className="flex gap-2 mt-2">
+                            <button onClick={()=>commit(true)} className="flex-1 kb-stat-btn bg-make" style={{minHeight:'46px'}}>MADE</button>
+                            <button onClick={()=>commit(false)} className="flex-1 kb-stat-btn bg-miss" style={{minHeight:'46px'}}>MISSED</button>
+                        </div>
+                    )}
+                    {step !== 'location' && <button onClick={startOver} className="w-full text-center text-[10px] text-zinc-500 hover:text-white underline mt-1.5">← Start Over</button>}
                 </div>
             );
         }
