@@ -613,6 +613,16 @@
                 setSelectedPlayer(OPPONENT_ID);
                 setPendingShotStat({ statKey: made ? (isThree?'fg3m':'fg2m') : (isThree?'fg3a':'fg2a'), pointVal: made ? (isThree?3:2) : 0, forPid: OPPONENT_ID });
             };
+            // NEW: logs a follow-up stat (rebound or assist) for one of our players, right in the same
+            // flow as a shot instead of a separate trip to the regular keypad. Reuses the same
+            // pendingShotStat reconciliation as shots.
+            const logSupportStat = (pid, statKey) => {
+                if (!requireEditor()) return;
+                setSelectedPlayer(pid);
+                setPendingShotStat({ statKey, pointVal: 0, forPid: pid });
+            };
+            const logRebound = (pid) => logSupportStat(pid, 'reb');
+            const logAssist = (pid) => logSupportStat(pid, 'ast');
 
             const handleUndo = (event) => {
                 if(!requireEditor()) return;
@@ -1157,13 +1167,13 @@
                                     {selectedPlayer === OPPONENT_ID ? (
                                         <>
                                             <div className="h-10 flex items-center justify-center text-red-400 font-bold uppercase text-xs border-b border-red-900/30">TRACKING OPPONENT SCORING</div>
-                                            <OpponentShotChartPanel onCommit={logOpponentShot} />
+                                            <OpponentShotChartPanel activePlayers={activePlayers} onCommit={logOpponentShot} onRebound={logRebound} />
                                             <div className="flex gap-2"><button onClick={() => handleStatClick('ftm', 1)} className="kb-stat-btn bg-make text-xl" style={{minHeight:'44px'}}>Opp FT (+1)</button><button onClick={() => handleStatClick('fta')} className="kb-stat-btn bg-miss text-xl" style={{minHeight:'44px'}}>Opp FT Miss</button></div>
                                             <button onClick={() => handleStatClick('to')} className="kb-stat-btn bg-neg" style={{minHeight:'44px'}}>Opp TO (travel / bad pass / etc)</button>
                                         </>
                                     ) : (
                                         <>
-                                            <ShotChartPanel activePlayers={activePlayers} onCommit={logShot} />
+                                            <ShotChartPanel activePlayers={activePlayers} onCommit={logShot} onRebound={logRebound} onAssist={logAssist} />
                                             <div className="flex gap-2"><button onClick={() => handleStatClick('ftm', 1)} className="kb-stat-btn bg-make" style={{minHeight:'44px'}}>FT MAKE (+1)</button><button onClick={() => handleStatClick('fta')} className="kb-stat-btn bg-miss" style={{minHeight:'44px'}}>FT MISS</button></div>
                                             <div className="flex gap-2"><button onClick={() => handleStatClick('reb')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>REBOUND</button><button onClick={() => handleStatClick('ast')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>ASSIST</button><button onClick={() => handleStatClick('stl')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>STEAL</button></div>
                                             <div className="flex gap-2"><button onClick={() => handleStatClick('blk')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>BLOCK</button><button onClick={() => handleStatClick('to')} className="kb-stat-btn bg-neg" style={{minHeight:'44px'}}>TURNOVER</button><button onClick={() => handleStatClick('pf')} className="kb-stat-btn bg-neg" style={{minHeight:'44px'}}>FOUL</button></div>
@@ -1718,19 +1728,20 @@ service cloud.firestore {
             );
         }
 
-        // NEW: shot-chart geometry. Court is drawn on a 500x470 viewBox with the hoop near the bottom
-        // (baseline) — this is where taps get converted from screen coordinates and classified as a
-        // 2 or 3 pointer, matching real NBA-style court proportions (straight corner lines, then an arc).
-        const HOOP = { x: 250, y: 428 };
+        // NEW: shot-chart geometry. Court is drawn on a 500x470 viewBox with the hoop near the TOP
+        // (flipped from the original bottom-hoop orientation) — this is where taps get converted from
+        // screen coordinates and classified as a 2 or 3 pointer, matching real NBA-style court
+        // proportions (straight corner lines, then an arc).
+        const HOOP = { x: 250, y: 42 };
         const THREE_PT_RADIUS = 220;
-        const THREE_PT_BREAK_Y = 320; // below this y, the 3PT line is the straight corner segment
+        const THREE_PT_BREAK_Y = 150; // above this y (closer to the hoop), the 3PT line is the straight corner segment
         const isThreePointShot = (x, y) => {
-            if (y >= THREE_PT_BREAK_Y) return x <= 30 || x >= 470;
+            if (y <= THREE_PT_BREAK_Y) return x <= 30 || x >= 470;
             return Math.hypot(x - HOOP.x, y - HOOP.y) >= THREE_PT_RADIUS;
         };
 
         // A real-looking half court: baseline, key, free-throw circle, restricted area, backboard,
-        // rim, 3PT line (straight corners + arc), and a sliver of the half-court line/circle up top.
+        // rim, 3PT line (straight corners + arc), and a sliver of the half-court line/circle down low.
         // `onTap(x, y)` fires with coordinates in the court's own 500x470 space — converted from
         // screen pixels via getScreenCTM so it works correctly at any rendered size (mobile included).
         // `children` renders on top of the court (used for shot markers).
@@ -1747,65 +1758,82 @@ service cloud.firestore {
             return (
                 <svg ref={svgRef} viewBox="0 0 500 470" onClick={handleClick}
                      style={{ width: '100%', height: 'auto', display: 'block', cursor: onTap ? 'crosshair' : 'default', touchAction: 'manipulation', background: '#dcb386', borderRadius: '8px', border: '2px solid #333' }}>
-                    <line x1="4" y1="14" x2="496" y2="14" stroke="white" strokeWidth="2" />
-                    <circle cx="250" cy="14" r="50" fill="none" stroke="white" strokeWidth="2" />
-                    <rect x="170" y="270" width="160" height="190" fill="none" stroke="white" strokeWidth="2" />
-                    <circle cx="250" cy="270" r="60" fill="none" stroke="white" strokeWidth="2" />
-                    <path d="M 30 460 L 30 320 A 220 220 0 0 1 470 320 L 470 460" fill="none" stroke="white" strokeWidth="2" />
-                    <path d="M 210 428 A 40 40 0 0 0 290 428" fill="none" stroke="white" strokeWidth="1.5" />
-                    <line x1="212" y1="440" x2="288" y2="440" stroke="#333" strokeWidth="4" />
-                    <circle cx="250" cy="428" r="9" fill="none" stroke="#ff6a00" strokeWidth="2.5" />
+                    <line x1="4" y1="456" x2="496" y2="456" stroke="white" strokeWidth="2" />
+                    <circle cx="250" cy="456" r="50" fill="none" stroke="white" strokeWidth="2" />
+                    <rect x="170" y="10" width="160" height="190" fill="none" stroke="white" strokeWidth="2" />
+                    <circle cx="250" cy="200" r="60" fill="none" stroke="white" strokeWidth="2" />
+                    <path d="M 30 10 L 30 150 A 220 220 0 0 0 470 150 L 470 10" fill="none" stroke="white" strokeWidth="2" />
+                    <path d="M 210 42 A 40 40 0 0 1 290 42" fill="none" stroke="white" strokeWidth="1.5" />
+                    <line x1="212" y1="30" x2="288" y2="30" stroke="#333" strokeWidth="4" />
+                    <circle cx="250" cy="42" r="9" fill="none" stroke="#ff6a00" strokeWidth="2.5" />
                     {children}
                 </svg>
             );
         }
 
-        // NEW: the shot-entry flow — tap a spot on the court (auto-detects 2PT vs 3PT), then pick who
-        // shot it, then MADE or MISSED. Three taps, big touch targets, no typing. Calls onCommit(pid,
-        // isThree, made, x, y) once all three are chosen; App wires that into the existing stat-tracking
-        // pipeline (see logShot). Free throws are NOT part of this flow — they still use the regular
-        // FT MAKE/MISS buttons in the live keypad, since a free throw doesn't have a variable location.
-        // Rendered directly inline in the live tab (not a popup) so it's always visible alongside the
-        // rest of the keypad.
-        function ShotChartPanel({ activePlayers, onCommit }) {
+        // NEW: the shot-entry flow — tap a spot on the court (auto-detects 2PT vs 3PT), then one tap
+        // picks BOTH who shot it AND made/missed (a row per player with a ✅ and ❌ button — used to be
+        // two separate steps). If it's a make, immediately asks who assisted (or No Assist); if it's a
+        // miss, immediately asks who got the rebound (or Skip) — either way, no leaving this flow to
+        // find the ASSIST/REBOUND buttons elsewhere. Free throws are NOT part of this flow — they still
+        // use the regular FT MAKE/MISS buttons, since a free throw doesn't have a variable location.
+        // Rendered directly inline in the live tab, not a popup.
+        function ShotChartPanel({ activePlayers, onCommit, onRebound, onAssist }) {
             const [step, setStep] = React.useState('location');
             const [pending, setPending] = React.useState(null);
-            const [pendingPlayer, setPendingPlayer] = React.useState(null);
+            const [scorerId, setScorerId] = React.useState(null);
 
-            const handleTap = (x, y) => { setPending({ x, y, isThree: isThreePointShot(x, y) }); setStep('player'); };
-            const pickPlayer = (p) => { setPendingPlayer(p); setStep('result'); };
-            const startOver = () => { setStep('location'); setPending(null); setPendingPlayer(null); };
-            const commit = (made) => {
-                onCommit(pendingPlayer.id, pending.isThree, made, pending.x, pending.y);
-                startOver();
+            const handleTap = (x, y) => { setPending({ x, y, isThree: isThreePointShot(x, y) }); setStep('playerResult'); };
+            const startOver = () => { setStep('location'); setPending(null); setScorerId(null); };
+            const commit = (p, made) => {
+                onCommit(p.id, pending.isThree, made, pending.x, pending.y);
+                if (made) { setScorerId(p.id); setStep('assist'); } else setStep('rebound');
             };
+            const finishRebound = (pid) => { if (pid) onRebound(pid); startOver(); };
+            const finishAssist = (pid) => { if (pid) onAssist(pid); startOver(); };
 
             return (
                 <div className="bg-black/30 rounded-xl p-2 border border-zinc-800">
                     <div className="text-center text-xs font-black uppercase mb-1.5">
                         {step === 'location' && <span className="text-zinc-400">🏀 Tap The Shot Location</span>}
-                        {step === 'player' && <span className={pending.isThree ? 'text-blue-400' : 'text-gold'}>{pending.isThree ? '🔵 3PT' : '🟡 2PT'} — Who Shot It?</span>}
-                        {step === 'result' && <span className="text-white">{pendingPlayer.name.split(' ')[0]} — Made or Missed?</span>}
+                        {step === 'playerResult' && <span className={pending.isThree ? 'text-blue-400' : 'text-gold'}>{pending.isThree ? '🔵 3PT' : '🟡 2PT'} — Who, Made/Miss?</span>}
+                        {step === 'assist' && <span className="text-green-400">Basket Made — Who Assisted?</span>}
+                        {step === 'rebound' && <span className="text-white">Missed — Who Got The Rebound?</span>}
                     </div>
                     <div style={{maxWidth: '300px', margin: '0 auto'}}>
                         <CourtSVG onTap={step === 'location' ? handleTap : undefined}>
                             {pending && <circle cx={pending.x} cy={pending.y} r="9" fill={pending.isThree ? '#3b82f6' : '#FFB81C'} stroke="white" strokeWidth="2" />}
                         </CourtSVG>
                     </div>
-                    {step === 'player' && (
-                        <div className="grid grid-cols-3 gap-1.5 mt-2">
+                    {step === 'playerResult' && (
+                        <div className="space-y-1.5 mt-2">
                             {activePlayers.map(p => (
-                                <button key={p.id} onClick={()=>pickPlayer(p)} className="kb-player-btn" style={{minHeight:'50px'}}>
-                                    <div className="text-xs font-black leading-none">{p.name.split(' ')[0]}</div>
-                                    <div className="text-[9px] text-zinc-500 mt-1">#{p.id}</div>
-                                </button>
+                                <div key={p.id} className="flex items-center gap-1.5">
+                                    <div className="flex-1 bg-zinc-900 rounded px-2 py-2 text-xs font-black truncate">{p.name.split(' ')[0]} <span className="text-zinc-500">#{p.id}</span></div>
+                                    <button onClick={()=>commit(p, true)} className="kb-stat-btn bg-make" style={{minWidth:'50px', minHeight:'38px'}}>✅</button>
+                                    <button onClick={()=>commit(p, false)} className="kb-stat-btn bg-miss" style={{minWidth:'50px', minHeight:'38px'}}>❌</button>
+                                </div>
                             ))}
                         </div>
                     )}
-                    {step === 'result' && (
-                        <div className="flex gap-2 mt-2">
-                            <button onClick={()=>commit(true)} className="flex-1 kb-stat-btn bg-make" style={{minHeight:'46px'}}>MADE</button>
-                            <button onClick={()=>commit(false)} className="flex-1 kb-stat-btn bg-miss" style={{minHeight:'46px'}}>MISSED</button>
+                    {step === 'assist' && (
+                        <div className="grid grid-cols-3 gap-1.5 mt-2">
+                            {activePlayers.filter(p => p.id !== scorerId).map(p => (
+                                <button key={p.id} onClick={()=>finishAssist(p.id)} className="kb-player-btn" style={{minHeight:'46px'}}>
+                                    <div className="text-xs font-black leading-none">{p.name.split(' ')[0]}</div>
+                                </button>
+                            ))}
+                            <button onClick={()=>finishAssist(null)} className="kb-player-btn bg-zinc-800"><div className="text-xs font-black leading-none text-zinc-400">No Assist</div></button>
+                        </div>
+                    )}
+                    {step === 'rebound' && (
+                        <div className="grid grid-cols-3 gap-1.5 mt-2">
+                            {activePlayers.map(p => (
+                                <button key={p.id} onClick={()=>finishRebound(p.id)} className="kb-player-btn" style={{minHeight:'46px'}}>
+                                    <div className="text-xs font-black leading-none">{p.name.split(' ')[0]}</div>
+                                </button>
+                            ))}
+                            <button onClick={()=>finishRebound(null)} className="kb-player-btn bg-zinc-800"><div className="text-xs font-black leading-none text-zinc-400">Skip</div></button>
                         </div>
                     )}
                     {step !== 'location' && <button onClick={startOver} className="w-full text-center text-[10px] text-zinc-500 hover:text-white underline mt-1.5">← Start Over</button>}
@@ -1813,10 +1841,11 @@ service cloud.firestore {
             );
         }
 
-        // NEW: opponent version of the shot chart — same tap-the-court flow, but skips the "who shot
-        // it" step entirely (no per-player opponent tracking), since the point is just seeing WHERE
-        // they're getting shots up, not attributing them to a specific player.
-        function OpponentShotChartPanel({ onCommit }) {
+        // NEW: opponent version of the shot chart — same tap-the-court flow, skipping the "who shot it"
+        // step (no per-player opponent tracking), since the point is seeing WHERE they're getting shots
+        // up. If they miss, immediately asks if one of OUR players got the defensive rebound — tap a
+        // player, or Skip if they got their own board (which we're intentionally not tracking).
+        function OpponentShotChartPanel({ activePlayers, onCommit, onRebound }) {
             const [step, setStep] = React.useState('location');
             const [pending, setPending] = React.useState(null);
 
@@ -1824,14 +1853,16 @@ service cloud.firestore {
             const startOver = () => { setStep('location'); setPending(null); };
             const commit = (made) => {
                 onCommit(pending.isThree, made, pending.x, pending.y);
-                startOver();
+                if (made) startOver(); else setStep('rebound');
             };
+            const finishRebound = (pid) => { if (pid) onRebound(pid); startOver(); };
 
             return (
                 <div className="bg-black/30 rounded-xl p-2 border border-red-900/30">
                     <div className="text-center text-xs font-black uppercase mb-1.5">
                         {step === 'location' && <span className="text-zinc-400">🏀 Tap Where Opponent Shot</span>}
                         {step === 'result' && <span className={pending.isThree ? 'text-blue-400' : 'text-gold'}>Opp {pending.isThree ? '3PT' : '2PT'} — Made or Missed?</span>}
+                        {step === 'rebound' && <span className="text-white">They Missed — Did We Get The Board?</span>}
                     </div>
                     <div style={{maxWidth: '300px', margin: '0 auto'}}>
                         <CourtSVG onTap={step === 'location' ? handleTap : undefined}>
@@ -1842,6 +1873,16 @@ service cloud.firestore {
                         <div className="flex gap-2 mt-2">
                             <button onClick={()=>commit(true)} className="flex-1 kb-stat-btn bg-make" style={{minHeight:'46px'}}>MADE</button>
                             <button onClick={()=>commit(false)} className="flex-1 kb-stat-btn bg-miss" style={{minHeight:'46px'}}>MISSED</button>
+                        </div>
+                    )}
+                    {step === 'rebound' && (
+                        <div className="grid grid-cols-3 gap-1.5 mt-2">
+                            {activePlayers.map(p => (
+                                <button key={p.id} onClick={()=>finishRebound(p.id)} className="kb-player-btn" style={{minHeight:'46px'}}>
+                                    <div className="text-xs font-black leading-none">{p.name.split(' ')[0]}</div>
+                                </button>
+                            ))}
+                            <button onClick={()=>finishRebound(null)} className="kb-player-btn bg-zinc-800"><div className="text-xs font-black leading-none text-zinc-400">Skip</div></button>
                         </div>
                     )}
                     {step !== 'location' && <button onClick={startOver} className="w-full text-center text-[10px] text-zinc-500 hover:text-white underline mt-1.5">← Start Over</button>}
