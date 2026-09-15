@@ -366,6 +366,13 @@
             // UI STATES
             const [newPlayName, setNewPlayName] = React.useState('');
             const [selectedPlayer, setSelectedPlayer] = React.useState(null); 
+            // NEW: which keypad panel to show (ours vs opponent's). Separate from selectedPlayer on
+            // purpose — handleStatClick always resets selectedPlayer to null after committing a stat
+            // (by design, so the next tap starts fresh), but the multi-step opponent shot flow needs to
+            // stay on the opponent panel across its own location→result→rebound steps regardless of
+            // what selectedPlayer is doing moment to moment (e.g. crediting one of OUR players with the
+            // rebound sets selectedPlayer to THEM, which would otherwise flip the panel back too early).
+            const [trackingOpponent, setTrackingOpponent] = React.useState(false);
             const [subTarget, setSubTarget] = React.useState(null); 
             const [editId, setEditId] = React.useState(null);
             const [showSnapshot, setShowSnapshot] = React.useState(false);
@@ -687,6 +694,7 @@
                 setEventLog([]);
                 setPlusMinus({});
                 setShotLog([]);
+                setTrackingOpponent(false);
                 showToast("Game Reset.", "info");
             };
 
@@ -779,7 +787,7 @@
                     else await db.collection('games').add(payload); 
                     showToast("Game Saved Successfully!", "success"); 
                     setPlayerStats({}); setOpponentStats({fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0,to:0}); setEventLog([]); setQuarterFouls(0); setTimeouts({ full: [true,true,true], thirty: [true,true] });
-                    setGameMeta({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0, venue: 'Home', quarter: 1 }); setPlusMinus({}); setShotLog([]); setEditId(null); setView('log'); 
+                    setGameMeta({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0, venue: 'Home', quarter: 1 }); setPlusMinus({}); setShotLog([]); setTrackingOpponent(false); setEditId(null); setView('log'); 
                     // NEW: if we were only editing an old saved game, the resets above were local-only
                     // (editingHistoryRef suppressed the push). Now that editing is done, drop the
                     // suppression and pull in whatever the real live game currently looks like.
@@ -1133,7 +1141,7 @@
                                         const s = playerStats[p.name] || {};
                                         const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
                                         return (
-                                            <div key={p.id} onClick={() => setSelectedPlayer(p.id)} className={`kb-player-btn ${isSelected ? 'selected' : ''}`}>
+                                            <div key={p.id} onClick={() => { setSelectedPlayer(p.id); setTrackingOpponent(false); }} className={`kb-player-btn ${isSelected ? 'selected' : ''}`}>
                                                 <button onClick={(e)=>{e.stopPropagation(); setSubTarget(p.id)}} className="sub-icon">🔄</button>
                                                 <div className="text-lg font-black leading-none">{p.name.split(' ')[0]}</div>
                                                 <div className={`text-[10px] font-bold ${isSelected ? 'text-black' : 'text-zinc-500'}`}>#{p.id} • {pts} Pts</div>
@@ -1141,7 +1149,7 @@
                                             </div>
                                         )
                                     })}
-                                    <div onClick={() => setSelectedPlayer(OPPONENT_ID)} className={`kb-player-btn kb-opp-btn ${selectedPlayer === OPPONENT_ID ? 'selected' : ''}`}>
+                                    <div onClick={() => { setSelectedPlayer(OPPONENT_ID); setTrackingOpponent(true); }} className={`kb-player-btn kb-opp-btn ${trackingOpponent ? 'selected' : ''}`}>
                                         <div className="text-xl font-black italic tracking-widest">OPPONENT</div>
                                         <div className="text-[10px] opacity-70">Track Scoring</div>
                                     </div>
@@ -1164,7 +1172,7 @@
                                     <button onClick={resetLiveGame} className="mt-2 w-full py-3 bg-zinc-900 text-red-500 font-bold text-xs rounded hover:bg-red-900/20">RESET / CLEAR GAME</button>
                                 </div>
                                 <div className="w-2/3 h-full flex flex-col gap-2 overflow-y-auto custom-scrollbar">
-                                    {selectedPlayer === OPPONENT_ID ? (
+                                    {trackingOpponent ? (
                                         <>
                                             <div className="h-10 flex items-center justify-center text-red-400 font-bold uppercase text-xs border-b border-red-900/30">TRACKING OPPONENT SCORING</div>
                                             <OpponentShotChartPanel activePlayers={activePlayers} onCommit={logOpponentShot} onRebound={logRebound} />
