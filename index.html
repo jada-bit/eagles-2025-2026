@@ -25,6 +25,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -189,6 +190,17 @@
         const ZONES = ['top_3', 'wing_l_3', 'wing_r_3', 'corn_l_3', 'corn_r_3', 'mid_l_2', 'mid_r_2', 'paint'];
         const OPPONENT_ID = 'OPP';
 
+        // NEW: access control. Anyone with the link can VIEW everything (stats, history, roster) — no
+        // login needed for that. Only the Google accounts listed here can EDIT anything (enter stats,
+        // manage the roster, delete games, etc). Put the coach's / stat-keepers' real Gmail addresses
+        // here, in lowercase. This list is a convenience gate in the app UI — the actual security
+        // boundary is the Firestore rules, which you still need to update once in the Firebase console.
+        // See the "Access" card on the Admin tab in the app for the exact rules to paste in.
+        const ALLOWED_EDITORS = [
+            // "jada.alim@gmail.com",
+            // "jmwhitney03@gmail.com",
+        ];
+
         // NEW: season labels. LEGACY_SEASON is what old, untagged games get archived as.
         // Change these two strings to match your actual season names if you'd like.
         const LEGACY_SEASON = "2025-26";
@@ -213,6 +225,24 @@
             const [loading, setLoading] = React.useState(true);
             const [db, setDb] = React.useState(null);
             const [toasts, setToasts] = React.useState([]);
+
+            // NEW: access control. currentUser comes from Firebase Auth (Google Sign-In). isEditor is
+            // true only for accounts listed in ALLOWED_EDITORS above — everyone else (including anyone
+            // not signed in) can view everything but can't change anything. See requireEditor() below,
+            // which every write action in this file is gated behind.
+            const [currentUser, setCurrentUser] = React.useState(null);
+            const [authReady, setAuthReady] = React.useState(false);
+            const isEditor = !!(currentUser && currentUser.email && ALLOWED_EDITORS.map(e=>e.toLowerCase()).includes(currentUser.email.toLowerCase()));
+            const requireEditor = () => {
+                if (isEditor) return true;
+                showToast(currentUser ? "This account isn't approved to edit — ask the coach to add it" : "Sign in to make changes", "error");
+                return false;
+            };
+            const signIn = () => {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                firebase.auth().signInWithPopup(provider).catch(e => showToast("Sign-in failed: " + e.message, "error"));
+            };
+            const signOutUser = () => firebase.auth().signOut();
 
             // NEW: which team & season is currently active. Everything below filters on these.
             const [activeTeam, setActiveTeam] = useStickyState('varsity', 'eagles_team');
@@ -266,17 +296,25 @@
             };
 
             // Wrapped setters: same names/call signature as plain useState setters (supports the
-            // `setX(value)` and `setX(prev => next)` forms used throughout this file), but they also
-            // push the change to Firestore so every other connected device picks it up within moments.
-            const setGameMeta = (u) => setGameMetaRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({gameMeta: next}); return next; });
-            const setPlayerStats = (u) => setPlayerStatsRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({playerStats: next}); return next; });
-            const setOpponentStats = (u) => setOpponentStatsRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({opponentStats: next}); return next; });
-            const setActiveLineup = (u) => setActiveLineupRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({activeLineup: next}); return next; });
-            const setPlayStats = (u) => setPlayStatsRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({playStats: next}); return next; });
-            const setEventLog = (u) => setEventLogRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({eventLog: next}); return next; });
-            const setTimeouts = (u) => setTimeoutsRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({timeouts: next}); return next; });
-            const setPossession = (u) => setPossessionRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({possession: next}); return next; });
-            const setQuarterFouls = (u) => setQuarterFoulsRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({quarterFouls: next}); return next; });
+            // `setX(value)` and `setX(prev => next)` forms used throughout this file). Each one (a)
+            // blocks the change entirely if the current account isn't an approved editor, and (b)
+            // otherwise applies it locally AND pushes it to Firestore so every other connected device
+            // picks it up within moments. This one factory is the choke point for every single live-game
+            // mutation in the app (stat taps, undo, subs, quarters, timeouts, possession, resets,
+            // opponent name/score, playbook) — gating it here gates all of them at once.
+            const guardedUpdate = (setRaw, key) => (u) => {
+                if (!requireEditor()) return;
+                setRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({ [key]: next }); return next; });
+            };
+            const setGameMeta = guardedUpdate(setGameMetaRaw, 'gameMeta');
+            const setPlayerStats = guardedUpdate(setPlayerStatsRaw, 'playerStats');
+            const setOpponentStats = guardedUpdate(setOpponentStatsRaw, 'opponentStats');
+            const setActiveLineup = guardedUpdate(setActiveLineupRaw, 'activeLineup');
+            const setPlayStats = guardedUpdate(setPlayStatsRaw, 'playStats');
+            const setEventLog = guardedUpdate(setEventLogRaw, 'eventLog');
+            const setTimeouts = guardedUpdate(setTimeoutsRaw, 'timeouts');
+            const setPossession = guardedUpdate(setPossessionRaw, 'possession');
+            const setQuarterFouls = guardedUpdate(setQuarterFoulsRaw, 'quarterFouls');
 
             // Applies a live-game document (from Firestore) straight into local state, with sensible
             // defaults for any field that doc doesn't have yet (e.g. a brand-new game).
@@ -328,6 +366,10 @@
                     if(window.firebase && !firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
                     const d = firebase.firestore();
                     setDb(d);
+
+                    // NEW: track sign-in state for access control (see ALLOWED_EDITORS/isEditor above).
+                    firebase.auth().onAuthStateChanged(u => { setCurrentUser(u); setAuthReady(true); });
+
                     d.collection('games').orderBy('date', 'desc').onSnapshot(snap => {
                         setGames(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
                         setLoading(false);
@@ -351,7 +393,7 @@
                     });
 
                     if(Object.keys(playerStats).length > 0) showToast("Session Restored From Storage", "persist");
-                } catch(e) { console.warn("Offline"); setLoading(false); }
+                } catch(e) { console.warn("Offline"); setLoading(false); setAuthReady(true); }
             }, []);
 
             // NEW: live-game sync. Subscribes to this team's shared "in progress game" doc so every
@@ -393,6 +435,7 @@
 
             const changeQuarter = (q) => {
                 if(gameMeta.quarter === q) return;
+                if(!requireEditor()) return;
                 if(confirm(`Start Quarter ${q}? This will reset Team Fouls.`)) {
                     setGameMeta(prev => ({ ...prev, quarter: q }));
                     setQuarterFouls(0);
@@ -401,6 +444,7 @@
             };
             
             const deleteGame = async (id) => {
+                if(!requireEditor()) return;
                 if(!confirm("Are you sure you want to delete this game record?")) return;
                 try {
                     await db.collection('games').doc(id).delete();
@@ -412,6 +456,7 @@
 
             // --- ROSTER MANAGEMENT (synced via Firestore, see 'rosters' collection above) ---
             const saveRoster = async (team, players) => {
+                if(!requireEditor()) return;
                 try {
                     await db.collection('rosters').doc(team).set({ players });
                 } catch(e) {
@@ -420,6 +465,7 @@
             };
 
             const addRosterPlayer = (team, player) => {
+                if(!requireEditor()) return;
                 const current = rosterData[team] || [];
                 if (current.some(p => p.id === player.id)) return showToast("That jersey number is already on the roster", "error");
                 saveRoster(team, [...current, player]);
@@ -427,11 +473,13 @@
             };
 
             const updateRosterPlayer = (team, id, fields) => {
+                if(!requireEditor()) return;
                 const current = rosterData[team] || [];
                 saveRoster(team, current.map(p => p.id === id ? { ...p, ...fields } : p));
             };
 
             const removeRosterPlayer = (team, id) => {
+                if(!requireEditor()) return;
                 const player = (rosterData[team] || []).find(p => p.id === id);
                 if(!confirm(`Remove ${player ? player.name : 'this player'} from the roster? Their past game stats stay intact.`)) return;
                 saveRoster(team, (rosterData[team] || []).filter(p => p.id !== id));
@@ -489,6 +537,7 @@
             };
 
             const handleUndo = (event) => {
+                if(!requireEditor()) return;
                 if(!confirm(`Undo ${event.name} ${event.desc}?`)) return;
                 
                 if (event.type === 'opp') {
@@ -528,6 +577,7 @@
             };
 
             const resetLiveGame = () => {
+                if(!requireEditor()) return;
                 if(!confirm("⚠️ RESET GAME?\n\nThis will wipe all current stats for this game. It cannot be undone.")) return;
                 setPlayerStats({});
                 setOpponentStats({fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0});
@@ -585,6 +635,7 @@
 
             const saveGame = async () => {
                 if(!db) return showToast("Offline Mode", "error");
+                if(!requireEditor()) return;
                 const wasEditingHistory = !!editId;
                 const tScore = getTeamScore();
                 const stats = ROSTER.map(p => { 
@@ -727,13 +778,14 @@
             const handlePlayUpdate = (index, points) => { const newPlays = [...playStats]; newPlays[index].att += 1; if (points > 0) { newPlays[index].made += 1; newPlays[index].pts += points; } setPlayStats(newPlays); };
             const handleSort = (key) => { setSortConfig({ key, direction: sortConfig.key === key && sortConfig.direction === 'desc' ? 'asc' : 'desc' }); };
             const exportData = () => { if(!games.length) return showToast("No data.", "error"); const headers = ['date', 'opp', 'team', 'season', 'teamScore', 'oppScore', 'result', 'venue', 'stats', 'playStats']; const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...games.map(g => headers.map(h => { let val = g[h]; if (typeof val === 'object') { val = JSON.stringify(val).replace(/"/g, '""'); return `"${val}"`; } return `"${val}"`; }).join(','))].join('\n'); const link = document.createElement("a"); link.setAttribute("href", encodeURI(csvContent)); link.setAttribute("download", `eagles_backup_${new Date().toISOString().split('T')[0]}.csv`); document.body.appendChild(link); link.click(); };
-            const importData = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = async (event) => { try { const rows = event.target.result.split('\n'); const headers = rows[0].split(','); let importedCount = 0; const parseCSVRow = (row) => { const regex = /(?:,|\n|^)("(?:(?:"")*[^"]*)*"|[^",\n]*|(?:\n|$))/g; const matches = []; let match; while(match = regex.exec(row)) { let val = match[1]; if(val.startsWith('"') && val.endsWith('"')) val = val.substring(1, val.length-1).replace(/""/g, '"'); matches.push(val); } return matches; }; for (let i = 1; i < rows.length; i++) { if (!rows[i].trim()) continue; const vals = parseCSVRow(rows[i]); const payload = {}; headers.forEach((h, index) => { const key = h.trim(); let val = vals[index]; if (['stats','opponentStats','playStats'].includes(key)) try { val = JSON.parse(val); } catch(e) { val = []; } if(['teamScore','oppScore'].includes(key)) val = parseInt(val) || 0; payload[key] = val; }); payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp(); await db.collection('games').add(payload); importedCount++; } showToast(`Restored ${importedCount} games!`, "success"); } catch (err) { showToast("Error importing CSV", "error"); } }; reader.readAsText(file); };
-            const purgeData = async () => { if(!confirm("⚠️ DELETE ALL GAMES?\n\nThis deletes every game for every team and season. This cannot be undone. Consider exporting a backup first.")) return; const snap = await db.collection('games').get(); const batch = db.batch(); snap.docs.forEach(doc => batch.delete(doc.ref)); await batch.commit(); showToast("Purged.", "success"); };
+            const importData = (e) => { if(!requireEditor()){ e.target.value=''; return; } const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = async (event) => { try { const rows = event.target.result.split('\n'); const headers = rows[0].split(','); let importedCount = 0; const parseCSVRow = (row) => { const regex = /(?:,|\n|^)("(?:(?:"")*[^"]*)*"|[^",\n]*|(?:\n|$))/g; const matches = []; let match; while(match = regex.exec(row)) { let val = match[1]; if(val.startsWith('"') && val.endsWith('"')) val = val.substring(1, val.length-1).replace(/""/g, '"'); matches.push(val); } return matches; }; for (let i = 1; i < rows.length; i++) { if (!rows[i].trim()) continue; const vals = parseCSVRow(rows[i]); const payload = {}; headers.forEach((h, index) => { const key = h.trim(); let val = vals[index]; if (['stats','opponentStats','playStats'].includes(key)) try { val = JSON.parse(val); } catch(e) { val = []; } if(['teamScore','oppScore'].includes(key)) val = parseInt(val) || 0; payload[key] = val; }); payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp(); await db.collection('games').add(payload); importedCount++; } showToast(`Restored ${importedCount} games!`, "success"); } catch (err) { showToast("Error importing CSV", "error"); } }; reader.readAsText(file); };
+            const purgeData = async () => { if(!requireEditor()) return; if(!confirm("⚠️ DELETE ALL GAMES?\n\nThis deletes every game for every team and season. This cannot be undone. Consider exporting a backup first.")) return; const snap = await db.collection('games').get(); const batch = db.batch(); snap.docs.forEach(doc => batch.delete(doc.ref)); await batch.commit(); showToast("Purged.", "success"); };
 
             // NEW: archives old (untagged) games as LEGACY_SEASON and switches the active view to a fresh season.
             // This never deletes anything — it just tags and switches, so history stays fully accessible via the season dropdown.
             const migrateLegacySeason = async () => {
                 if(!db) return showToast("Offline Mode", "error");
+                if(!requireEditor()) return;
                 if(!confirm(`Tag all untagged games as "${LEGACY_SEASON}" and switch your active view to "${CURRENT_SEASON_DEFAULT}"?\n\nNothing will be deleted.`)) return;
                 try {
                     const snap = await db.collection('games').get();
@@ -773,7 +825,17 @@
                     <div className="toast-container">{toasts.map(t => <div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>)}</div>
 
                     <div className="flex flex-col md:flex-row justify-between items-center mb-4 bg-zinc-900 p-4 rounded-xl border border-white/10 sticky top-2 z-50 shadow-xl no-print">
-                        <div className="flex items-center gap-2 mb-4 md:mb-0"><span className="text-2xl">🦅</span><h1 className="text-xl font-black italic uppercase">Eagles <span className="text-gold">Analytics</span></h1></div>
+                        <div className="flex items-center gap-3 mb-4 md:mb-0">
+                            <span className="text-2xl">🦅</span><h1 className="text-xl font-black italic uppercase">Eagles <span className="text-gold">Analytics</span></h1>
+                            {authReady && (isEditor ? (
+                                <span className="flex items-center gap-2 bg-green-900/30 border border-green-700 text-green-300 text-[10px] font-black uppercase px-2 py-1 rounded-full">✏️ Editing as {currentUser.email}</span>
+                            ) : currentUser ? (
+                                <span className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 text-zinc-400 text-[10px] font-black uppercase px-2 py-1 rounded-full">👁️ View Only</span>
+                            ) : (
+                                <button onClick={signIn} className="bg-blue-700 hover:bg-blue-600 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-full">🔒 Sign In To Edit</button>
+                            ))}
+                            {currentUser && <button onClick={signOutUser} className="text-[10px] font-bold text-zinc-500 hover:text-white uppercase underline">Sign Out</button>}
+                        </div>
                         <nav className="flex gap-1 overflow-x-auto w-full md:w-auto pb-1 no-scrollbar">
                             {['live', 'new', 'clipboard', 'ask coach', 'trends', 'stats', 'profiles', 'log', 'season report', 'admin'].map(t => (<button key={t} onClick={()=>setView(t)} className={`nav-btn ${view===t?'active-nav':'inactive-nav'}`}>{t}</button>))}
                         </nav>
@@ -794,6 +856,9 @@
                     {/* LIVE VIEW */}
                     {view === 'live' && (
                         <div className="flex flex-col h-[85vh] overflow-hidden">
+                            {authReady && !isEditor && (
+                                <div className="bg-yellow-900/30 border border-yellow-700 text-yellow-300 text-xs font-bold uppercase text-center py-2 rounded-lg mb-2">👁️ View Only — sign in on the Admin tab to record stats</div>
+                            )}
                             <div className="live-header">
                                 <div className="score-box"><div className="score-label">EAGLES</div><div className="score-val text-gold">{getTeamScore()}</div>
                                     <div className="timeout-pills">
@@ -1147,7 +1212,7 @@
                                             </div>
                                             <div className="flex gap-2 w-full md:w-auto">
                                                 <button onClick={() => setViewGame(g)} className="flex-1 md:flex-none py-2 px-4 bg-zinc-800 rounded hover:bg-white hover:text-black font-bold text-xs uppercase transition">👁️ View</button>
-                                                <button onClick={()=>{editingHistoryRef.current=true;setEditId(g.id);setGameMeta({date:g.date,opp:g.opp,oppScore:g.oppScore,venue:g.venue});setPlayStats(g.playStats||[]);setOpponentStats(g.opponentStats||{fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0});const sm={};g.stats.forEach(s=>sm[s.name]=s);setPlayerStats(sm);setView('new');}} className="flex-1 md:flex-none py-2 px-4 bg-blue-900/50 text-blue-200 rounded hover:bg-blue-600 hover:text-white font-bold text-xs uppercase transition">✏️ Edit</button>
+                                                <button onClick={()=>{if(!requireEditor())return;editingHistoryRef.current=true;setEditId(g.id);setGameMeta({date:g.date,opp:g.opp,oppScore:g.oppScore,venue:g.venue});setPlayStats(g.playStats||[]);setOpponentStats(g.opponentStats||{fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0});const sm={};g.stats.forEach(s=>sm[s.name]=s);setPlayerStats(sm);setView('new');}} className="flex-1 md:flex-none py-2 px-4 bg-blue-900/50 text-blue-200 rounded hover:bg-blue-600 hover:text-white font-bold text-xs uppercase transition">✏️ Edit</button>
                                                 <button onClick={() => deleteGame(g.id)} className="flex-1 md:flex-none py-2 px-4 bg-red-900/30 text-red-400 rounded hover:bg-red-600 hover:text-white font-bold text-xs uppercase transition">🗑️</button>
                                             </div>
                                         </div>
@@ -1161,6 +1226,45 @@
                     {/* ADMIN VIEW - was in the nav but had no matching view before; now built out */}
                     {view === 'admin' && (
                         <div className="space-y-6 animate-slideIn max-w-2xl mx-auto">
+                            <div className="bento-card border-t-4 border-green-500 space-y-4">
+                                <h3 className="font-black text-green-400 uppercase">Access</h3>
+                                {currentUser ? (
+                                    <div className="space-y-3">
+                                        <p className="text-xs text-zinc-400">Signed in as <span className="text-white font-bold">{currentUser.email}</span> — {isEditor ? <span className="text-green-400 font-bold">approved editor</span> : <span className="text-yellow-400 font-bold">view only (not on the editor list)</span>}.</p>
+                                        <button onClick={signOutUser} className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 rounded font-black uppercase text-xs">Sign Out</button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <p className="text-xs text-zinc-400">Anyone with this link can view stats, but only signed-in, approved accounts can enter stats, edit the roster, or delete anything.</p>
+                                        <button onClick={signIn} className="w-full py-3 bg-blue-700 hover:bg-blue-600 rounded font-black uppercase text-xs">🔒 Sign In With Google</button>
+                                    </div>
+                                )}
+                                <details className="text-xs text-zinc-500">
+                                    <summary className="cursor-pointer font-bold text-zinc-400 uppercase">Setup (one-time, coach/dev only)</summary>
+                                    <div className="mt-2 space-y-2">
+                                        <p>1. Edit <code className="bg-black px-1 rounded">ALLOWED_EDITORS</code> near the top of this file's code — add each coach/stat-keeper's Gmail address, lowercase.</p>
+                                        <p>2. In the Firebase console for this project, turn on <span className="text-white">Authentication → Sign-in method → Google</span>.</p>
+                                        <p>3. In <span className="text-white">Firestore → Rules</span>, paste rules that only allow writes from those same emails — for example:</p>
+                                        <pre className="bg-black p-2 rounded overflow-x-auto text-[10px] leading-tight whitespace-pre">{`rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function isEditor() {
+      return request.auth != null &&
+        request.auth.token.email in [
+          "coach@gmail.com"
+        ];
+    }
+    match /{document=**} {
+      allow read: if true;
+      allow write: if isEditor();
+    }
+  }
+}`}</pre>
+                                        <p>Keep the email list in the rules identical to <code className="bg-black px-1 rounded">ALLOWED_EDITORS</code> in the code — the code gate is just for a clean UI, the Firestore rule is what actually stops unapproved writes.</p>
+                                    </div>
+                                </details>
+                            </div>
+
                             <div className="bento-card border-t-4 border-blue-500 space-y-4">
                                 <h3 className="font-black text-blue-400 uppercase">Roster</h3>
                                 <p className="text-xs text-zinc-400">Add, rename, or remove players for Varsity or JV. Changes sync to every device automatically — no editing code required.</p>
