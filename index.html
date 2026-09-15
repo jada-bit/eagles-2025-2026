@@ -11,7 +11,12 @@
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/391/eagle_1f985.png">
     
     <title>Eagles Analytics - Master Command</title>
-    
+
+    <!-- FONT: Barlow Condensed — condensed/scoreboard look, used app-wide -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         // FIX: text-gold / bg-gold / border-gold were not real Tailwind classes without this.
@@ -26,7 +31,7 @@
 
     <style>
         :root { --gold: #FFB81C; --black: #050505; --red: #ef4444; --green: #22c55e; --blue: #3b82f6; --zinc: #18181b; }
-        body { background-color: var(--black); color: white; font-family: system-ui, -apple-system, sans-serif; -webkit-print-color-adjust: exact; touch-action: manipulation; }
+        body { background-color: var(--black); color: white; font-family: 'Barlow Condensed', system-ui, -apple-system, sans-serif; -webkit-print-color-adjust: exact; touch-action: manipulation; }
         
         /* UTILS */
         .bento-card { background: rgba(30, 30, 30, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 1.25rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); }
@@ -164,20 +169,21 @@
 
     <script type="text/babel">
         // --- CONFIG ---
-        // CHANGED: ROSTER is now split by team. Fill in your JV roster below in the same format.
-        const TEAMS = {
+        // NEW: rosters now live in Firestore (collection "rosters", one doc per team) so they can be
+        // edited from the app and synced across every device. SEED_TEAMS below is ONLY used the very
+        // first time the app runs (before a "rosters" doc exists) to migrate this starting data in.
+        // After that first migration, editing this list does nothing — use "Manage Roster" in the app.
+        const SEED_TEAMS = {
             varsity: [
-                { {id: 3, name: "Mikayla Sanders", pos: "PG"}, 
+                {id: 5, name: "Natasha Mistry", pos: "PG"}, {id: 3, name: "Mikayla Sanders", pos: "PG"}, 
                 {id: 22, name: "Christina Lisack", pos: "PG/G"}, {id: 1, name: "Brittney Tang", pos: "G"},
                 {id: 2, name: "Kylie Mulcahy", pos: "G"}, {id: 4, name: "Lexi Guild", pos: "G"},
                 {id: 10, name: "Reese Jackson", pos: "F"}, {id: 32, name: "Gia Comey", pos: "F"}, 
                 {id: 23, name: "Olivia Dozier", pos: "G/F"}, {id: 44, name: "Olivia Fraser", pos: "G/F"},
+                {id: 34, name: "Dani Cardona", pos: "C"}, {id: 15, name: "Alexa Troiano", pos: "C"},
                 {id: 0, name: "Bela Smith", pos: "C"} 
             ],
-            jv: [
-                // TODO: add your JV roster here, same format as varsity above, e.g.:
-                // {id: 12, name: "Jane Doe", pos: "PG"},
-            ]
+            jv: []
         };
         const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','blk','to','pf'];
         const ZONES = ['top_3', 'wing_l_3', 'wing_r_3', 'corn_l_3', 'corn_r_3', 'mid_l_2', 'mid_r_2', 'paint'];
@@ -211,24 +217,91 @@
             // NEW: which team & season is currently active. Everything below filters on these.
             const [activeTeam, setActiveTeam] = useStickyState('varsity', 'eagles_team');
             const [activeSeason, setActiveSeason] = useStickyState(CURRENT_SEASON_DEFAULT, 'eagles_season');
-            const ROSTER = TEAMS[activeTeam] || [];
+
+            // NEW: rosters now come from Firestore so every device sees the same players. See SEED_TEAMS above.
+            const [rosterData, setRosterData] = React.useState(SEED_TEAMS);
+            const [rosterLoaded, setRosterLoaded] = React.useState(false);
+            const [showRosterManager, setShowRosterManager] = React.useState(false);
+            const ROSTER = rosterData[activeTeam] || [];
 
             // STICKY DATA
-            const [gameMeta, setGameMeta] = useStickyState({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0, venue: 'Home', quarter: 1 }, 'eagles_meta');
-            const [playerStats, setPlayerStats] = useStickyState({}, 'eagles_stats');
-            const [opponentStats, setOpponentStats] = useStickyState({ fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0 }, 'eagles_opp_stats');
-            const [activeLineup, setActiveLineup] = useStickyState(TEAMS.varsity.slice(0, 5).map(p => p.id), 'eagles_lineup');
-            const [playStats, setPlayStats] = useStickyState([
+            // NEW: these fields are the "live game in progress" — they now live in Firestore
+            // (collection "liveGames", one doc per team) instead of only this device's localStorage,
+            // so two people can stat-keep the same game from two phones and see each other's taps in
+            // real time. localStorage is kept as a same-device fallback only (useStickyState below),
+            // used purely as the initial value before Firestore's first snapshot arrives, or if this
+            // device is offline. See pushLive/applyLiveSnapshot and the sync effect further down.
+            const defaultGameMeta = () => ({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0, venue: 'Home', quarter: 1 });
+            const defaultOpponentStats = () => ({ fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0 });
+            const defaultTimeouts = () => ({ full: [true,true,true], thirty: [true,true] });
+            const defaultPlayStats = () => ([
                 { id: 'trans', name: 'TRANSITION', att: 0, made: 0, pts: 0 },
                 { id: 'broken', name: 'BROKEN PLAY', att: 0, made: 0, pts: 0 },
                 { id: 'motion', name: 'Motion Offense', att: 0, made: 0, pts: 0 }
-            ], 'eagles_plays');
-            const [eventLog, setEventLog] = useStickyState([], 'eagles_events');
+            ]);
+            const defaultLineup = () => SEED_TEAMS.varsity.slice(0, 5).map(p => p.id);
+
+            const [gameMeta, setGameMetaRaw] = useStickyState(defaultGameMeta(), 'eagles_meta');
+            const [playerStats, setPlayerStatsRaw] = useStickyState({}, 'eagles_stats');
+            const [opponentStats, setOpponentStatsRaw] = useStickyState(defaultOpponentStats(), 'eagles_opp_stats');
+            const [activeLineup, setActiveLineupRaw] = useStickyState(defaultLineup(), 'eagles_lineup');
+            const [playStats, setPlayStatsRaw] = useStickyState(defaultPlayStats(), 'eagles_plays');
+            const [eventLog, setEventLogRaw] = useStickyState([], 'eagles_events');
             
             // GAME MANAGEMENT STATES
-            const [timeouts, setTimeouts] = useStickyState({ full: [true,true,true], thirty: [true,true] }, 'eagles_timeouts');
-            const [possession, setPossession] = useStickyState('home', 'eagles_possession');
-            const [quarterFouls, setQuarterFouls] = useStickyState(0, 'eagles_q_fouls');
+            const [timeouts, setTimeoutsRaw] = useStickyState(defaultTimeouts(), 'eagles_timeouts');
+            const [possession, setPossessionRaw] = useStickyState('home', 'eagles_possession');
+            const [quarterFouls, setQuarterFoulsRaw] = useStickyState(0, 'eagles_q_fouls');
+
+            // NEW: true while viewing/editing an OLD saved game (via Log > Edit). While true, changes are
+            // local-only and are not broadcast to (or overwritten by) the shared live game in Firestore,
+            // so fixing a past box score can't stomp on a game currently being tracked live elsewhere.
+            const editingHistoryRef = React.useRef(false);
+
+            // NEW: writes a partial update of the live game to Firestore. No-ops while offline or while
+            // editing history (see editingHistoryRef above).
+            const pushLive = (fields) => {
+                if (!db || editingHistoryRef.current) return;
+                db.collection('liveGames').doc(activeTeam).set({ ...fields, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+            };
+
+            // Wrapped setters: same names/call signature as plain useState setters (supports the
+            // `setX(value)` and `setX(prev => next)` forms used throughout this file), but they also
+            // push the change to Firestore so every other connected device picks it up within moments.
+            const setGameMeta = (u) => setGameMetaRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({gameMeta: next}); return next; });
+            const setPlayerStats = (u) => setPlayerStatsRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({playerStats: next}); return next; });
+            const setOpponentStats = (u) => setOpponentStatsRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({opponentStats: next}); return next; });
+            const setActiveLineup = (u) => setActiveLineupRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({activeLineup: next}); return next; });
+            const setPlayStats = (u) => setPlayStatsRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({playStats: next}); return next; });
+            const setEventLog = (u) => setEventLogRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({eventLog: next}); return next; });
+            const setTimeouts = (u) => setTimeoutsRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({timeouts: next}); return next; });
+            const setPossession = (u) => setPossessionRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({possession: next}); return next; });
+            const setQuarterFouls = (u) => setQuarterFoulsRaw(prev => { const next = typeof u==='function'?u(prev):u; pushLive({quarterFouls: next}); return next; });
+
+            // Applies a live-game document (from Firestore) straight into local state, with sensible
+            // defaults for any field that doc doesn't have yet (e.g. a brand-new game).
+            const applyLiveSnapshot = (data) => {
+                setGameMetaRaw(data.gameMeta || defaultGameMeta());
+                setPlayerStatsRaw(data.playerStats || {});
+                setOpponentStatsRaw(data.opponentStats || defaultOpponentStats());
+                setActiveLineupRaw(data.activeLineup || defaultLineup());
+                setPlayStatsRaw(data.playStats || defaultPlayStats());
+                setEventLogRaw(data.eventLog || []);
+                setTimeoutsRaw(data.timeouts || defaultTimeouts());
+                setPossessionRaw(data.possession || 'home');
+                setQuarterFoulsRaw(data.quarterFouls || 0);
+            };
+
+            // Pulls the current shared live game once (used after finishing a history edit, to restore
+            // whatever the real in-progress game looks like instead of whatever local edits left behind).
+            const resyncLiveFromRemote = async () => {
+                if (!db) return;
+                try {
+                    const doc = await db.collection('liveGames').doc(activeTeam).get();
+                    applyLiveSnapshot(doc.exists ? doc.data() : {});
+                } catch (e) {}
+            };
+            
             
             // UI STATES
             const [newPlayName, setNewPlayName] = React.useState('');
@@ -259,9 +332,41 @@
                         setGames(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
                         setLoading(false);
                     });
+
+                    // NEW: live-sync rosters. Any device that adds/edits/removes a player writes to
+                    // Firestore, and this listener pushes that change to every other open device.
+                    d.collection('rosters').onSnapshot(async snap => {
+                        const loaded = {};
+                        snap.docs.forEach(doc => { loaded[doc.id] = doc.data().players || []; });
+                        // One-time migration: if a team has no roster doc yet, seed it from SEED_TEAMS
+                        // so nobody loses the roster that used to be hardcoded here.
+                        for (const team of Object.keys(SEED_TEAMS)) {
+                            if (!loaded[team]) {
+                                await d.collection('rosters').doc(team).set({ players: SEED_TEAMS[team] });
+                                loaded[team] = SEED_TEAMS[team];
+                            }
+                        }
+                        setRosterData(loaded);
+                        setRosterLoaded(true);
+                    });
+
                     if(Object.keys(playerStats).length > 0) showToast("Session Restored From Storage", "persist");
                 } catch(e) { console.warn("Offline"); setLoading(false); }
             }, []);
+
+            // NEW: live-game sync. Subscribes to this team's shared "in progress game" doc so every
+            // device tracking the same game converges on the same stats within a second or two.
+            // Re-subscribes when the team switches (Varsity and JV each have their own live game).
+            // Skips applying updates while editingHistoryRef is true, so editing an old saved game
+            // doesn't get overwritten mid-edit by whatever the live game is currently doing.
+            React.useEffect(() => {
+                if (!db) return;
+                const unsub = db.collection('liveGames').doc(activeTeam).onSnapshot(doc => {
+                    if (editingHistoryRef.current) return;
+                    applyLiveSnapshot(doc.exists ? doc.data() : {});
+                }, () => { /* offline/permission errors: keep whatever is in local state */ });
+                return () => unsub();
+            }, [db, activeTeam]);
 
             // NEW: only the games for the currently selected team + season.
             // Every historical view/report below reads from this instead of the raw `games` array.
@@ -303,6 +408,34 @@
                 } catch(e) {
                     showToast("Error deleting: " + e.message, "error");
                 }
+            };
+
+            // --- ROSTER MANAGEMENT (synced via Firestore, see 'rosters' collection above) ---
+            const saveRoster = async (team, players) => {
+                try {
+                    await db.collection('rosters').doc(team).set({ players });
+                } catch(e) {
+                    showToast("Error saving roster: " + e.message, "error");
+                }
+            };
+
+            const addRosterPlayer = (team, player) => {
+                const current = rosterData[team] || [];
+                if (current.some(p => p.id === player.id)) return showToast("That jersey number is already on the roster", "error");
+                saveRoster(team, [...current, player]);
+                showToast(`${player.name} added to roster`, "success");
+            };
+
+            const updateRosterPlayer = (team, id, fields) => {
+                const current = rosterData[team] || [];
+                saveRoster(team, current.map(p => p.id === id ? { ...p, ...fields } : p));
+            };
+
+            const removeRosterPlayer = (team, id) => {
+                const player = (rosterData[team] || []).find(p => p.id === id);
+                if(!confirm(`Remove ${player ? player.name : 'this player'} from the roster? Their past game stats stay intact.`)) return;
+                saveRoster(team, (rosterData[team] || []).filter(p => p.id !== id));
+                showToast("Player removed from roster", "info");
             };
 
             // --- LIVE LOGIC ---
@@ -452,6 +585,7 @@
 
             const saveGame = async () => {
                 if(!db) return showToast("Offline Mode", "error");
+                const wasEditingHistory = !!editId;
                 const tScore = getTeamScore();
                 const stats = ROSTER.map(p => { 
                     const s = playerStats[p.name] || {}; 
@@ -466,6 +600,10 @@
                     showToast("Game Saved Successfully!", "success"); 
                     setPlayerStats({}); setOpponentStats({fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0}); setEventLog([]); setQuarterFouls(0); setTimeouts({ full: [true,true,true], thirty: [true,true] });
                     setGameMeta({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0, venue: 'Home', quarter: 1 }); setEditId(null); setView('log'); 
+                    // NEW: if we were only editing an old saved game, the resets above were local-only
+                    // (editingHistoryRef suppressed the push). Now that editing is done, drop the
+                    // suppression and pull in whatever the real live game currently looks like.
+                    if (wasEditingHistory) { editingHistoryRef.current = false; resyncLiveFromRemote(); }
                 } 
                 catch(e) { showToast("Error Saving: " + e.message, "error"); }
             };
@@ -742,6 +880,12 @@
                     {/* NEW / EDIT VIEW (TABLE) */}
                     {view === 'new' && (
                         <div className="space-y-6">
+                            {editId && (
+                                <div className="bento-card border-t-4 border-yellow-500 flex items-center justify-between gap-3">
+                                    <div className="text-xs text-yellow-400 font-bold uppercase">✏️ Editing a saved game — this won't affect the live game in progress.</div>
+                                    <button onClick={()=>{setEditId(null);editingHistoryRef.current=false;resyncLiveFromRemote();setView('log');}} className="py-2 px-4 bg-zinc-800 hover:bg-zinc-700 rounded font-black uppercase text-xs whitespace-nowrap">Cancel Edit</button>
+                                </div>
+                            )}
                             <div className="bento-card grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div className="space-y-1"><label className="text-[9px] font-bold text-zinc-500 uppercase">Opponent</label><input className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" value={gameMeta.opp} onChange={e=>setGameMeta({...gameMeta, opp:e.target.value})} placeholder="Required..." /></div>
                                 <div className="space-y-1"><label className="text-[9px] font-bold text-zinc-500 uppercase">Opp Score</label><input type="number" className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" value={gameMeta.oppScore} onChange={e=>setGameMeta({...gameMeta, oppScore:parseInt(e.target.value)||0})} /></div>
@@ -958,7 +1102,7 @@
                         <div className="animate-slideIn">
                             <div className="mb-6 overflow-x-auto pb-2 no-print"><div className="flex gap-2">{ROSTER.map(p=>(<button key={p.id} onClick={()=>setSelectedProfile(p.name)} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase whitespace-nowrap border transition ${selectedProfile===p.name?'bg-white text-black border-white':'bg-black text-zinc-500 border-zinc-800'}`}>#{p.id} {p.name}</button>))}</div></div>
                             {ROSTER.length === 0 ? (
-                                <div className="bento-card text-center text-zinc-500 italic py-12">No players on this roster yet. Add players to TEAMS.{activeTeam} in the code.</div>
+                                <div className="bento-card text-center text-zinc-500 italic py-12">No players on this roster yet. <button onClick={()=>setShowRosterManager(true)} className="underline text-gold font-bold">Add players to the {activeTeam === 'jv' ? 'JV' : 'Varsity'} roster</button>.</div>
                             ) : (
                             <>
                             <div className="print-header"><h1 className="text-4xl font-black uppercase">Scouting Report</h1><p className="text-lg">{selectedProfile}</p></div>
@@ -1003,7 +1147,7 @@
                                             </div>
                                             <div className="flex gap-2 w-full md:w-auto">
                                                 <button onClick={() => setViewGame(g)} className="flex-1 md:flex-none py-2 px-4 bg-zinc-800 rounded hover:bg-white hover:text-black font-bold text-xs uppercase transition">👁️ View</button>
-                                                <button onClick={()=>{setEditId(g.id);setGameMeta({date:g.date,opp:g.opp,oppScore:g.oppScore,venue:g.venue});setPlayStats(g.playStats||[]);setOpponentStats(g.opponentStats||{fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0});const sm={};g.stats.forEach(s=>sm[s.name]=s);setPlayerStats(sm);setView('new');}} className="flex-1 md:flex-none py-2 px-4 bg-blue-900/50 text-blue-200 rounded hover:bg-blue-600 hover:text-white font-bold text-xs uppercase transition">✏️ Edit</button>
+                                                <button onClick={()=>{editingHistoryRef.current=true;setEditId(g.id);setGameMeta({date:g.date,opp:g.opp,oppScore:g.oppScore,venue:g.venue});setPlayStats(g.playStats||[]);setOpponentStats(g.opponentStats||{fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0});const sm={};g.stats.forEach(s=>sm[s.name]=s);setPlayerStats(sm);setView('new');}} className="flex-1 md:flex-none py-2 px-4 bg-blue-900/50 text-blue-200 rounded hover:bg-blue-600 hover:text-white font-bold text-xs uppercase transition">✏️ Edit</button>
                                                 <button onClick={() => deleteGame(g.id)} className="flex-1 md:flex-none py-2 px-4 bg-red-900/30 text-red-400 rounded hover:bg-red-600 hover:text-white font-bold text-xs uppercase transition">🗑️</button>
                                             </div>
                                         </div>
@@ -1017,6 +1161,12 @@
                     {/* ADMIN VIEW - was in the nav but had no matching view before; now built out */}
                     {view === 'admin' && (
                         <div className="space-y-6 animate-slideIn max-w-2xl mx-auto">
+                            <div className="bento-card border-t-4 border-blue-500 space-y-4">
+                                <h3 className="font-black text-blue-400 uppercase">Roster</h3>
+                                <p className="text-xs text-zinc-400">Add, rename, or remove players for Varsity or JV. Changes sync to every device automatically — no editing code required.</p>
+                                <button onClick={()=>setShowRosterManager(true)} className="w-full py-3 bg-blue-700 hover:bg-blue-600 rounded font-black uppercase text-xs">👥 Manage Roster</button>
+                            </div>
+
                             <div className="bento-card border-t-4 border-gold space-y-4">
                                 <h3 className="font-black text-gold uppercase">Backup & Restore</h3>
                                 <p className="text-xs text-zinc-400">Export downloads every game, across all teams and seasons, as a CSV backup. Import restores games from a previously exported CSV.</p>
@@ -1118,6 +1268,75 @@
                             </div>
                         </div>
                     )}
+
+                    {showRosterManager && (
+                        <div className="modal-overlay" onClick={() => setShowRosterManager(false)}>
+                            <div className="modal-content" onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center mb-4"><h3 className="text-2xl font-black uppercase text-gold">Manage Roster</h3><button onClick={() => setShowRosterManager(false)} className="text-2xl">✕</button></div>
+                                <RosterManager
+                                    rosterData={rosterData}
+                                    rosterLoaded={rosterLoaded}
+                                    onAdd={addRosterPlayer}
+                                    onUpdate={updateRosterPlayer}
+                                    onRemove={removeRosterPlayer}
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // NEW: roster editor used inside the "Manage Roster" modal. Lets you switch between Varsity/JV,
+        // edit a player's name/number/position inline, remove a player, or add a new one. Every change
+        // is written straight to Firestore (via the onAdd/onUpdate/onRemove callbacks from App), so it
+        // shows up on every device within a second or two — no app update or code edit needed.
+        function RosterManager({ rosterData, rosterLoaded, onAdd, onUpdate, onRemove }) {
+            const [team, setTeam] = React.useState('varsity');
+            const [newName, setNewName] = React.useState('');
+            const [newNum, setNewNum] = React.useState('');
+            const [newPos, setNewPos] = React.useState('G');
+            const roster = [...(rosterData[team] || [])].sort((a,b) => a.name.localeCompare(b.name));
+
+            const handleAdd = () => {
+                const name = newName.trim();
+                if (!name) return;
+                const id = parseInt(newNum, 10);
+                if (isNaN(id)) return alert("Enter a jersey number for this player.");
+                onAdd(team, { id, name, pos: newPos });
+                setNewName(''); setNewNum('');
+            };
+
+            return (
+                <div className="space-y-4">
+                    <div className="flex gap-2">
+                        <button onClick={()=>setTeam('varsity')} className={`nav-btn ${team==='varsity'?'active-nav':'inactive-nav'}`}>Varsity</button>
+                        <button onClick={()=>setTeam('jv')} className={`nav-btn ${team==='jv'?'active-nav':'inactive-nav'}`}>JV</button>
+                    </div>
+
+                    {!rosterLoaded && <div className="text-xs text-zinc-500 italic">Loading roster…</div>}
+
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                        {roster.map(p => (
+                            <div key={p.id} className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-lg p-2">
+                                <input type="number" defaultValue={p.id} onBlur={e=>{const v=parseInt(e.target.value,10); if(!isNaN(v) && v!==p.id) onUpdate(team, p.id, {id:v});}} className="stat-input w-14" />
+                                <input type="text" defaultValue={p.name} onBlur={e=>{const v=e.target.value.trim(); if(v && v!==p.name) onUpdate(team, p.id, {name:v});}} className="stat-input flex-1 text-left" />
+                                <input type="text" defaultValue={p.pos} onBlur={e=>{const v=e.target.value.trim(); if(v!==p.pos) onUpdate(team, p.id, {pos:v});}} className="stat-input w-16" />
+                                <button onClick={()=>onRemove(team, p.id)} className="stepper-btn hover:bg-red-900/50 hover:text-red-200 w-8 h-8">✕</button>
+                            </div>
+                        ))}
+                        {roster.length === 0 && rosterLoaded && <div className="text-xs text-zinc-600 italic text-center py-4">No players yet — add one below.</div>}
+                    </div>
+
+                    <div className="border-t border-zinc-800 pt-4 space-y-2">
+                        <div className="text-[10px] font-black uppercase text-zinc-500">Add Player</div>
+                        <div className="flex gap-2">
+                            <input type="number" placeholder="#" value={newNum} onChange={e=>setNewNum(e.target.value)} className="stat-input w-14" />
+                            <input type="text" placeholder="Full Name" value={newName} onChange={e=>setNewName(e.target.value)} className="stat-input flex-1 text-left" />
+                            <input type="text" placeholder="Pos" value={newPos} onChange={e=>setNewPos(e.target.value)} className="stat-input w-16" />
+                        </div>
+                        <button onClick={handleAdd} className="w-full py-3 bg-gold hover:bg-white text-black font-black uppercase text-xs rounded-lg">+ Add Player</button>
+                    </div>
                 </div>
             );
         }
