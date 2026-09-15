@@ -197,8 +197,8 @@
         // boundary is the Firestore rules, which you still need to update once in the Firebase console.
         // See the "Access" card on the Admin tab in the app for the exact rules to paste in.
         const ALLOWED_EDITORS = [
-            // "jada.alim@gmail.com",
-            // "jmwhitney03@gmail.com",
+            // "coach@gmail.com",
+            // "assistantcoach@gmail.com",
         ];
 
         // NEW: season labels. LEGACY_SEASON is what old, untagged games get archived as.
@@ -362,7 +362,7 @@
             // --- INIT ---
             React.useEffect(() => {
                 try {
-                    const firebaseConfig = { apiKey: "AIzaSyA5H5SsumWG7bym_0EZ7jOlfWeswpSauhk", projectId: "eagles-stats", appId: "1:386723096734:web:b50e343c703983e838b38f" };
+                    const firebaseConfig = { apiKey: "AIzaSyA5H5SsumWG7bym_0EZ7jOlfWeswpSauhk", authDomain: "eagles-stats.firebaseapp.com", projectId: "eagles-stats", appId: "1:386723096734:web:b50e343c703983e838b38f" };
                     if(window.firebase && !firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
                     const d = firebase.firestore();
                     setDb(d);
