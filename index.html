@@ -350,6 +350,7 @@
                 setQuarterFoulsRaw(data.quarterFouls || 0);
                 setPlusMinusRaw(data.plusMinus || {});
                 setShotLogRaw(data.shotLog || []);
+                setPotgOverrideRaw(data.potgOverride || null);
             };
 
             // Pulls the current shared live game once (used after finishing a history edit, to restore
@@ -378,6 +379,26 @@
             const [showSnapshot, setShowSnapshot] = React.useState(false);
             const [shotMode, setShotMode] = React.useState('make'); 
             const [viewGame, setViewGame] = React.useState(null);
+
+            // NEW: Player of the Game. Auto-computed at save time (see computeAutoPOTG), but a coach
+            // can override the pick. potgOverride holds a manual pick made *during the current live
+            // game / edit session* — it gets baked into the saved game's `potg` field on Save, and
+            // cleared afterward. Changing the POTG on an already-saved game (from the Log/View modal)
+            // instead writes straight to that game's Firestore doc via updateGamePOTG, no re-save needed.
+            const [potgOverride, setPotgOverrideRaw] = useStickyState(null, 'eagles_potg_override');
+            const setPotgOverride = guardedUpdate(setPotgOverrideRaw, 'potgOverride');
+
+            // NEW: Scouting reports, one doc per opponent (see 'scoutingReports' collection below).
+            // Every coach's notes for an opponent live together so they combine instead of overwrite.
+            const [scoutReports, setScoutReports] = React.useState({});
+            const [selectedScoutOpp, setSelectedScoutOpp] = React.useState('');
+            const [scoutAuthor, setScoutAuthor] = useStickyState('', 'eagles_scout_author');
+            const [scoutNoteDraft, setScoutNoteDraft] = React.useState('');
+            const [newScoutOpp, setNewScoutOpp] = React.useState('');
+
+            // NEW: toggle for the Profile / one-pager view between this season's stats and career
+            // (all-time, this team) totals. See getCareerStats.
+            const [profileScope, setProfileScope] = React.useState('season');
             
             // ANALYTICS & TACTICS STATE
             const [tacticsFilter, setTacticsFilter] = React.useState('season');
@@ -420,6 +441,14 @@
                         setRosterData(loaded);
                         setRosterLoaded(true);
                     });
+
+                    // NEW: scouting reports, one doc per opponent, shared across every coach so notes
+                    // combine instead of overwrite (see addScoutNote / removeScoutNote below).
+                    d.collection('scoutingReports').onSnapshot(snap => {
+                        const loaded = {};
+                        snap.docs.forEach(doc => { loaded[doc.id] = { id: doc.id, ...doc.data() }; });
+                        setScoutReports(loaded);
+                    }, () => {});
 
                     if(Object.keys(playerStats).length > 0) showToast("Session Restored From Storage", "persist");
                 } catch(e) { console.warn("Offline"); setLoading(false); setAuthReady(true); }
@@ -698,6 +727,32 @@
                 showToast("Game Reset.", "info");
             };
 
+            // NEW: Player of the Game — automatic pick, overridable by a coach.
+            // Uses the same "impact" weighting as the Ask Coach assistant (points + rebounds/assists,
+            // extra weight for stocks, penalty for turnovers) so the two don't disagree with each other.
+            const computeAutoPOTG = (statsArr) => {
+                if (!statsArr || !statsArr.length) return null;
+                let best = null, bestScore = -Infinity;
+                statsArr.forEach(s => {
+                    const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
+                    const score = pts + (s.reb||0)*1.2 + (s.ast||0)*1.5 + (s.stl||0)*3 + (s.blk||0)*3 - (s.to||0)*2;
+                    if (score > bestScore) { bestScore = score; best = s.name; }
+                });
+                return best;
+            };
+
+            // Change the Player of the Game on an already-saved game directly (no need to re-open and
+            // re-save the whole game). Always marks it as a manual pick (auto:false) since a coach
+            // chose it on purpose.
+            const updateGamePOTG = async (gameId, name) => {
+                if (!requireEditor()) return;
+                try {
+                    await db.collection('games').doc(gameId).update({ potg: { name, auto: false } });
+                    setViewGame(prev => prev && prev.id === gameId ? { ...prev, potg: { name, auto: false } } : prev);
+                    showToast(`🏅 Player of the Game set to ${name.split(' ')[0]}`, "success");
+                } catch(e) { showToast("Error updating POTG: " + e.message, "error"); }
+            };
+
             // --- AGGREGATION & ALERTS ---
             const getTeamScore = () => {
                 let s = 0;
@@ -780,14 +835,17 @@
                     const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
                     return { ...p, ...s, pts }; 
                 });
+                // NEW: Player of the Game — use a manual override if the coach picked one this session,
+                // otherwise compute it automatically from the final stat line.
+                const potg = potgOverride ? { name: potgOverride, auto: false } : { name: computeAutoPOTG(stats), auto: true };
                 // CHANGED: every saved game is now tagged with the active team and season.
-                const payload = { ...gameMeta, team: activeTeam, season: activeSeason, teamScore: tScore, stats, opponentStats, playStats, plusMinus, shotLog, result: tScore > gameMeta.oppScore ? 'W' : 'L', updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+                const payload = { ...gameMeta, team: activeTeam, season: activeSeason, teamScore: tScore, stats, opponentStats, playStats, plusMinus, shotLog, potg, result: tScore > gameMeta.oppScore ? 'W' : 'L', updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
                 try { 
                     if(editId) await db.collection('games').doc(editId).update(payload); 
                     else await db.collection('games').add(payload); 
                     showToast("Game Saved Successfully!", "success"); 
                     setPlayerStats({}); setOpponentStats({fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0,to:0}); setEventLog([]); setQuarterFouls(0); setTimeouts({ full: [true,true,true], thirty: [true,true] });
-                    setGameMeta({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0, venue: 'Home', quarter: 1 }); setPlusMinus({}); setShotLog([]); setTrackingOpponent(false); setEditId(null); setView('log'); 
+                    setGameMeta({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0, venue: 'Home', quarter: 1 }); setPlusMinus({}); setShotLog([]); setTrackingOpponent(false); setPotgOverride(null); setEditId(null); setView('log'); 
                     // NEW: if we were only editing an old saved game, the resets above were local-only
                     // (editingHistoryRef suppressed the push). Now that editing is done, drop the
                     // suppression and pull in whatever the real live game currently looks like.
@@ -924,6 +982,104 @@
                 return summaries;
             };
 
+            // NEW: turns the trend cards above into practice-planning suggestions. Only "bad" trends
+            // get a suggested focus (a "good" trend just means keep doing what's working); the mapping
+            // below is deliberately simple — it points at a category to drill, not a specific play.
+            const PRACTICE_FOCUS_MAP = {
+                "❄️ Scoring Slump": "Game-speed catch-and-shoot reps, and ball movement drills to generate cleaner looks.",
+                "⚠️ Ball Security": "Ball-handling under pressure (2-on-1s, live-dribble drills) and decision-making reps out of pressure.",
+                "📉 Shooting Slump": "Form shooting and high-volume game-speed reps at the spots showing up cold.",
+                "⚠️ Losing The Glass": "Box-out fundamentals and live rebounding reps in scrimmage situations."
+            };
+            const getPracticeFocus = () => {
+                return getTrendSummaries().filter(t => t.type === 'bad').map(t => ({
+                    ...t,
+                    focus: PRACTICE_FOCUS_MAP[t.title] || "Review film on this area with the team."
+                }));
+            };
+
+            // NEW: career (all-time, this team) totals for a player — same shape as getPlayerData, but
+            // pulled from every saved game for the active team regardless of season, so it grows as more
+            // seasons get logged. Only games actually saved in this app count — see the Admin tab note
+            // about not needing to backfill older seasons.
+            const getCareerStats = (pName) => {
+                const teamGames = games.filter(g => (g.team || 'varsity') === activeTeam);
+                const pGames = teamGames.filter(g => (g.stats || []).find(s => s.name === pName));
+                const totals = { gp: pGames.length, pts:0, reb:0, ast:0, stl:0, blk:0, to:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0 };
+                const highs = { pts:0, reb:0, ast:0, stl:0, blk:0 };
+                pGames.forEach(g => {
+                    const s = g.stats.find(stat => stat.name === pName);
+                    const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
+                    totals.pts+=pts; totals.reb+=(s.reb||0); totals.ast+=(s.ast||0); totals.stl+=(s.stl||0); totals.blk+=(s.blk||0); totals.to+=(s.to||0);
+                    totals.fg2m+=(s.fg2m||0); totals.fg2a+=(s.fg2a||0); totals.fg3m+=(s.fg3m||0); totals.fg3a+=(s.fg3a||0); totals.ftm+=(s.ftm||0); totals.fta+=(s.fta||0);
+                    if(pts>highs.pts) highs.pts=pts; if((s.reb||0)>highs.reb) highs.reb=s.reb; if((s.ast||0)>highs.ast) highs.ast=s.ast; if((s.stl||0)>highs.stl) highs.stl=s.stl; if((s.blk||0)>highs.blk) highs.blk=s.blk;
+                });
+                const gp = totals.gp || 1;
+                const totalFGM = totals.fg2m + totals.fg3m; const totalFGA = totals.fg2a + totals.fg3a;
+                const eFG = totalFGA > 0 ? ((totalFGM + (0.5 * totals.fg3m)) / totalFGA) * 100 : 0;
+                const tsDiv = 2 * (totalFGA + (0.44 * totals.fta));
+                const TS = tsDiv > 0 ? (totals.pts / tsDiv) * 100 : 0;
+                return { totals, highs, games: pGames, avgs: { ppg:(totals.pts/gp).toFixed(1), rpg:(totals.reb/gp).toFixed(1), apg:(totals.ast/gp).toFixed(1), spg:(totals.stl/gp).toFixed(1), bpg:(totals.blk/gp).toFixed(1), topg:(totals.to/gp).toFixed(1) }, pcts: { fg:totalFGA>0?Math.round((totalFGM/totalFGA)*100):0, fg2:totals.fg2a>0?Math.round((totals.fg2m/totals.fg2a)*100):0, fg3:totals.fg3a>0?Math.round((totals.fg3m/totals.fg3a)*100):0, ft:totals.fta>0?Math.round((totals.ftm/totals.fta)*100):0, eFG: Math.round(eFG), TS: Math.round(TS) } };
+            };
+
+            // NEW: parent/social recap text, generated from a saved game. Two styles: 'short' (plain,
+            // meant for a team group chat like SportsYou) and 'social' (a bit more colorful, with a
+            // hashtag line, meant for posting). Both are plain text so they can be copied straight in —
+            // this app can't post to SportsYou or social platforms directly, only prepare the text.
+            const generateRecapText = (game, style) => {
+                if (!game) return '';
+                const stats = game.stats || [];
+                const topScorer = [...stats].sort((a,b) => (((b.fg2m||0)*2)+((b.fg3m||0)*3)+(b.ftm||0)) - (((a.fg2m||0)*2)+((a.fg3m||0)*3)+(a.ftm||0)))[0];
+                const topPts = topScorer ? ((topScorer.fg2m||0)*2)+((topScorer.fg3m||0)*3)+(topScorer.ftm||0) : 0;
+                const potgName = (game.potg && game.potg.name) || (topScorer ? topScorer.name : null);
+                const teamLabel = (game.team === 'jv') ? 'JV' : 'Varsity';
+                const resultWord = game.result === 'W' ? 'defeat' : 'fall to';
+                const verb = game.result === 'W' ? '🦅 W!' : 'Tough one.';
+                if (style === 'short') {
+                    return `${verb} ${teamLabel} ${resultWord === 'defeat' ? 'beat' : 'lost to'} ${game.opp}, ${game.teamScore}-${game.oppScore}.${topScorer ? ` ${topScorer.name.split(' ')[0]} led the way with ${topPts} pts.` : ''}${potgName ? ` Player of the Game: ${potgName.split(' ')[0]}.` : ''}`;
+                }
+                // 'social' style — a bit more color, plus a couple more stat lines and a hashtag.
+                const lines = [];
+                lines.push(`${game.result === 'W' ? '🦅🏀 EAGLES WIN!' : '🏀 EAGLES'} ${teamLabel} ${resultWord === 'defeat' ? 'defeats' : 'falls to'} ${game.opp}, ${game.teamScore}-${game.oppScore}!`);
+                if (topScorer) lines.push(`🔥 ${topScorer.name} dropped ${topPts} points.`);
+                if (potgName && potgName !== (topScorer && topScorer.name)) lines.push(`🏅 Player of the Game: ${potgName}.`);
+                const doubleDigitOthers = stats.filter(s => s !== topScorer && (((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0)) >= 10);
+                doubleDigitOthers.forEach(s => lines.push(`💪 ${s.name} added ${((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0)} points.`));
+                lines.push(`#EaglesBasketball #${teamLabel}Girls`);
+                return lines.join('\n');
+            };
+            const copyRecap = (game, style) => {
+                const text = generateRecapText(game, style);
+                navigator.clipboard.writeText(text).then(
+                    () => showToast("Recap copied — paste it into SportsYou or wherever it's headed.", "success"),
+                    () => showToast("Couldn't copy — select and copy the text manually.", "error")
+                );
+            };
+
+            // NEW: scouting reports. One doc per opponent (see 'scoutingReports' collection above),
+            // notes appended from any coach so they combine instead of one coach overwriting another's.
+            const slugifyOpponent = (name) => (name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'unknown';
+            const allOpponents = Array.from(new Set(games.filter(g => (g.team||'varsity')===activeTeam).map(g => g.opp).filter(Boolean))).sort();
+            const addScoutNote = async (oppDisplayName, author, text) => {
+                if (!requireEditor()) return;
+                if (!oppDisplayName || !oppDisplayName.trim()) return showToast("Enter an opponent name first", "error");
+                if (!text || !text.trim()) return showToast("Note can't be empty", "error");
+                const key = slugifyOpponent(oppDisplayName);
+                const note = { id: Date.now(), author: (author||'Coach').trim(), text: text.trim(), date: new Date().toISOString() };
+                try {
+                    await db.collection('scoutingReports').doc(key).set({ opp: oppDisplayName.trim(), notes: firebase.firestore.FieldValue.arrayUnion(note) }, { merge: true });
+                    setScoutNoteDraft('');
+                    showToast("Scouting note added", "success");
+                } catch(e) { showToast("Error saving note: " + e.message, "error"); }
+            };
+            const removeScoutNote = async (oppKey, note) => {
+                if (!requireEditor()) return;
+                if (!confirm("Remove this note?")) return;
+                try {
+                    await db.collection('scoutingReports').doc(oppKey).update({ notes: firebase.firestore.FieldValue.arrayRemove(note) });
+                } catch(e) { showToast("Error removing note: " + e.message, "error"); }
+            };
+
             // NEW: builds a plain-text season summary + prompt, meant to be pasted into any AI
             // chat (ChatGPT, Claude, etc.) for open-ended questions this rule-based engine can't
             // answer, like a full practice plan.
@@ -1056,7 +1212,7 @@
             const seasonStats = getSeasonStats();
             const tactics = getTacticalData();
             const lineupPlusMinus = getSeasonPlusMinus();
-            const profile = getPlayerData(selectedProfile);
+            const profile = profileScope === 'career' ? getCareerStats(selectedProfile) : getPlayerData(selectedProfile);
             const playerInfo = ROSTER.find(p => p.name === selectedProfile) || {};
             const activePlayers = ROSTER.filter(p => activeLineup.includes(p.id));
             const benchPlayers = ROSTER.filter(p => !activeLineup.includes(p.id));
@@ -1064,6 +1220,9 @@
             // INSIGHTS & TRENDS
             const insights = getGameInsights();
             const trendSummaries = getTrendSummaries();
+            const practiceFocus = getPracticeFocus();
+            const scoutOppKey = selectedScoutOpp ? slugifyOpponent(selectedScoutOpp) : null;
+            const scoutNotesForOpp = scoutOppKey && scoutReports[scoutOppKey] ? [...scoutReports[scoutOppKey].notes].sort((a,b)=>new Date(b.date)-new Date(a.date)) : [];
 
             return (
                 <div className="pb-24 max-w-7xl mx-auto p-4">
@@ -1082,7 +1241,7 @@
                             {currentUser && <button onClick={signOutUser} className="text-[10px] font-bold text-zinc-500 hover:text-white uppercase underline">Sign Out</button>}
                         </div>
                         <nav className="flex gap-1 overflow-x-auto w-full md:w-auto pb-1 no-scrollbar">
-                            {['live', 'new', 'clipboard', 'ask coach', 'tactics', 'trends', 'stats', 'profiles', 'log', 'season report', 'admin'].map(t => (<button key={t} onClick={()=>setView(t)} className={`nav-btn ${view===t?'active-nav':'inactive-nav'}`}>{t}</button>))}
+                            {['live', 'new', 'clipboard', 'ask coach', 'tactics', 'trends', 'practice', 'stats', 'profiles', 'scout', 'log', 'season report', 'admin'].map(t => (<button key={t} onClick={()=>setView(t)} className={`nav-btn ${view===t?'active-nav':'inactive-nav'}`}>{t}</button>))}
                         </nav>
                     </div>
 
@@ -1217,6 +1376,15 @@
                                     <h3 className="font-black text-gold uppercase mb-4">Stat Correction Table</h3>
                                     <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-zinc-500 border-b border-zinc-800"><th className="p-2 text-left">PLAYER</th>{STAT_FIELDS.map(f=><th key={f} className="p-1 uppercase text-center">{f.replace('fg','').replace('m','')}</th>)}</tr></thead><tbody>{ROSTER.map(p=>{const s=playerStats[p.name]||{};return(<tr key={p.id} className="border-b border-white/5"><td className="p-2 font-bold whitespace-nowrap">{p.name}</td>{STAT_FIELDS.map(f=><td key={f} className="p-1"><div className="flex items-center gap-1"><button onClick={() => updatePlayerStat(p.name, f, (s[f]||0) - 1)} className="stepper-btn hover:bg-red-900/50 hover:text-red-200">-</button><input type="number" className="stat-input text-center bg-transparent border-0 p-0" value={s[f]||0} readOnly /><button onClick={() => updatePlayerStat(p.name, f, (s[f]||0) + 1)} className="stepper-btn hover:bg-green-900/50 hover:text-green-200">+</button></div></td>)}</tr>)})}</tbody></table></div>
                                 </div>
+                            </div>
+                            {/* NEW: Player of the Game — auto-suggested, overridable before saving. */}
+                            <div className="bento-card border-t-4 border-gold flex flex-col md:flex-row items-center gap-3">
+                                <div className="text-xs font-black text-gold uppercase whitespace-nowrap">🏅 Player of the Game</div>
+                                <div className="flex-1 text-sm font-bold">{potgOverride || computeAutoPOTG(ROSTER.map(p => ({ ...p, ...(playerStats[p.name]||{}) }))) || '—'} {!potgOverride && <span className="text-zinc-500 text-[10px] uppercase font-bold">(auto)</span>}</div>
+                                <select className="bg-black border border-zinc-700 p-2 rounded text-white font-bold text-xs" value={potgOverride||''} onChange={e=>setPotgOverride(e.target.value||null)}>
+                                    <option value="">Use automatic pick</option>
+                                    {ROSTER.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                                </select>
                             </div>
                             <button onClick={saveGame} className="w-full py-4 bg-gold hover:bg-white text-black font-black uppercase text-xl rounded-xl shadow-lg transition-all">Save Game</button>
                         </div>
@@ -1415,6 +1583,62 @@
                         );
                     })()}
 
+                    {view === 'practice' && (
+                        <div className="space-y-4 animate-slideIn max-w-3xl mx-auto">
+                            <div className="text-xs text-zinc-500 uppercase font-bold">Built from the same trend data as the Trends tab — the last 3 games vs. season average.</div>
+                            {practiceFocus.length > 0 ? practiceFocus.map((t,i)=>(
+                                <div key={i} className="trend-card border-red-500">
+                                    <div className="trend-title text-white">{t.title}</div>
+                                    <div className="trend-desc mb-2">{t.desc}</div>
+                                    <div className="text-xs font-bold text-gold">🏀 Suggested focus: <span className="text-white font-normal">{t.focus}</span></div>
+                                </div>
+                            )) : <div className="bento-card text-center text-zinc-500 italic py-12">{visibleGames.length < 2 ? "Need at least 2 games to build a practice focus." : "Nothing trending down right now — no clear area to flag for practice."}</div>}
+                        </div>
+                    )}
+
+                    {view === 'scout' && (
+                        <div className="space-y-4 animate-slideIn max-w-3xl mx-auto">
+                            <div className="bento-card space-y-3">
+                                <div className="text-xs font-bold text-zinc-500 uppercase">Opponent</div>
+                                <div className="flex flex-col md:flex-row gap-2">
+                                    <select className="flex-1 bg-black border border-zinc-700 p-2 rounded text-white font-bold text-sm" value={selectedScoutOpp} onChange={e=>setSelectedScoutOpp(e.target.value)}>
+                                        <option value="">Select an opponent…</option>
+                                        {allOpponents.map(o => <option key={o} value={o}>{o}</option>)}
+                                    </select>
+                                    <div className="flex gap-2 flex-1">
+                                        <input className="flex-1 bg-black border border-zinc-700 p-2 rounded text-white font-bold text-sm" placeholder="Or type a new opponent…" value={newScoutOpp} onChange={e=>setNewScoutOpp(e.target.value)} />
+                                        <button onClick={()=>{ if(newScoutOpp.trim()){ setSelectedScoutOpp(newScoutOpp.trim()); setNewScoutOpp(''); } }} className="px-4 bg-zinc-800 hover:bg-zinc-700 rounded font-black uppercase text-xs whitespace-nowrap">Use</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {selectedScoutOpp && (
+                                <>
+                                <div className="bento-card space-y-3 border-t-4 border-gold">
+                                    <div className="text-lg font-black uppercase italic">{selectedScoutOpp}</div>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                        <input className="bg-black border border-zinc-700 p-2 rounded text-white font-bold text-sm" placeholder="Your name" value={scoutAuthor} onChange={e=>setScoutAuthor(e.target.value)} />
+                                        <textarea className="md:col-span-2 bg-black border border-zinc-700 p-2 rounded text-white font-bold text-sm" rows="2" placeholder="What did you see? (presses full court, goes right, etc.)" value={scoutNoteDraft} onChange={e=>setScoutNoteDraft(e.target.value)} />
+                                    </div>
+                                    <button onClick={()=>addScoutNote(selectedScoutOpp, scoutAuthor, scoutNoteDraft)} className="w-full py-3 bg-gold hover:bg-white text-black font-black uppercase text-xs rounded-lg">+ Add Note</button>
+                                </div>
+
+                                <div className="space-y-2">
+                                    {scoutNotesForOpp.length > 0 ? scoutNotesForOpp.map(note => (
+                                        <div key={note.id} className="bento-card flex items-start justify-between gap-3">
+                                            <div>
+                                                <div className="text-[10px] font-black text-gold uppercase mb-1">{note.author} • {new Date(note.date).toLocaleDateString()}</div>
+                                                <div className="text-sm">{note.text}</div>
+                                            </div>
+                                            {isEditor && <button onClick={()=>removeScoutNote(scoutOppKey, note)} className="text-zinc-600 hover:text-red-400 text-lg leading-none">✕</button>}
+                                        </div>
+                                    )) : <div className="text-center text-zinc-500 italic py-8">No notes yet for {selectedScoutOpp}. Add the first one above.</div>}
+                                </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+
                     {view === 'stats' && (
                         <div className="bento-card overflow-hidden animate-slideIn">
                              <div className="overflow-x-auto"><table className="w-full text-left border-collapse stat-table"><thead><tr><th onClick={()=>handleSort('name')}>Player</th><th onClick={()=>handleSort('ppg')} className="text-gold">PPG</th><th onClick={()=>handleSort('rpg')}>RPG</th><th onClick={()=>handleSort('apg')}>APG</th><th onClick={()=>handleSort('spg')}>SPG</th><th onClick={()=>handleSort('bpg')}>BPG</th><th onClick={()=>handleSort('topg')} className="text-red-400">TO</th><th onClick={()=>handleSort('fgPct')}>FG%</th><th onClick={()=>handleSort('eFG')} className="text-blue-400">eFG%</th><th onClick={()=>handleSort('TS')} className="text-purple-400">TS%</th></tr></thead><tbody className="text-xs font-bold divide-y divide-white/5">{seasonStats.map(p=>(<tr key={p.name} className="stat-row"><td className="p-3 sticky left-0 bg-zinc-900/50">{p.name}</td><td className="p-3 text-gold stat-val">{p.ppg}</td><td className="p-3 stat-val">{p.rpg}</td><td className="p-3 stat-val">{p.apg}</td><td className="p-3 stat-val">{p.spg}</td><td className="p-3 stat-val">{p.bpg}</td><td className="p-3 stat-val text-zinc-400">{p.topg}</td><td className="p-3 stat-val">{p.fgPct}%</td><td className="p-3 stat-val text-blue-400">{p.eFG}%</td><td className="p-3 stat-val text-purple-400">{p.TS}%</td></tr>))}</tbody></table></div>
@@ -1444,12 +1668,17 @@
 
                     {view === 'profiles' && (
                         <div className="animate-slideIn">
-                            <div className="mb-6 overflow-x-auto pb-2 no-print"><div className="flex gap-2">{ROSTER.map(p=>(<button key={p.id} onClick={()=>setSelectedProfile(p.name)} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase whitespace-nowrap border transition ${selectedProfile===p.name?'bg-white text-black border-white':'bg-black text-zinc-500 border-zinc-800'}`}>#{p.id} {p.name}</button>))}</div></div>
+                            <div className="mb-4 overflow-x-auto pb-2 no-print"><div className="flex gap-2">{ROSTER.map(p=>(<button key={p.id} onClick={()=>setSelectedProfile(p.name)} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase whitespace-nowrap border transition ${selectedProfile===p.name?'bg-white text-black border-white':'bg-black text-zinc-500 border-zinc-800'}`}>#{p.id} {p.name}</button>))}</div></div>
+                            {/* NEW: Season vs. career (all-time, this team) totals toggle. */}
+                            <div className="mb-6 no-print flex gap-1 bg-zinc-900 border border-zinc-800 rounded-full p-1 w-fit">
+                                <button onClick={()=>setProfileScope('season')} className={`nav-btn ${profileScope==='season'?'active-nav':'inactive-nav'}`}>{activeSeason} Season</button>
+                                <button onClick={()=>setProfileScope('career')} className={`nav-btn ${profileScope==='career'?'active-nav':'inactive-nav'}`}>Career ({activeTeam==='jv'?'JV':'Varsity'})</button>
+                            </div>
                             {ROSTER.length === 0 ? (
                                 <div className="bento-card text-center text-zinc-500 italic py-12">No players on this roster yet. <button onClick={()=>setShowRosterManager(true)} className="underline text-gold font-bold">Add players to the {activeTeam === 'jv' ? 'JV' : 'Varsity'} roster</button>.</div>
                             ) : (
                             <>
-                            <div className="print-header"><h1 className="text-4xl font-black uppercase">Scouting Report</h1><p className="text-lg">{selectedProfile}</p></div>
+                            <div className="print-header"><h1 className="text-4xl font-black uppercase">{profileScope==='career' ? 'Career Stat Sheet' : 'Season Stat Sheet'}</h1><p className="text-lg">{selectedProfile}{profileScope==='career' ? '' : ` • ${activeSeason}`}</p></div>
                             <div className="bento-card relative overflow-hidden mb-6"><div className="absolute top-0 right-0 p-8 opacity-10 font-black italic text-9xl">{playerInfo.id}</div><div className="relative z-10 flex justify-between items-end"><div><h2 className="text-4xl md:text-6xl font-black italic uppercase leading-none">{playerInfo.name}</h2><div className="mt-2 text-sm font-bold text-zinc-500">{profile.totals.gp} Games • {profile.totals.pts} Pts</div></div><button onClick={()=>window.print()} className="no-print bg-white text-black px-6 py-2 rounded-full font-bold uppercase text-xs hover:bg-gold transition shadow-lg">🖨️ PDF</button></div></div>
                             <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6"><StatBox label="PPG" val={profile.avgs.ppg} color="text-gold" /><StatBox label="eFG%" val={profile.pcts.eFG+'%'} color="text-blue-400" /><StatBox label="TS%" val={profile.pcts.TS+'%'} color="text-purple-400" /><StatBox label="RPG" val={profile.avgs.rpg} /><StatBox label="APG" val={profile.avgs.apg} /><StatBox label="FG%" val={profile.pcts.fg+'%'} /></div>
                             
@@ -1606,6 +1835,31 @@ service cloud.firestore {
                                      <div className="bg-zinc-900 p-2 rounded text-center"><div className="text-[10px] text-zinc-500 uppercase">3PT%</div><div className="font-bold text-xl">{(() => { const m = (viewGame.stats||[]).reduce((a,s)=>a+(s.fg3m||0),0); const att = (viewGame.stats||[]).reduce((a,s)=>a+(s.fg3a||0),0); return att>0?Math.round((m/att)*100):0; })()}%</div></div>
                                      <div className="bg-zinc-900 p-2 rounded text-center"><div className="text-[10px] text-zinc-500 uppercase">FT%</div><div className="font-bold text-xl">{(() => { const m = (viewGame.stats||[]).reduce((a,s)=>a+(s.ftm||0),0); const att = (viewGame.stats||[]).reduce((a,s)=>a+(s.fta||0),0); return att>0?Math.round((m/att)*100):0; })()}%</div></div>
                                      <div className="bg-zinc-900 p-2 rounded text-center"><div className="text-[10px] text-zinc-500 uppercase">TO</div><div className="font-bold text-xl">{(viewGame.stats||[]).reduce((a,s)=>a+(s.to||0),0)}</div></div>
+                                </div>
+
+                                {/* NEW: Player of the Game — shows the saved pick, overridable by an editor. */}
+                                <div className="bg-black/40 border border-white/10 rounded-lg p-3 mb-4 flex flex-col md:flex-row items-center gap-3">
+                                    <div className="text-xs font-black text-gold uppercase whitespace-nowrap">🏅 Player of the Game</div>
+                                    <div className="flex-1 text-sm font-bold text-white">{(viewGame.potg && viewGame.potg.name) || '—'} {viewGame.potg && !viewGame.potg.auto && <span className="text-[10px] text-zinc-500 uppercase font-bold ml-1">(coach pick)</span>}</div>
+                                    {isEditor && (
+                                        <select className="bg-black border border-zinc-700 p-2 rounded text-white font-bold text-xs" value={(viewGame.potg&&viewGame.potg.name)||''} onChange={e=>updateGamePOTG(viewGame.id, e.target.value)}>
+                                            <option value="" disabled>Change pick…</option>
+                                            {(viewGame.stats||[]).map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+                                        </select>
+                                    )}
+                                </div>
+
+                                {/* NEW: parent/social recap — generated text, copied to clipboard for pasting into SportsYou, a team chat, or social. */}
+                                <div className="bg-black/40 border border-white/10 rounded-lg p-3 mb-6 space-y-3">
+                                    <div className="text-xs font-black text-zinc-400 uppercase">📋 Recap (copy & paste)</div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                        <div className="bg-black border border-zinc-800 rounded p-2 text-xs whitespace-pre-wrap">{generateRecapText(viewGame, 'short')}</div>
+                                        <div className="bg-black border border-zinc-800 rounded p-2 text-xs whitespace-pre-wrap">{generateRecapText(viewGame, 'social')}</div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={()=>copyRecap(viewGame,'short')} className="flex-1 py-2 bg-blue-700 hover:bg-blue-600 rounded font-black uppercase text-xs">📋 Copy Short (SportsYou / team chat)</button>
+                                        <button onClick={()=>copyRecap(viewGame,'social')} className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 rounded font-black uppercase text-xs">📋 Copy Social Version</button>
+                                    </div>
                                 </div>
 
                                 <div className="overflow-x-auto">
