@@ -226,21 +226,32 @@
             const [db, setDb] = React.useState(null);
             const [toasts, setToasts] = React.useState([]);
 
-            // NEW: access control. currentUser comes from Firebase Auth (Google Sign-In). isEditor is
+            // NEW: access control. currentUser comes from Firebase Auth (Email/Password). isEditor is
             // true only for accounts listed in ALLOWED_EDITORS above — everyone else (including anyone
             // not signed in) can view everything but can't change anything. See requireEditor() below,
             // which every write action in this file is gated behind.
             const [currentUser, setCurrentUser] = React.useState(null);
             const [authReady, setAuthReady] = React.useState(false);
+            const [showSignIn, setShowSignIn] = React.useState(false);
+            const [signInEmail, setSignInEmail] = React.useState('');
+            const [signInPassword, setSignInPassword] = React.useState('');
             const isEditor = !!(currentUser && currentUser.email && ALLOWED_EDITORS.map(e=>e.toLowerCase()).includes(currentUser.email.toLowerCase()));
             const requireEditor = () => {
                 if (isEditor) return true;
                 showToast(currentUser ? "This account isn't approved to edit — ask the coach to add it" : "Sign in to make changes", "error");
                 return false;
             };
-            const signIn = () => {
-                const provider = new firebase.auth.GoogleAuthProvider();
-                firebase.auth().signInWithPopup(provider).catch(e => showToast("Sign-in failed: " + e.message, "error"));
+            const signInWithEmail = () => {
+                if (!signInEmail || !signInPassword) return showToast("Enter an email and password", "error");
+                firebase.auth().signInWithEmailAndPassword(signInEmail.trim(), signInPassword)
+                    .then(() => { setShowSignIn(false); setSignInPassword(''); })
+                    .catch(e => showToast("Sign-in failed: " + e.message, "error"));
+            };
+            const sendPasswordReset = () => {
+                if (!signInEmail) return showToast("Enter your email first, then tap this again", "error");
+                firebase.auth().sendPasswordResetEmail(signInEmail.trim())
+                    .then(() => showToast("Password reset email sent", "success"))
+                    .catch(e => showToast("Couldn't send reset email: " + e.message, "error"));
             };
             const signOutUser = () => firebase.auth().signOut();
 
@@ -832,7 +843,7 @@
                             ) : currentUser ? (
                                 <span className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 text-zinc-400 text-[10px] font-black uppercase px-2 py-1 rounded-full">👁️ View Only</span>
                             ) : (
-                                <button onClick={signIn} className="bg-blue-700 hover:bg-blue-600 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-full">🔒 Sign In To Edit</button>
+                                <button onClick={()=>setShowSignIn(true)} className="bg-blue-700 hover:bg-blue-600 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-full">🔒 Sign In To Edit</button>
                             ))}
                             {currentUser && <button onClick={signOutUser} className="text-[10px] font-bold text-zinc-500 hover:text-white uppercase underline">Sign Out</button>}
                         </div>
@@ -1236,15 +1247,16 @@
                                 ) : (
                                     <div className="space-y-3">
                                         <p className="text-xs text-zinc-400">Anyone with this link can view stats, but only signed-in, approved accounts can enter stats, edit the roster, or delete anything.</p>
-                                        <button onClick={signIn} className="w-full py-3 bg-blue-700 hover:bg-blue-600 rounded font-black uppercase text-xs">🔒 Sign In With Google</button>
+                                        <button onClick={()=>setShowSignIn(true)} className="w-full py-3 bg-blue-700 hover:bg-blue-600 rounded font-black uppercase text-xs">🔒 Sign In</button>
                                     </div>
                                 )}
                                 <details className="text-xs text-zinc-500">
                                     <summary className="cursor-pointer font-bold text-zinc-400 uppercase">Setup (one-time, coach/dev only)</summary>
                                     <div className="mt-2 space-y-2">
-                                        <p>1. Edit <code className="bg-black px-1 rounded">ALLOWED_EDITORS</code> near the top of this file's code — add each coach/stat-keeper's Gmail address, lowercase.</p>
-                                        <p>2. In the Firebase console for this project, turn on <span className="text-white">Authentication → Sign-in method → Google</span>.</p>
-                                        <p>3. In <span className="text-white">Firestore → Rules</span>, paste rules that only allow writes from those same emails — for example:</p>
+                                        <p>1. In the Firebase console for this project, turn on <span className="text-white">Authentication → Sign-in method → Email/Password</span>.</p>
+                                        <p>2. Still in Authentication, go to the <span className="text-white">Users</span> tab and click <span className="text-white">Add user</span> for each coach/stat-keeper — enter their email and set a password (they can change it later; see "Forgot password?" on the sign-in screen).</p>
+                                        <p>3. In the code, find <code className="bg-black px-1 rounded">ALLOWED_EDITORS</code> near the top and list those same email addresses, lowercase.</p>
+                                        <p>4. In <span className="text-white">Firestore → Rules</span>, paste rules that only allow writes from those same emails — for example:</p>
                                         <pre className="bg-black p-2 rounded overflow-x-auto text-[10px] leading-tight whitespace-pre">{`rules_version = '2';
 service cloud.firestore {
   match /databases/{db}/documents {
@@ -1384,6 +1396,21 @@ service cloud.firestore {
                                     onUpdate={updateRosterPlayer}
                                     onRemove={removeRosterPlayer}
                                 />
+                            </div>
+                        </div>
+                    )}
+
+                    {showSignIn && (
+                        <div className="modal-overlay" onClick={() => setShowSignIn(false)}>
+                            <div className="modal-content" style={{maxWidth: '380px'}} onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center mb-4"><h3 className="text-2xl font-black uppercase text-gold">Sign In</h3><button onClick={() => setShowSignIn(false)} className="text-2xl">✕</button></div>
+                                <div className="space-y-3">
+                                    <div className="space-y-1"><label className="text-[9px] font-bold text-zinc-500 uppercase">Email</label><input type="email" autoFocus value={signInEmail} onChange={e=>setSignInEmail(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')signInWithEmail();}} className="w-full bg-black border border-zinc-700 p-3 rounded text-white font-bold" placeholder="you@email.com" /></div>
+                                    <div className="space-y-1"><label className="text-[9px] font-bold text-zinc-500 uppercase">Password</label><input type="password" value={signInPassword} onChange={e=>setSignInPassword(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')signInWithEmail();}} className="w-full bg-black border border-zinc-700 p-3 rounded text-white font-bold" placeholder="••••••••" /></div>
+                                    <button onClick={signInWithEmail} className="w-full py-3 bg-gold hover:bg-white text-black font-black uppercase text-sm rounded-lg">Sign In</button>
+                                    <button onClick={sendPasswordReset} className="w-full text-center text-[10px] text-zinc-500 hover:text-white underline uppercase font-bold">Forgot password?</button>
+                                    <p className="text-[10px] text-zinc-600 text-center">Don't have an account? Ask the coach to add your email in Firebase Authentication.</p>
+                                </div>
                             </div>
                         </div>
                     )}
