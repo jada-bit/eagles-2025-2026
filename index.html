@@ -717,8 +717,17 @@
                 const fgPct = teamFGA > 0 ? Math.round((teamFGM/teamFGA)*100) : 0;
                 const fg3Pct = team3PA > 0 ? Math.round((team3PM/team3PA)*100) : 0;
                 const ftPct = teamFTA > 0 ? Math.round((teamFTM/teamFTA)*100) : 0;
+
+                // NEW: opponent shooting — the snapshot previously only showed OUR numbers, which isn't
+                // enough for a halftime adjustment ("are they hot from three, do we need to change coverage").
+                const oppFGM = (opponentStats.fg2m||0) + (opponentStats.fg3m||0);
+                const oppFGA = (opponentStats.fg2a||0) + (opponentStats.fg3a||0);
+                const oppFgPct = oppFGA > 0 ? Math.round((oppFGM/oppFGA)*100) : 0;
+                const opp3Pct = (opponentStats.fg3a||0) > 0 ? Math.round(((opponentStats.fg3m||0)/(opponentStats.fg3a||0))*100) : 0;
+                const oppFtPct = (opponentStats.fta||0) > 0 ? Math.round(((opponentStats.ftm||0)/(opponentStats.fta||0))*100) : 0;
                 
-                return { teamPF, teamTO, teamReb, alerts, fgPct, fg3Pct, ftPct, teamFGM, teamFGA, teamFTM, teamFTA, foulTrouble, hotPlayers, coldPlayers };
+                return { teamPF, teamTO, teamReb, alerts, fgPct, fg3Pct, ftPct, teamFGM, teamFGA, teamFTM, teamFTA, foulTrouble, hotPlayers, coldPlayers,
+                    oppFGM, oppFGA, oppFgPct, opp3Pct, oppFtPct, oppFTM: opponentStats.ftm||0, oppFTA: opponentStats.fta||0 };
             };
 
             const saveGame = async () => {
@@ -1585,19 +1594,61 @@ service cloud.firestore {
                     {/* MODAL: SNAPSHOT */}
                     {showSnapshot && (
                         <div className="modal-overlay" onClick={() => setShowSnapshot(false)}>
-                            <div className="modal-content" onClick={e => e.stopPropagation()}>
-                                <div className="flex justify-between items-center mb-6"><h3 className="text-2xl font-black uppercase text-gold">Game Snapshot</h3><button onClick={() => setShowSnapshot(false)} className="text-2xl">✕</button></div>
+                            <div className="modal-content" style={{maxWidth: '640px'}} onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center mb-4"><h3 className="text-2xl font-black uppercase text-gold">Game Snapshot</h3><button onClick={() => setShowSnapshot(false)} className="text-2xl">✕</button></div>
+
+                                <div className="flex justify-between items-center bg-black/40 border border-white/10 rounded-lg p-3 mb-4 text-center">
+                                    <div><div className="text-[9px] text-zinc-500 uppercase font-bold">Score</div><div className="text-lg font-black">{getTeamScore()}-{gameMeta.oppScore}</div></div>
+                                    <div><div className="text-[9px] text-zinc-500 uppercase font-bold">Quarter</div><div className="text-lg font-black">Q{gameMeta.quarter}</div></div>
+                                    <div><div className="text-[9px] text-zinc-500 uppercase font-bold">Team Fouls</div><div className={`text-lg font-black ${quarterFouls>=5?'text-red-500':'text-white'}`}>{quarterFouls}{quarterFouls>=5?' (BONUS)':''}</div></div>
+                                    <div><div className="text-[9px] text-zinc-500 uppercase font-bold">Timeouts</div><div className="text-lg font-black">{timeouts.full.filter(Boolean).length}F / {timeouts.thirty.filter(Boolean).length}×30</div></div>
+                                </div>
+
+                                <div className="text-[10px] font-black text-gold uppercase tracking-widest mb-1">Us</div>
                                 <div className="snap-grid">
                                     <div className="snap-stat-box"><div className="snap-stat-label">SHOOTING</div><div className={`snap-stat-val ${insights.fgPct>=45?'text-green-500':(insights.fgPct<35?'text-red-500':'text-white')}`}>{insights.teamFGM}/{insights.teamFGA}</div><div className="snap-stat-sub">{insights.fgPct}%</div></div>
                                     <div className="snap-stat-box"><div className="snap-stat-label">FREE THROWS</div><div className="snap-stat-val">{insights.teamFTM}/{insights.teamFTA}</div><div className="snap-stat-sub">{insights.ftPct}%</div></div>
                                     <div className="snap-stat-box"><div className="snap-stat-label">REBOUNDS</div><div className="snap-stat-val text-blue-500">{insights.teamReb}</div></div>
                                     <div className="snap-stat-box"><div className="snap-stat-label">TURNOVERS</div><div className={`snap-stat-val ${insights.teamTO>=12?'text-red-500':'text-white'}`}>{insights.teamTO}</div></div>
                                 </div>
-                                <div className="outlier-section">
+
+                                <div className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-1 mt-4">Opponent</div>
+                                <div className="snap-grid">
+                                    <div className="snap-stat-box"><div className="snap-stat-label">SHOOTING</div><div className={`snap-stat-val ${insights.oppFgPct>=45?'text-red-400':'text-white'}`}>{insights.oppFGM}/{insights.oppFGA}</div><div className="snap-stat-sub">{insights.oppFgPct}%</div></div>
+                                    <div className="snap-stat-box"><div className="snap-stat-label">3PT%</div><div className={`snap-stat-val ${insights.opp3Pct>=38?'text-red-400':'text-white'}`}>{insights.opp3Pct}%</div></div>
+                                    <div className="snap-stat-box"><div className="snap-stat-label">FREE THROWS</div><div className="snap-stat-val">{insights.oppFTM}/{insights.oppFTA}</div><div className="snap-stat-sub">{insights.oppFtPct}%</div></div>
+                                </div>
+
+                                <div className="outlier-section mt-4">
                                     {insights.hotPlayers.map(p=><div key={p.name} className="outlier-card border-green-500"><div className="outlier-icon">🔥</div><div className="outlier-name">{p.name}</div><div className="outlier-detail">{p.val}</div></div>)}
                                     {insights.coldPlayers.map(p=><div key={p.name} className="outlier-card border-red-500"><div className="outlier-icon">🧊</div><div className="outlier-name">{p.name}</div><div className="outlier-detail">{p.val}</div></div>)}
                                     {insights.foulTrouble.map(p=><div key={p.name} className="outlier-card border-yellow-500"><div className="outlier-icon">⚠️</div><div className="outlier-name">{p.name}</div><div className="outlier-detail">{p.val}</div></div>)}
                                     {insights.hotPlayers.length===0 && insights.coldPlayers.length===0 && insights.foulTrouble.length===0 && <div className="text-center text-zinc-500 italic text-sm p-4">No significant outliers detected yet.</div>}
+                                </div>
+
+                                {Object.keys(plusMinus).length > 0 && (
+                                    <div className="mt-4">
+                                        <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">This Game — Lineup +/-</div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {Object.entries(plusMinus).sort((a,b)=>b[1]-a[1]).map(([name,net]) => (
+                                                <div key={name} className="flex justify-between items-center bg-zinc-900/50 rounded px-3 py-2"><span className="text-xs font-bold">{name.split(' ')[0]}</span><span className={`font-black text-sm ${net>0?'text-green-500':(net<0?'text-red-500':'text-zinc-400')}`}>{net>0?'+':''}{net}</span></div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="mt-4">
+                                    <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Shot Chart — This Game</div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <div className="text-[10px] font-black text-gold uppercase mb-1 text-center">Us ({shotLog.filter(s=>(s.team||'us')==='us').length})</div>
+                                            <CourtSVG>{shotLog.filter(s=>(s.team||'us')==='us').map(s => <circle key={s.id} cx={s.x} cy={s.y} r="6" fill={s.made ? '#22c55e' : '#ef4444'} fillOpacity="0.8" stroke="white" strokeWidth="1" />)}</CourtSVG>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] font-black text-red-400 uppercase mb-1 text-center">Opponent ({shotLog.filter(s=>s.team==='opp').length})</div>
+                                            <CourtSVG>{shotLog.filter(s=>s.team==='opp').map(s => <circle key={s.id} cx={s.x} cy={s.y} r="6" fill={s.made ? '#22c55e' : '#ef4444'} fillOpacity="0.8" stroke="white" strokeWidth="1" />)}</CourtSVG>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
