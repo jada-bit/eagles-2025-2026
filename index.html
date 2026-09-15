@@ -197,8 +197,8 @@
         // boundary is the Firestore rules, which you still need to update once in the Firebase console.
         // See the "Access" card on the Admin tab in the app for the exact rules to paste in.
         const ALLOWED_EDITORS = [
-            // "jada.alim@gmail.com",
-            // "jmwhitney03@gmail.com",
+            "jada.alim@gmail.com",
+            "jmwhitney03@gmail.com",
         ];
 
         // NEW: season labels. LEGACY_SEASON is what old, untagged games get archived as.
@@ -288,6 +288,13 @@
             const [activeLineup, setActiveLineupRaw] = useStickyState(defaultLineup(), 'eagles_lineup');
             const [playStats, setPlayStatsRaw] = useStickyState(defaultPlayStats(), 'eagles_plays');
             const [eventLog, setEventLogRaw] = useStickyState([], 'eagles_events');
+            // NEW: running point differential per player, updated automatically every time either team
+            // scores (see applyScoreToLineup below) — no extra taps needed, since it's derived entirely
+            // from stats you're already recording (who's on court + who scored). Feeds the "Tactics" tab.
+            const [plusMinus, setPlusMinusRaw] = useStickyState({}, 'eagles_plusminus');
+            // NEW: shot locations tapped on the shot chart (see ShotChartModal) — saved per game so a
+            // shot heatmap can be built later. Not yet visualized anywhere, just captured for now.
+            const [shotLog, setShotLogRaw] = useStickyState([], 'eagles_shotlog');
             
             // GAME MANAGEMENT STATES
             const [timeouts, setTimeoutsRaw] = useStickyState(defaultTimeouts(), 'eagles_timeouts');
@@ -326,6 +333,8 @@
             const setTimeouts = guardedUpdate(setTimeoutsRaw, 'timeouts');
             const setPossession = guardedUpdate(setPossessionRaw, 'possession');
             const setQuarterFouls = guardedUpdate(setQuarterFoulsRaw, 'quarterFouls');
+            const setPlusMinus = guardedUpdate(setPlusMinusRaw, 'plusMinus');
+            const setShotLog = guardedUpdate(setShotLogRaw, 'shotLog');
 
             // Applies a live-game document (from Firestore) straight into local state, with sensible
             // defaults for any field that doc doesn't have yet (e.g. a brand-new game).
@@ -339,6 +348,8 @@
                 setTimeoutsRaw(data.timeouts || defaultTimeouts());
                 setPossessionRaw(data.possession || 'home');
                 setQuarterFoulsRaw(data.quarterFouls || 0);
+                setPlusMinusRaw(data.plusMinus || {});
+                setShotLogRaw(data.shotLog || []);
             };
 
             // Pulls the current shared live game once (used after finishing a history edit, to restore
@@ -358,6 +369,7 @@
             const [subTarget, setSubTarget] = React.useState(null); 
             const [editId, setEditId] = React.useState(null);
             const [showSnapshot, setShowSnapshot] = React.useState(false);
+            const [showShotChart, setShowShotChart] = React.useState(false);
             const [shotMode, setShotMode] = React.useState('make'); 
             const [viewGame, setViewGame] = React.useState(null);
             
@@ -367,7 +379,7 @@
             const [sortConfig, setSortConfig] = React.useState({ key: 'ppg', direction: 'desc' });
             
             // AI
-            const [chatHistory, setChatHistory] = React.useState([{role: 'bot', text: '🦅 Coach, I\'m ready. Ask me "Who is the MVP?", "Who takes the last shot?", or "Scout Reese".'}]);
+            const [chatHistory, setChatHistory] = React.useState([{role: 'bot', text: '🦅 Coach, I\'m ready. Ask me things like "Who is the MVP?", "Who\'s our best defender?", "What should we work on?", or a player\'s name.'}]);
             const [query, setQuery] = React.useState('');
 
             // --- INIT ---
@@ -498,6 +510,22 @@
             };
 
             // --- LIVE LOGIC ---
+            // NEW: adjusts every on-court player's running plus-minus by `delta` — positive when the
+            // Eagles score, negative when the opponent does. Called automatically from handleStatClick
+            // below; no extra taps needed since it just reads whoever's already in activeLineup.
+            const applyLineupSwing = (delta) => {
+                if (!delta) return;
+                setPlusMinus(prev => {
+                    const next = { ...prev };
+                    activeLineup.forEach(pid => {
+                        const p = ROSTER.find(r => r.id === pid);
+                        if (!p) return;
+                        next[p.name] = (next[p.name] || 0) + delta;
+                    });
+                    return next;
+                });
+            };
+
             const handleStatClick = (statKey, pointVal = 0) => {
                 if (selectedPlayer === null) return showToast("⚠️ Select a Player or Opponent First!", "error");
 
@@ -521,7 +549,7 @@
                     if (statKey === 'fg3m') updates['fg3a'] = (opponentStats.fg3a || 0) + 1;
                     if (statKey === 'ftm') updates['fta'] = (opponentStats.fta || 0) + 1;
                     setOpponentStats(prev => ({ ...prev, ...updates }));
-                    if (pointVal > 0) setGameMeta(prev => ({ ...prev, oppScore: prev.oppScore + pointVal }));
+                    if (pointVal > 0) { setGameMeta(prev => ({ ...prev, oppScore: prev.oppScore + pointVal })); applyLineupSwing(-pointVal); }
                     logItem.type = 'opp'; logItem.name = 'Opponent'; logItem.desc = `${label} ${pointVal>0?`(+${pointVal})`:''}`;
                     setEventLog(prev => [logItem, ...prev].slice(0, 30)); 
                     showToast(`Opponent: ${label}`);
@@ -539,12 +567,33 @@
                 
                 // Increment TEAM FOULS
                 if (statKey === 'pf') setQuarterFouls(prev => prev + 1);
+                if (pointVal > 0) applyLineupSwing(pointVal);
 
                 setPlayerStats(prev => ({ ...prev, [pName]: { ...prev[pName], ...updates } }));
                 logItem.name = pName.split(' ')[0]; logItem.desc = label;
                 setEventLog(prev => [logItem, ...prev].slice(0, 30));
                 showToast(`${logItem.name}: ${label} ${pointVal>0?`(+${pointVal})`:''}`);
                 setSelectedPlayer(null); 
+            };
+
+            // NEW: shot-chart commit path. The chart picks a player differently than the rest of the
+            // keypad (location → player → result, instead of player-first), so it can't just call
+            // handleStatClick directly — that relies on `selectedPlayer` already being set from a
+            // previous render. Instead this sets selectedPlayer + a pending action together, and the
+            // effect below fires handleStatClick once that state has actually landed — reusing all of
+            // its existing logic (undo support, plus-minus, event log) instead of duplicating it.
+            const [pendingShotStat, setPendingShotStat] = React.useState(null);
+            React.useEffect(() => {
+                if (pendingShotStat && selectedPlayer === pendingShotStat.forPid) {
+                    handleStatClick(pendingShotStat.statKey, pendingShotStat.pointVal);
+                    setPendingShotStat(null);
+                }
+            }, [selectedPlayer, pendingShotStat]);
+            const logShot = (pid, isThree, made, x, y) => {
+                if (!requireEditor()) return;
+                setShotLog(prev => [...prev, { id: Date.now(), pid, x, y, isThree, made }]);
+                setSelectedPlayer(pid);
+                setPendingShotStat({ statKey: made ? (isThree?'fg3m':'fg2m') : (isThree?'fg3a':'fg2a'), pointVal: made ? (isThree?3:2) : 0, forPid: pid });
             };
 
             const handleUndo = (event) => {
@@ -596,6 +645,8 @@
                 setQuarterFouls(0);
                 setTimeouts({ full: [true,true,true], thirty: [true,true] });
                 setEventLog([]);
+                setPlusMinus({});
+                setShotLog([]);
                 showToast("Game Reset.", "info");
             };
 
@@ -655,13 +706,13 @@
                     return { ...p, ...s, pts }; 
                 });
                 // CHANGED: every saved game is now tagged with the active team and season.
-                const payload = { ...gameMeta, team: activeTeam, season: activeSeason, teamScore: tScore, stats, opponentStats, playStats, result: tScore > gameMeta.oppScore ? 'W' : 'L', updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+                const payload = { ...gameMeta, team: activeTeam, season: activeSeason, teamScore: tScore, stats, opponentStats, playStats, plusMinus, shotLog, result: tScore > gameMeta.oppScore ? 'W' : 'L', updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
                 try { 
                     if(editId) await db.collection('games').doc(editId).update(payload); 
                     else await db.collection('games').add(payload); 
                     showToast("Game Saved Successfully!", "success"); 
                     setPlayerStats({}); setOpponentStats({fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0}); setEventLog([]); setQuarterFouls(0); setTimeouts({ full: [true,true,true], thirty: [true,true] });
-                    setGameMeta({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0, venue: 'Home', quarter: 1 }); setEditId(null); setView('log'); 
+                    setGameMeta({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0, venue: 'Home', quarter: 1 }); setPlusMinus({}); setShotLog([]); setEditId(null); setView('log'); 
                     // NEW: if we were only editing an old saved game, the resets above were local-only
                     // (editingHistoryRef suppressed the push). Now that editing is done, drop the
                     // suppression and pull in whatever the real live game currently looks like.
@@ -749,6 +800,21 @@
             const getClipboardData = () => { const totalGames = visibleGames.length || 1; const totals = { pts:0, opp:0, reb:0, ast:0, to:0, stocks:0 }; const pMap = {}; ROSTER.forEach(p => pMap[p.name] = { name: p.name, gp:0, pts:0, reb:0, fg3m:0, fg3a:0, ftm:0, fta:0, highs:{pts:0,ast:0,reb:0,stl:0,blk:0} }); let seasonHighs = { pts:{val:0}, ast:{val:0}, reb:{val:0}, stl:{val:0}, blk:{val:0} }; visibleGames.forEach(g => { totals.pts += g.teamScore || 0; totals.opp += g.oppScore || 0; g.stats.forEach(s => { totals.reb += (s.reb||0); totals.ast += (s.ast||0); totals.to += (s.to||0); totals.stocks += ((s.stl||0) + (s.blk||0)); if(pMap[s.name]) { const p = pMap[s.name]; p.gp++; const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0); p.pts += pts; p.reb += (s.reb||0); p.fg3m += (s.fg3m||0); p.fg3a += (s.fg3a||0); p.ftm += (s.ftm||0); p.fta += (s.fta||0); if(pts > seasonHighs.pts.val) seasonHighs.pts = {val:pts, player:s.name}; if((s.reb||0) > seasonHighs.reb.val) seasonHighs.reb = {val:s.reb, player:s.name}; if((s.ast||0) > seasonHighs.ast.val) seasonHighs.ast = {val:s.ast, player:s.name}; if((s.stl||0) > seasonHighs.stl.val) seasonHighs.stl = {val:s.stl, player:s.name}; if((s.blk||0) > seasonHighs.blk.val) seasonHighs.blk = {val:s.blk, player:s.name}; } }); }); const players = Object.values(pMap).filter(p => p.gp > 0); return { team: { ppg:(totals.pts/totalGames).toFixed(1), opp:(totals.opp/totalGames).toFixed(1), rpg:(totals.reb/totalGames).toFixed(1), apg:(totals.ast/totalGames).toFixed(1), topg:(totals.to/totalGames).toFixed(1), stocks:(totals.stocks/totalGames).toFixed(1), record:`${visibleGames.filter(g=>g.result==='W').length}-${visibleGames.filter(g=>g.result==='L').length}` }, scorers: [...players].sort((a,b)=>(b.pts/b.gp)-(a.pts/a.gp)).slice(0,3), rebounders: [...players].sort((a,b)=>(b.reb/b.gp)-(a.reb/a.gp)).slice(0,3), snipers: [...players].filter(p=>p.fg3a>5).sort((a,b)=>(b.fg3m/b.fg3a)-(a.fg3m/a.fg3a)).slice(0,3), freeThrowers: [...players].filter(p=>p.fta>5).sort((a,b)=>(b.ftm/b.fta)-(a.ftm/a.fta)).slice(0,3), seasonHighs }; };
             const getPlayerData = (pName) => { const pGames = visibleGames.filter(g => (g.stats || []).find(s => s.name === pName)); const totals = { gp: pGames.length, pts:0, reb:0, ast:0, stl:0, blk:0, to:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0 }; const highs = { pts:0, reb:0, ast:0, stl:0, blk:0 }; pGames.forEach(g => { const s = g.stats.find(stat => stat.name === pName); const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0); totals.pts+=pts; totals.reb+=(s.reb||0); totals.ast+=(s.ast||0); totals.stl+=(s.stl||0); totals.blk+=(s.blk||0); totals.to+=(s.to||0); totals.fg2m+=(s.fg2m||0); totals.fg2a+=(s.fg2a||0); totals.fg3m+=(s.fg3m||0); totals.fg3a+=(s.fg3a||0); totals.ftm+=(s.ftm||0); totals.fta+=(s.fta||0); if(pts>highs.pts) highs.pts=pts; if((s.reb||0)>highs.reb) highs.reb=s.reb; if((s.ast||0)>highs.ast) highs.ast=s.ast; if((s.stl||0)>highs.stl) highs.stl=s.stl; if((s.blk||0)>highs.blk) highs.blk=s.blk; }); const gp = totals.gp || 1; const totalFGM = totals.fg2m + totals.fg3m; const totalFGA = totals.fg2a + totals.fg3a; const eFG = totalFGA > 0 ? ((totalFGM + (0.5 * totals.fg3m)) / totalFGA) * 100 : 0; const tsDiv = 2 * (totalFGA + (0.44 * totals.fta)); const TS = tsDiv > 0 ? (totals.pts / tsDiv) * 100 : 0; return { totals, highs, games: pGames, avgs: { ppg:(totals.pts/gp).toFixed(1), rpg:(totals.reb/gp).toFixed(1), apg:(totals.ast/gp).toFixed(1), spg:(totals.stl/gp).toFixed(1), bpg:(totals.blk/gp).toFixed(1), topg:(totals.to/gp).toFixed(1) }, pcts: { fg:totalFGA>0?Math.round((totalFGM/totalFGA)*100):0, fg2:totals.fg2a>0?Math.round((totals.fg2m/totals.fg2a)*100):0, fg3:totals.fg3a>0?Math.round((totals.fg3m/totals.fg3a)*100):0, ft:totals.fta>0?Math.round((totals.ftm/totals.fta)*100):0, eFG: Math.round(eFG), TS: Math.round(TS) } }; };
             const getTacticalData = () => { let targetGames = tacticsFilter === 'season' ? visibleGames : visibleGames.filter(g => g.id === tacticsFilter); const aggPlays = {}; const aggMap = ZONES.reduce((a,z)=>({...a,[z]:{m:0,x:0}}), {}); targetGames.forEach(g => { if(g.playStats) g.playStats.forEach(p => { if(!aggPlays[p.name]) aggPlays[p.name] = { name: p.name, att: 0, made: 0, pts: 0 }; aggPlays[p.name].att += (p.att || 0); aggPlays[p.name].made += (p.made || 0); aggPlays[p.name].pts += (p.pts || (p.made*2) || 0); }); if(g.shotMap && g.shotMap.eagles) ZONES.forEach(z => { const zone = g.shotMap.eagles[z] || {m:0, x:0}; aggMap[z].m += zone.m; aggMap[z].x += zone.x; }); }); return { plays: Object.values(aggPlays), map: aggMap }; };
+            // NEW: season-long plus-minus per player — purely derived from data you're already
+            // recording (who was on court + who scored), zero extra taps required. Powers the Tactics tab.
+            const getSeasonPlusMinus = () => {
+                const totals = {};
+                ROSTER.forEach(p => { totals[p.name] = { name: p.name, pos: p.pos, net: 0, gp: 0 }; });
+                visibleGames.forEach(g => {
+                    if (!g.plusMinus) return;
+                    Object.entries(g.plusMinus).forEach(([name, net]) => {
+                        if (!totals[name]) totals[name] = { name, pos: '', net: 0, gp: 0 };
+                        totals[name].net += net;
+                        totals[name].gp += 1;
+                    });
+                });
+                return Object.values(totals).filter(p => p.gp > 0).sort((a,b) => b.net - a.net);
+            };
             
             const getTrendSummaries = () => {
                 if(visibleGames.length < 2) return [];
@@ -766,10 +832,59 @@
                 const toLast3 = last3.reduce((a,g)=>a + (g.stats||[]).reduce((x,s)=>x+(s.to||0),0),0)/last3.length;
                 if(toLast3 > 15) summaries.push({ title: "⚠️ Ball Security", desc: `Averaging ${toLast3.toFixed(1)} TOs in last 3 games.`, type: "bad" });
                 else if(toLast3 < 10) summaries.push({ title: "🔒 Safe Hands", desc: `Only ${toLast3.toFixed(1)} turnovers/game recently.`, type: "good" });
+                // NEW: FG% trend
+                const fgPctForGame = (g) => { let m=0,a=0; (g.stats||[]).forEach(s=>{m+=((s.fg2m||0)+(s.fg3m||0));a+=((s.fg2a||0)+(s.fg3a||0))}); return a>0?(m/a)*100:0; };
+                const fgLast3 = last3.reduce((a,g)=>a+fgPctForGame(g),0)/last3.length;
+                const fgSeason = sorted.reduce((a,g)=>a+fgPctForGame(g),0)/sorted.length;
+                const diffFg = fgLast3 - fgSeason;
+                if(diffFg > 5) summaries.push({ title: "🎯 Shooting Heating Up", desc: `FG% up ${diffFg.toFixed(1)} pts over the last 3 games.`, type: "good" });
+                else if(diffFg < -5) summaries.push({ title: "📉 Shooting Slump", desc: `FG% down ${Math.abs(diffFg).toFixed(1)} pts over the last 3 games.`, type: "bad" });
+                // NEW: Rebounding trend
+                const rebForGame = (g) => (g.stats||[]).reduce((a,s)=>a+(s.reb||0),0);
+                const rebLast3 = last3.reduce((a,g)=>a+rebForGame(g),0)/last3.length;
+                const rebSeason = sorted.reduce((a,g)=>a+rebForGame(g),0)/sorted.length;
+                const diffReb = rebLast3 - rebSeason;
+                if(diffReb > 4) summaries.push({ title: "💪 Crashing The Boards", desc: `+${diffReb.toFixed(1)} rebounds/game recently.`, type: "good" });
+                else if(diffReb < -4) summaries.push({ title: "⚠️ Losing The Glass", desc: `Rebounds down ${Math.abs(diffReb).toFixed(1)}/game recently.`, type: "bad" });
                 return summaries;
             };
 
-            // --- AI ---
+            // NEW: builds a plain-text season summary + prompt, meant to be pasted into any AI
+            // chat (ChatGPT, Claude, etc.) for open-ended questions this rule-based engine can't
+            // answer, like a full practice plan.
+            const generateAIExportText = () => {
+                const stats = getSeasonStats();
+                const teamLabel = activeTeam === 'jv' ? 'JV' : 'Varsity';
+                const lines = [];
+                lines.push(`${teamLabel} Basketball — ${activeSeason} Season Summary`);
+                lines.push(`Record: ${clipboard.team.record} | PPG: ${clipboard.team.ppg} | Opp PPG: ${clipboard.team.opp} | Games played: ${visibleGames.length}`);
+                lines.push('');
+                lines.push('Player averages (PPG / RPG / APG / SPG / BPG / TO per game / FG% / 3PT% / FT%):');
+                stats.forEach(p => lines.push(`- ${p.name}${p.pos ? ' (' + p.pos + ')' : ''}: ${p.ppg} / ${p.rpg} / ${p.apg} / ${p.spg} / ${p.bpg} / ${p.topg} / ${p.fgPct}% / ${p.fg3Pct}% / ${p.ftPct}%`));
+                lines.push('');
+                if (trendSummaries.length > 0) {
+                    lines.push('Recent trends (last 3 games vs. season average):');
+                    trendSummaries.forEach(t => lines.push(`- ${t.title}: ${t.desc}`));
+                    lines.push('');
+                }
+                lines.push('Prompt: You are a basketball analyst helping a high school coach. Based on the data above, identify 2-3 things the team is doing well, 2-3 things worth focusing on in the next practice, and any player-specific coaching notes you\'d suggest.');
+                return lines.join('\n');
+            };
+            const copyAIExport = () => {
+                navigator.clipboard.writeText(generateAIExportText())
+                    .then(() => showToast("Copied — paste it into your AI of choice", "success"))
+                    .catch(() => showToast("Copy failed — try the download button instead", "error"));
+            };
+            const downloadAIExport = () => {
+                const blob = new Blob([generateAIExportText()], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = `${activeTeam}-${activeSeason}-summary.txt`;
+                a.click();
+                URL.revokeObjectURL(url);
+            };
+
+            // --- AI (rule-based analytics — see Export card for a real-LLM option) ---
             const handleSearch = (e, manualQuery) => {
                 if(e) e.preventDefault();
                 const qText = manualQuery || query;
@@ -777,12 +892,55 @@
                 const userQ = qText.toLowerCase();
                 const newHistory = [...chatHistory, {role: 'user', text: qText}];
                 setQuery('');
-                let response = "I didn't quite catch that. Check the 'Capabilities' box.";
                 const stats = getSeasonStats();
                 if(stats.length === 0) { setChatHistory([...newHistory, {role: 'bot', text: "I need more game data before I can answer that, Coach!"}]); return; }
-                const getImpact = (p) => (parseFloat(p.ppg)*1) + (parseFloat(p.rpg)*1.5) + (parseFloat(p.apg)*1.5) + (parseFloat(p.spg)*3) + (parseFloat(p.bpg)*3) - (parseFloat(p.topg)*2);
-                if (userQ.includes('best player') || userQ.includes('mvp')) { const sorted = [...stats].sort((a,b) => getImpact(b) - getImpact(a)); response = sorted.length > 0 ? `🏆 MVP: ${sorted[0].name}\nImpact Rating: ${getImpact(sorted[0]).toFixed(1)}` : "Not enough data."; }
-                else { const playerFound = ROSTER.find(p => userQ.includes(p.name.toLowerCase())); if(playerFound) { const s = stats.find(x => x.name === playerFound.name); if(s) response = `ℹ️ ${playerFound.name}: ${s.ppg} PPG, ${s.rpg} RPG.`; else response = "No stats yet."; } }
+
+                // Matches a roster player by first OR last name (word-boundary, so "Gia" doesn't false-match).
+                const nameHit = (p) => p.name.toLowerCase().split(' ').some(tok => tok.length > 1 && new RegExp(`\\b${tok}\\b`).test(userQ));
+                const matched = ROSTER.filter(nameHit);
+
+                let response = "I didn't quite catch that — try a player's name, or check the capabilities list for what I can answer.";
+
+                if (userQ.includes('compare') && matched.length >= 2) {
+                    const [a, b] = matched.map(p => stats.find(s => s.name === p.name)).filter(Boolean);
+                    if (a && b) response = `⚖️ ${a.name} vs ${b.name}\nPPG: ${a.ppg} vs ${b.ppg}\nRPG: ${a.rpg} vs ${b.rpg}\nAPG: ${a.apg} vs ${b.apg}\nFG%: ${a.fgPct}% vs ${b.fgPct}%\nTO/G: ${a.topg} vs ${b.topg}`;
+                } else if (userQ.includes('mvp') || userQ.includes('best player')) {
+                    const getImpact = (p) => (parseFloat(p.ppg)*1) + (parseFloat(p.rpg)*1.5) + (parseFloat(p.apg)*1.5) + (parseFloat(p.spg)*3) + (parseFloat(p.bpg)*3) - (parseFloat(p.topg)*2);
+                    const sorted = [...stats].sort((a,b) => getImpact(b) - getImpact(a));
+                    response = `🏆 MVP: ${sorted[0].name}\nImpact Rating: ${getImpact(sorted[0]).toFixed(1)} (blends scoring, rebounding, playmaking, and defense; turnovers count against it)`;
+                } else if (userQ.includes('playmaker') || userQ.includes('handle the ball') || userQ.includes('point guard')) {
+                    const ranked = [...stats].filter(p => p.games > 0).sort((a,b) => (parseFloat(b.ast)/(parseFloat(b.to)||1)) - (parseFloat(a.ast)/(parseFloat(a.to)||1)));
+                    const top = ranked[0];
+                    response = top ? `🧠 Best Playmaker: ${top.name}\n${top.apg} APG, ${top.topg} TO/G (${(parseFloat(top.ast)/(parseFloat(top.to)||1)).toFixed(1)} assist-to-turnover ratio)` : "Not enough data yet.";
+                } else if (userQ.includes('defen') || userQ.includes('stop')) {
+                    const ranked = [...stats].sort((a,b) => (parseFloat(b.spg)+parseFloat(b.bpg)) - (parseFloat(a.spg)+parseFloat(a.bpg)));
+                    const top = ranked[0];
+                    response = top ? `🛡️ Best Defender: ${top.name}\n${top.spg} SPG, ${top.bpg} BPG (${(parseFloat(top.spg)+parseFloat(top.bpg)).toFixed(1)} stocks/game)` : "Not enough data yet.";
+                } else if (userQ.includes('clutch') || userQ.includes('last shot')) {
+                    const closeGames = visibleGames.filter(g => Math.abs((g.teamScore||0) - (g.oppScore||0)) <= 5);
+                    if (closeGames.length === 0) { response = "No games decided by 5 points or fewer yet this season — nothing to judge 'clutch' on."; }
+                    else {
+                        const totals = {};
+                        closeGames.forEach(g => (g.stats||[]).forEach(s => {
+                            const pts = (s.fg2m||0)*2 + (s.fg3m||0)*3 + (s.ftm||0);
+                            totals[s.name] = totals[s.name] || { name: s.name, pts: 0, gp: 0 };
+                            totals[s.name].pts += pts; totals[s.name].gp += 1;
+                        }));
+                        const ranked = Object.values(totals).map(p => ({...p, ppg: p.pts/p.gp})).sort((a,b) => b.ppg - a.ppg);
+                        const top = ranked[0];
+                        response = `🔥 Clutch Scorer: ${top.name}\n${top.ppg.toFixed(1)} PPG across ${closeGames.length} game${closeGames.length===1?'':'s'} decided by 5 or fewer points.`;
+                    }
+                } else if (userQ.includes('work on') || userQ.includes('focus') || userQ.includes('weak') || userQ.includes('improve') || userQ.includes('practice')) {
+                    const bad = trendSummaries.filter(t => t.type === 'bad');
+                    response = bad.length > 0 ? `📋 Practice Focus:\n${bad.map(t => `• ${t.title}: ${t.desc}`).join('\n')}` : "Nothing flashing red in the recent trends — team's steady. Check the Trends tab for the full picture.";
+                } else if (userQ.includes('going well') || userQ.includes('strength') || userQ.includes('good')) {
+                    const good = trendSummaries.filter(t => t.type === 'good');
+                    response = good.length > 0 ? `✅ What's Going Well:\n${good.map(t => `• ${t.title}: ${t.desc}`).join('\n')}` : "No standout hot streaks in the last 3 games yet — check the Trends tab for the season-long picture.";
+                } else if (matched.length === 1) {
+                    const s = stats.find(x => x.name === matched[0].name);
+                    response = s ? `ℹ️ ${s.name}\nPPG: ${s.ppg} | RPG: ${s.rpg} | APG: ${s.apg} | FG%: ${s.fgPct}% | 3PT%: ${s.fg3Pct}% | FT%: ${s.ftPct}% | TS%: ${s.TS}%` : `${matched[0].name} doesn't have any recorded stats yet.`;
+                }
+
                 setChatHistory([...newHistory, {role: 'bot', text: response}]);
             };
 
@@ -822,6 +980,7 @@
             const clipboard = getClipboardData();
             const seasonStats = getSeasonStats();
             const tactics = getTacticalData();
+            const lineupPlusMinus = getSeasonPlusMinus();
             const profile = getPlayerData(selectedProfile);
             const playerInfo = ROSTER.find(p => p.name === selectedProfile) || {};
             const activePlayers = ROSTER.filter(p => activeLineup.includes(p.id));
@@ -848,7 +1007,7 @@
                             {currentUser && <button onClick={signOutUser} className="text-[10px] font-bold text-zinc-500 hover:text-white uppercase underline">Sign Out</button>}
                         </div>
                         <nav className="flex gap-1 overflow-x-auto w-full md:w-auto pb-1 no-scrollbar">
-                            {['live', 'new', 'clipboard', 'ask coach', 'trends', 'stats', 'profiles', 'log', 'season report', 'admin'].map(t => (<button key={t} onClick={()=>setView(t)} className={`nav-btn ${view===t?'active-nav':'inactive-nav'}`}>{t}</button>))}
+                            {['live', 'new', 'clipboard', 'ask coach', 'tactics', 'trends', 'stats', 'profiles', 'log', 'season report', 'admin'].map(t => (<button key={t} onClick={()=>setView(t)} className={`nav-btn ${view===t?'active-nav':'inactive-nav'}`}>{t}</button>))}
                         </nav>
                     </div>
 
@@ -941,8 +1100,7 @@
                                         </>
                                     ) : (
                                         <>
-                                            <div className="flex gap-2 h-1/5"><button onClick={() => handleStatClick('fg2m', 2)} className="kb-stat-btn bg-make">2PT MAKE (+2)</button><button onClick={() => handleStatClick('fg2a')} className="kb-stat-btn bg-miss">2PT MISS</button></div>
-                                            <div className="flex gap-2 h-1/5"><button onClick={() => handleStatClick('fg3m', 3)} className="kb-stat-btn bg-make">3PT MAKE (+3)</button><button onClick={() => handleStatClick('fg3a')} className="kb-stat-btn bg-miss">3PT MISS</button></div>
+                                            <div className="h-2/5"><button onClick={()=>setShowShotChart(true)} className="kb-stat-btn bg-action w-full h-full flex-col gap-1"><span className="text-3xl">🏀</span><span>LOG SHOT (2PT / 3PT)</span></button></div>
                                             <div className="flex gap-2 h-1/5"><button onClick={() => handleStatClick('ftm', 1)} className="kb-stat-btn bg-make">FT MAKE (+1)</button><button onClick={() => handleStatClick('fta')} className="kb-stat-btn bg-miss">FT MISS</button></div>
                                             <div className="flex gap-2 h-1/5"><button onClick={() => handleStatClick('reb')} className="kb-stat-btn bg-action">REBOUND</button><button onClick={() => handleStatClick('ast')} className="kb-stat-btn bg-action">ASSIST</button><button onClick={() => handleStatClick('stl')} className="kb-stat-btn bg-action">STEAL</button></div>
                                             <div className="flex gap-2 h-1/5"><button onClick={() => handleStatClick('blk')} className="kb-stat-btn bg-action">BLOCK</button><button onClick={() => handleStatClick('to')} className="kb-stat-btn bg-neg">TURNOVER</button><button onClick={() => handleStatClick('pf')} className="kb-stat-btn bg-neg">FOUL</button></div>
@@ -1129,23 +1287,41 @@
                         <div className="animate-slideIn max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
                             <div className="lg:col-span-2 bento-card h-[65vh] flex flex-col">
                                 <div className="flex-1 overflow-y-auto mb-4 space-y-4 p-2 custom-scrollbar">{chatHistory.map((msg, i) => (<div key={i} className={`chat-bubble ${msg.role === 'user' ? 'chat-user' : 'chat-bot'}`}>{msg.text}</div>))}</div>
-                                <div className="flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar">{["🏆 Who is MVP?", "🏀 Clutch Player", "🛡️ Defensive Stop", "🧠 Best Playmaker", "📉 Scout Reese"].map(q => (<button key={q} onClick={(e)=>handleSearch(e, q)} className="suggestion-chip">{q}</button>))}</div>
+                                <div className="flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar">{["🏆 Who is MVP?", "🛡️ Best Defender?", "🧠 Best Playmaker?", "🔥 Who's clutch?", "📋 What should we work on?", "✅ What's going well?"].map(q => (<button key={q} onClick={(e)=>handleSearch(e, q)} className="suggestion-chip">{q}</button>))}</div>
                                 <form onSubmit={handleSearch} className="flex gap-2"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Type your question..." className="flex-1 bg-black border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold" /><button type="submit" className="bg-gold text-black font-bold px-6 py-3 rounded-lg hover:bg-white transition">SEND</button></form>
                             </div>
-                            <div className="bento-card h-full overflow-y-auto"><h3 className="text-xl font-black text-gold uppercase italic mb-4">Coach's Playbook</h3><div className="space-y-4 text-xs"><div><div className="font-bold text-green-400 mb-1">✅ TRY ASKING:</div><ul className="space-y-2 text-zinc-400"><li>• "Who is the MVP?" (Impact Rating)</li><li>• "Who takes the last shot?" (Clutch)</li><li>• "I need a defensive stop."</li><li>• "Who should handle the ball?"</li><li>• "Compare Reese and Natasha."</li><li>• "Scout Kylie." (Full Report)</li></ul></div></div></div>
+                            <div className="flex flex-col gap-6">
+                                <div className="bento-card"><h3 className="text-xl font-black text-gold uppercase italic mb-4">What You Can Ask</h3><div className="space-y-2 text-xs text-zinc-400"><div>• "Who is the MVP?" (blended impact rating)</div><div>• "Best defender?" (steals + blocks)</div><div>• "Best playmaker?" (assist-to-turnover ratio)</div><div>• "Who's clutch?" (scoring in games decided by 5 or fewer)</div><div>• "Compare Reese and Natasha."</div><div>• "What should we work on?" / "What's going well?" (pulled from recent trends)</div><div>• A player's name, for their full stat line.</div></div><p className="text-[10px] text-zinc-600 mt-3 italic">This runs on your actual saved game data — no internet connection needed, and nothing leaves the app.</p></div>
+                                <div className="bento-card border-t-4 border-blue-500"><h3 className="text-lg font-black text-blue-400 uppercase italic mb-2">📤 Export For Your AI</h3><p className="text-xs text-zinc-400 mb-3">Want something more open-ended, like a full practice plan? Export a season summary and paste it into ChatGPT, Claude, or whatever AI you use.</p><div className="flex flex-col gap-2"><button onClick={copyAIExport} className="w-full py-3 bg-blue-700 hover:bg-blue-600 rounded font-black uppercase text-xs">📋 Copy Season Summary</button><button onClick={downloadAIExport} className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 rounded font-black uppercase text-xs">⬇️ Download as .txt</button></div></div>
+                            </div>
                         </div>
                     )}
 
-                    {view === 'tactics' && (
-                        <div className="space-y-6 animate-slideIn">
-                            <div className="flex justify-between items-center bg-zinc-900 p-3 rounded-lg border border-zinc-800"><label className="text-xs font-bold text-zinc-500 uppercase mr-3">Data Source:</label><select className="bg-black text-white font-bold text-xs p-2 rounded border border-zinc-700 flex-1" value={tacticsFilter} onChange={e=>setTacticsFilter(e.target.value)}><option value="season">FULL SEASON AGGREGATE</option><optgroup label="Single Games">{visibleGames.map(g => <option key={g.id} value={g.id}>{g.date} vs {g.opp}</option>)}</optgroup></select></div>
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                <div className="bento-card h-full"><h3 className="text-xl font-black text-gold uppercase italic mb-4">Set Play Efficiency</h3><div className="space-y-1">{tactics.plays.sort((a,b)=>((b.pts/b.att)||-1)-((a.pts/a.att)||-1)).map((p,i)=>(<div key={i} className="flex justify-between p-3 bg-zinc-900/50 rounded items-center"><span className="font-bold text-sm">{p.name}</span><div className="text-right"><div className="font-black text-gold text-lg">{(p.att>0?p.pts/p.att:0).toFixed(2)} PPP</div><div className="text-[10px] text-zinc-500">{p.made}/{p.att} ({p.att>0?Math.round((p.made/p.att)*100):0}%)</div></div></div>))}</div></div>
-                                {/* NOTE: this panel is unreachable from the nav bar and ShotEfficiencyMap is not yet implemented. Left as-is; build it out when you're ready to use the tactics view. */}
-                                <div className="bento-card"><h3 className="text-xl font-black text-gold uppercase italic mb-6">Shot Efficiency</h3><div className="text-zinc-500 text-xs italic">Shot map view not yet built.</div></div>
+                    {view === 'tactics' && (() => {
+                        const targetGames = tacticsFilter === 'season' ? visibleGames : visibleGames.filter(g => g.id === tacticsFilter);
+                        const allShots = targetGames.flatMap(g => g.shotLog || []);
+                        return (
+                            <div className="space-y-6 animate-slideIn">
+                                <div className="flex justify-between items-center bg-zinc-900 p-3 rounded-lg border border-zinc-800"><label className="text-xs font-bold text-zinc-500 uppercase mr-3">Data Source:</label><select className="bg-black text-white font-bold text-xs p-2 rounded border border-zinc-700 flex-1" value={tacticsFilter} onChange={e=>setTacticsFilter(e.target.value)}><option value="season">FULL SEASON AGGREGATE</option><optgroup label="Single Games">{visibleGames.map(g => <option key={g.id} value={g.id}>{g.date} vs {g.opp}</option>)}</optgroup></select></div>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <div className="bento-card h-full">
+                                        <h3 className="text-xl font-black text-gold uppercase italic mb-2">💪 Lineup +/-</h3>
+                                        <p className="text-xs text-zinc-500 mb-4">Point differential while each player is on the court — computed automatically from subs and scoring. No extra taps needed to see this.</p>
+                                        {lineupPlusMinus.length > 0 ? (
+                                            <div className="space-y-1">{lineupPlusMinus.map((p,i)=>(<div key={i} className="flex justify-between p-3 bg-zinc-900/50 rounded items-center"><span className="font-bold text-sm">{p.name}</span><span className={`font-black text-lg ${p.net>0?'text-green-500':(p.net<0?'text-red-500':'text-zinc-400')}`}>{p.net>0?'+':''}{p.net}</span></div>))}</div>
+                                        ) : <div className="text-zinc-500 text-xs italic py-8 text-center">No lineup data yet — this fills in automatically as you track live games.</div>}
+                                    </div>
+                                    <div className="bento-card">
+                                        <h3 className="text-xl font-black text-gold uppercase italic mb-2">🎯 Shot Chart</h3>
+                                        <p className="text-xs text-zinc-500 mb-4">Every shot logged with "LOG SHOT" on the Live tab, plotted here — green makes, red misses.</p>
+                                        {allShots.length > 0 ? (
+                                            <CourtSVG>{allShots.map(s => <circle key={s.id} cx={s.x} cy={s.y} r="6" fill={s.made ? '#22c55e' : '#ef4444'} fillOpacity="0.8" stroke="white" strokeWidth="1" />)}</CourtSVG>
+                                        ) : <div className="text-zinc-500 text-xs italic py-8 text-center">No shots logged yet — use "LOG SHOT" on the Live tab and they'll show up here.</div>}
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
 
                     {view === 'stats' && (
                         <div className="bento-card overflow-hidden animate-slideIn">
@@ -1414,6 +1590,110 @@ service cloud.firestore {
                             </div>
                         </div>
                     )}
+
+                    {showShotChart && (
+                        <ShotChartModal
+                            activePlayers={activePlayers}
+                            onClose={() => setShowShotChart(false)}
+                            onCommit={(pid, isThree, made, x, y) => { logShot(pid, isThree, made, x, y); setShowShotChart(false); }}
+                        />
+                    )}
+                </div>
+            );
+        }
+
+        // NEW: shot-chart geometry. Court is drawn on a 500x470 viewBox with the hoop near the bottom
+        // (baseline) — this is where taps get converted from screen coordinates and classified as a
+        // 2 or 3 pointer, matching real NBA-style court proportions (straight corner lines, then an arc).
+        const HOOP = { x: 250, y: 428 };
+        const THREE_PT_RADIUS = 220;
+        const THREE_PT_BREAK_Y = 320; // below this y, the 3PT line is the straight corner segment
+        const isThreePointShot = (x, y) => {
+            if (y >= THREE_PT_BREAK_Y) return x <= 30 || x >= 470;
+            return Math.hypot(x - HOOP.x, y - HOOP.y) >= THREE_PT_RADIUS;
+        };
+
+        // A real-looking half court: baseline, key, free-throw circle, restricted area, backboard,
+        // rim, 3PT line (straight corners + arc), and a sliver of the half-court line/circle up top.
+        // `onTap(x, y)` fires with coordinates in the court's own 500x470 space — converted from
+        // screen pixels via getScreenCTM so it works correctly at any rendered size (mobile included).
+        // `children` renders on top of the court (used for shot markers).
+        function CourtSVG({ onTap, children }) {
+            const svgRef = React.useRef(null);
+            const handleClick = (e) => {
+                if (!onTap || !svgRef.current) return;
+                const svg = svgRef.current;
+                const pt = svg.createSVGPoint();
+                pt.x = e.clientX; pt.y = e.clientY;
+                const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
+                onTap(loc.x, loc.y);
+            };
+            return (
+                <svg ref={svgRef} viewBox="0 0 500 470" onClick={handleClick}
+                     style={{ width: '100%', height: 'auto', display: 'block', cursor: onTap ? 'crosshair' : 'default', touchAction: 'manipulation', background: '#dcb386', borderRadius: '8px', border: '2px solid #333' }}>
+                    <line x1="4" y1="14" x2="496" y2="14" stroke="white" strokeWidth="2" />
+                    <circle cx="250" cy="14" r="50" fill="none" stroke="white" strokeWidth="2" />
+                    <rect x="170" y="270" width="160" height="190" fill="none" stroke="white" strokeWidth="2" />
+                    <circle cx="250" cy="270" r="60" fill="none" stroke="white" strokeWidth="2" />
+                    <path d="M 30 460 L 30 320 A 220 220 0 0 1 470 320 L 470 460" fill="none" stroke="white" strokeWidth="2" />
+                    <path d="M 210 428 A 40 40 0 0 0 290 428" fill="none" stroke="white" strokeWidth="1.5" />
+                    <line x1="212" y1="440" x2="288" y2="440" stroke="#333" strokeWidth="4" />
+                    <circle cx="250" cy="428" r="9" fill="none" stroke="#ff6a00" strokeWidth="2.5" />
+                    {children}
+                </svg>
+            );
+        }
+
+        // NEW: the shot-entry flow — tap a spot on the court (auto-detects 2PT vs 3PT), then pick who
+        // shot it, then MADE or MISSED. Three taps, big touch targets, no typing. Calls onCommit(pid,
+        // isThree, made, x, y) once all three are chosen; App wires that into the existing stat-tracking
+        // pipeline (see logShot). Free throws are NOT part of this flow — they still use the regular
+        // FT MAKE/MISS buttons in the live keypad, since a free throw doesn't have a variable location.
+        function ShotChartModal({ activePlayers, onClose, onCommit }) {
+            const [step, setStep] = React.useState('location');
+            const [pending, setPending] = React.useState(null);
+            const [pendingPlayer, setPendingPlayer] = React.useState(null);
+
+            const handleTap = (x, y) => { setPending({ x, y, isThree: isThreePointShot(x, y) }); setStep('player'); };
+            const pickPlayer = (p) => { setPendingPlayer(p); setStep('result'); };
+            const startOver = () => { setStep('location'); setPending(null); setPendingPlayer(null); };
+            const commit = (made) => {
+                onCommit(pendingPlayer.id, pending.isThree, made, pending.x, pending.y);
+                startOver();
+            };
+
+            return (
+                <div className="modal-overlay" onClick={onClose}>
+                    <div className="modal-content" style={{maxWidth: '420px'}} onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-3">
+                            <h3 className="text-lg font-black uppercase text-gold">
+                                {step === 'location' && 'Tap The Shot Location'}
+                                {step === 'player' && (pending.isThree ? '🔵 3PT — Who Shot It?' : '🟡 2PT — Who Shot It?')}
+                                {step === 'result' && `${pendingPlayer.name.split(' ')[0]} — Made or Missed?`}
+                            </h3>
+                            <button onClick={onClose} className="text-2xl">✕</button>
+                        </div>
+                        <CourtSVG onTap={step === 'location' ? handleTap : undefined}>
+                            {pending && <circle cx={pending.x} cy={pending.y} r="9" fill={pending.isThree ? '#3b82f6' : '#FFB81C'} stroke="white" strokeWidth="2" />}
+                        </CourtSVG>
+                        {step === 'player' && (
+                            <div className="grid grid-cols-3 gap-2 mt-4">
+                                {activePlayers.map(p => (
+                                    <button key={p.id} onClick={()=>pickPlayer(p)} className="kb-player-btn" style={{minHeight:'64px'}}>
+                                        <div className="text-sm font-black leading-none">{p.name.split(' ')[0]}</div>
+                                        <div className="text-[10px] text-zinc-500 mt-1">#{p.id}</div>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        {step === 'result' && (
+                            <div className="flex gap-3 mt-4">
+                                <button onClick={()=>commit(true)} className="flex-1 kb-stat-btn bg-make text-lg" style={{minHeight:'72px'}}>MADE</button>
+                                <button onClick={()=>commit(false)} className="flex-1 kb-stat-btn bg-miss text-lg" style={{minHeight:'72px'}}>MISSED</button>
+                            </div>
+                        )}
+                        {step !== 'location' && <button onClick={startOver} className="mt-3 text-xs text-zinc-500 hover:text-white underline">← Start Over</button>}
+                    </div>
                 </div>
             );
         }
