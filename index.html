@@ -1808,10 +1808,13 @@ service cloud.firestore {
                     {step === 'playerResult' && (
                         <div className="space-y-1.5 mt-2">
                             {activePlayers.map(p => (
-                                <div key={p.id} className="flex items-center gap-1.5">
-                                    <div className="flex-1 bg-zinc-900 rounded px-2 py-2 text-xs font-black truncate">{p.name.split(' ')[0]} <span className="text-zinc-500">#{p.id}</span></div>
-                                    <button onClick={()=>commit(p, true)} className="kb-stat-btn bg-make" style={{minWidth:'50px', minHeight:'38px'}}>✅</button>
-                                    <button onClick={()=>commit(p, false)} className="kb-stat-btn bg-miss" style={{minWidth:'50px', minHeight:'38px'}}>❌</button>
+                                <div key={p.id} className="flex items-center gap-2">
+                                    <div className="flex-1 min-w-0 bg-zinc-900 rounded-lg px-3 py-2">
+                                        <div className="text-base font-black leading-tight truncate">{p.name.split(' ')[0]}</div>
+                                        <div className="text-[10px] text-zinc-500 leading-none">#{p.id}</div>
+                                    </div>
+                                    <button onClick={()=>commit(p, true)} className="bg-make rounded-lg flex items-center justify-center font-black text-white text-lg" style={{width:'42px', height:'42px', flexShrink:0}}>✓</button>
+                                    <button onClick={()=>commit(p, false)} className="bg-miss rounded-lg flex items-center justify-center font-black text-white text-lg" style={{width:'42px', height:'42px', flexShrink:0}}>✗</button>
                                 </div>
                             ))}
                         </div>
