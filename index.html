@@ -681,6 +681,8 @@
                 if (statKey === 'pf') setQuarterFouls(prev => prev + 1);
                 // NEW: a steal for us is automatically a turnover for them — no extra tap needed.
                 if (statKey === 'stl') setOpponentStats(prev => ({ ...prev, to: (prev.to||0) + 1 }));
+                // NEW: a block is also a missed shot for the opponent, so their FG% stays honest.
+                if (statKey === 'blk') setOpponentStats(prev => ({ ...prev, fg2a: (prev.fg2a||0) + 1 }));
                 if (pointVal > 0) applyLineupSwing(pointVal);
 
                 setPlayerStats(prev => ({ ...prev, [pName]: { ...prev[pName], ...updates } }));
@@ -769,6 +771,7 @@
                     if (event.stat === 'pf') setQuarterFouls(prev => Math.max(0, prev - 1));
                     // Reverse the auto-linked opponent turnover if undoing a steal
                     if (event.stat === 'stl') setOpponentStats(prev => ({ ...prev, to: Math.max(0, (prev.to||0) - 1) }));
+                    if (event.stat === 'blk') setOpponentStats(prev => ({ ...prev, fg2a: Math.max(0, (prev.fg2a||0) - 1) }));
 
                     setPlayerStats(prev => {
                         const pStats = prev[pName] || {};
@@ -1413,7 +1416,7 @@
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-center gap-1"><div onClick={togglePossession} className="poss-arrow text-white">{possession==='home'?'⬅️':'➡️'}</div><div className="text-zinc-500 font-black text-xs text-center leading-tight">Possession<br/>arrow</div></div>
-                                <div className="score-box"><div className="flex justify-center mb-1"><div onClick={()=>setTrackingOpponent(true)} className="score-val text-white cursor-pointer" title="Opponent points are added from the Opponent panel so every basket is logged and can be undone">{gameMeta.oppScore}</div></div><input value={gameMeta.opp} onChange={e=>setGameMeta({...gameMeta, opp:e.target.value})} className="bg-transparent border-0 text-center score-label w-full outline-none placeholder-zinc-700" placeholder="OPPONENT"/></div>
+                                <div className="score-box"><div className="flex justify-center mb-1"><div className="score-val text-white" title="Opponent points come from logged baskets and free throws, so every point can be undone">{gameMeta.oppScore}</div></div><input value={gameMeta.opp} onChange={e=>setGameMeta({...gameMeta, opp:e.target.value})} className="bg-transparent border-0 text-center score-label w-full outline-none placeholder-zinc-700" placeholder="OPPONENT"/></div>
                             </div>
                             
                             {/* NEW: "who?" picker for the action-first keypad */}
@@ -1459,7 +1462,7 @@
                                         const s = playerStats[p.name] || {};
                                         const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
                                         return (
-                                            <div key={p.id} onClick={() => setTrackingOpponent(false)} className={`kb-player-btn ${isSelected ? 'selected' : ''}`}>
+                                            <div key={p.id} className={`kb-player-btn ${isSelected ? 'selected' : ''}`}>
                                                 <button onClick={(e)=>{e.stopPropagation(); setSubTarget(p.id)}} className="sub-icon">🔄</button>
                                                 <div className="text-lg font-black leading-none">{p.name.split(' ')[0]}</div>
                                                 <div className={`text-[10px] font-bold ${isSelected ? 'text-black' : 'text-zinc-500'}`}>#{p.id} • {pts} Pts</div>
@@ -1467,10 +1470,6 @@
                                             </div>
                                         )
                                     })}
-                                    <div onClick={() => setTrackingOpponent(true)} className={`kb-player-btn kb-opp-btn ${trackingOpponent ? 'selected' : ''}`}>
-                                        <div className="text-xl font-black italic tracking-widest">OPPONENT</div>
-                                        <div className="text-[10px] opacity-70">Tap to log their shots</div>
-                                    </div>
                                     
                                     {/* LIVE EVENT FEED (UNDO LIST) */}
                                     <div className="event-feed">
@@ -1490,21 +1489,16 @@
                                     <button onClick={resetLiveGame} className="mt-2 w-full py-3 bg-zinc-900 text-red-500 font-bold text-xs rounded hover:bg-red-900/20">RESET / CLEAR GAME</button>
                                 </div>
                                 <div className="w-2/3 h-full flex flex-col gap-2 overflow-y-auto custom-scrollbar">
-                                    {trackingOpponent ? (
-                                        <>
-                                            <div className="h-10 flex items-center justify-center text-red-400 font-bold uppercase text-xs border-b border-red-900/30">TRACKING OPPONENT SCORING</div>
-                                            <OpponentShotChartPanel activePlayers={activePlayers} onCommit={logOpponentShot} onRebound={logRebound} />
-                                            <div className="flex gap-2"><button onClick={() => logOpponentAction('ftm', 1)} className="kb-stat-btn bg-make text-xl" style={{minHeight:'56px'}}>Opp FT (+1)</button><button onClick={() => logOpponentAction('fta')} className="kb-stat-btn bg-miss text-xl" style={{minHeight:'56px'}}>Opp FT Miss</button></div>
-                                            <div className="flex gap-2"><button onClick={() => logOpponentAction('to')} className="kb-stat-btn bg-neg" style={{minHeight:'56px'}}>Their turnover</button><button onClick={() => logOpponentAction('pf')} className="kb-stat-btn bg-neg" style={{minHeight:'56px'}}>Their foul</button></div>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <ShotChartPanel activePlayers={activePlayers} onCommit={logShot} onRebound={logRebound} onAssist={logAssist} />
-                                            <div className="flex gap-2"><button onClick={() => startAction('ftm', 1, 'FT made')} className="kb-stat-btn bg-make" style={{minHeight:'56px'}}>FT MAKE (+1)</button><button onClick={() => startAction('fta', 0, 'FT missed')} className="kb-stat-btn bg-miss" style={{minHeight:'56px'}}>FT MISS</button></div>
-                                            <div className="flex gap-2"><button onClick={() => startAction('reb', 0, 'Rebound')} className="kb-stat-btn bg-action" style={{minHeight:'56px'}}>REBOUND</button><button onClick={() => startAction('ast', 0, 'Assist')} className="kb-stat-btn bg-action" style={{minHeight:'56px'}}>ASSIST</button><button onClick={() => startAction('stl', 0, 'Steal')} className="kb-stat-btn bg-action" style={{minHeight:'56px'}}>STEAL</button></div>
-                                            <div className="flex gap-2"><button onClick={() => startAction('blk', 0, 'Block')} className="kb-stat-btn bg-action" style={{minHeight:'56px'}}>BLOCK</button><button onClick={() => startAction('to', 0, 'Turnover')} className="kb-stat-btn bg-neg" style={{minHeight:'56px'}}>TURNOVER</button><button onClick={() => startAction('pf', 0, 'Foul')} className="kb-stat-btn bg-neg" style={{minHeight:'56px'}}>OUR FOUL</button><button onClick={() => logOpponentAction('pf')} className="kb-stat-btn bg-neg" style={{minHeight:'56px'}}>THEIR FOUL</button></div>
-                                        </>
-                                    )}
+                                    {/* NEW: one screen for both teams. Opponent shots go through the same court
+                                        (an Opponent row in the "who" list) and opponent stats have their own red row. */}
+                                    <ShotChartPanel activePlayers={activePlayers} onCommit={logShot} onRebound={logRebound} onAssist={logAssist} onOpponentCommit={logOpponentShot} />
+                                    <div className="flex gap-2"><button onClick={() => startAction('ftm', 1, 'FT made')} className="kb-stat-btn bg-make" style={{minHeight:'56px'}}>FT MADE (+1)</button><button onClick={() => startAction('fta', 0, 'FT missed')} className="kb-stat-btn bg-miss" style={{minHeight:'56px'}}>FT MISSED</button></div>
+                                    <div className="flex gap-2"><button onClick={() => startAction('reb', 0, 'Rebound')} className="kb-stat-btn bg-action" style={{minHeight:'56px'}}>REBOUND</button><button onClick={() => startAction('ast', 0, 'Assist')} className="kb-stat-btn bg-action" style={{minHeight:'56px'}}>ASSIST</button><button onClick={() => startAction('stl', 0, 'Steal')} className="kb-stat-btn bg-action" style={{minHeight:'56px'}}>STEAL</button></div>
+                                    <div className="flex gap-2"><button onClick={() => startAction('blk', 0, 'Block')} className="kb-stat-btn bg-action" style={{minHeight:'56px'}}>BLOCK</button><button onClick={() => startAction('to', 0, 'Turnover')} className="kb-stat-btn bg-neg" style={{minHeight:'56px'}}>TURNOVER</button><button onClick={() => startAction('pf', 0, 'Foul')} className="kb-stat-btn bg-neg" style={{minHeight:'56px'}}>FOUL</button></div>
+                                    <div className="rounded-lg border border-red-900/60 bg-red-950/30 p-2">
+                                        <div className="text-[10px] font-black uppercase text-red-400 mb-1.5 text-center">Opponent (one tap)</div>
+                                        <div className="flex gap-2"><button onClick={() => logOpponentAction('ftm', 1)} className="kb-stat-btn bg-make" style={{minHeight:'56px'}}>THEIR FT MADE</button><button onClick={() => logOpponentAction('fta')} className="kb-stat-btn bg-miss" style={{minHeight:'56px'}}>THEIR FT MISSED</button><button onClick={() => logOpponentAction('to')} className="kb-stat-btn bg-neg" style={{minHeight:'56px'}}>THEIR TURNOVER</button><button onClick={() => logOpponentAction('pf')} className="kb-stat-btn bg-neg" style={{minHeight:'56px'}}>THEIR FOUL</button></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2215,7 +2209,7 @@ service cloud.firestore {
         // find the ASSIST/REBOUND buttons elsewhere. Free throws are NOT part of this flow — they still
         // use the regular FT MAKE/MISS buttons, since a free throw doesn't have a variable location.
         // Rendered directly inline in the live tab, not a popup.
-        function ShotChartPanel({ activePlayers, onCommit, onRebound, onAssist }) {
+        function ShotChartPanel({ activePlayers, onCommit, onRebound, onAssist, onOpponentCommit }) {
             const [step, setStep] = React.useState('location');
             const [pending, setPending] = React.useState(null);
             const [scorerId, setScorerId] = React.useState(null);
@@ -2228,6 +2222,11 @@ service cloud.firestore {
             };
             const finishRebound = (pid) => { if (pid) onRebound(pid); startOver(); };
             const finishAssist = (pid) => { if (pid) onAssist(pid); startOver(); };
+            // NEW: opponent shot from the same court. A make ends the flow; a miss asks if we got the rebound.
+            const commitOpponent = (made) => {
+                onOpponentCommit(pending.isThree, made, pending.x, pending.y);
+                if (made) startOver(); else { setScorerId(null); setStep('oppRebound'); }
+            };
 
             return (
                 <div className="bg-black/30 rounded-xl p-2 border border-zinc-800">
@@ -2236,6 +2235,7 @@ service cloud.firestore {
                         {step === 'playerResult' && <span className={pending.isThree ? 'text-blue-400' : 'text-gold'}>{pending.isThree ? '🔵 3PT' : '🟡 2PT'} — Who, Made/Miss?</span>}
                         {step === 'assist' && <span className="text-green-400">Basket Made — Who Assisted?</span>}
                         {step === 'rebound' && <span className="text-white">Missed — Who Got The Rebound?</span>}
+                        {step === 'oppRebound' && <span className="text-white">They Missed — Did We Get The Rebound?</span>}
                     </div>
                     <div style={{maxWidth: 'min(100%, 46vh)', margin: '0 auto'}}>
                         <CourtSVG onTap={step === 'location' ? handleTap : undefined}>
@@ -2254,6 +2254,15 @@ service cloud.firestore {
                                     <button onClick={()=>commit(p, false)} className="bg-miss rounded-lg flex items-center justify-center font-black text-white text-lg" style={{width:'42px', height:'42px', flexShrink:0}}>✗</button>
                                 </div>
                             ))}
+                            {onOpponentCommit && (
+                                <div className="flex items-center gap-2 pt-1.5 border-t border-red-900/50">
+                                    <div className="flex-1 min-w-0 bg-red-950/60 border border-red-900 rounded-lg px-3 py-2">
+                                        <div className="text-base font-black leading-tight text-red-300">Opponent</div>
+                                    </div>
+                                    <button onClick={()=>commitOpponent(true)} className="bg-make rounded-lg flex items-center justify-center font-black text-white text-lg" style={{width:'42px', height:'42px', flexShrink:0}}>✓</button>
+                                    <button onClick={()=>commitOpponent(false)} className="bg-miss rounded-lg flex items-center justify-center font-black text-white text-lg" style={{width:'42px', height:'42px', flexShrink:0}}>✗</button>
+                                </div>
+                            )}
                         </div>
                     )}
                     {step === 'assist' && (
@@ -2274,6 +2283,16 @@ service cloud.firestore {
                                 </button>
                             ))}
                             <button onClick={()=>finishRebound(null)} className="kb-player-btn bg-zinc-800"><div className="text-xs font-black leading-none text-zinc-400">Skip</div></button>
+                        </div>
+                    )}
+                    {step === 'oppRebound' && (
+                        <div className="grid grid-cols-3 gap-1.5 mt-2">
+                            {activePlayers.map(p => (
+                                <button key={p.id} onClick={()=>finishRebound(p.id)} className="kb-player-btn" style={{minHeight:'46px'}}>
+                                    <div className="text-xs font-black leading-none">{p.name.split(' ')[0]}</div>
+                                </button>
+                            ))}
+                            <button onClick={()=>finishRebound(null)} className="kb-player-btn bg-zinc-800"><div className="text-xs font-black leading-none text-zinc-400">They got it</div></button>
                         </div>
                     )}
                     {step !== 'location' && <button onClick={startOver} className="w-full text-center text-[10px] text-zinc-500 hover:text-white underline mt-1.5">← Start Over</button>}
