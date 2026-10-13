@@ -49,7 +49,7 @@
         .score-val { font-size: 3rem; font-weight: 900; line-height: 1; text-align: center; }
         .score-label { font-size: 0.7rem; font-weight: 900; letter-spacing: 2px; color: #888; text-transform: uppercase; }
         
-        .coach-hud { display: grid; grid-template-columns: repeat(6, 1fr) auto; gap: 6px; padding: 8px; background: #111; border-bottom: 1px solid #333; align-items: center; }
+        .coach-hud { display: grid; grid-template-columns: repeat(6, 1fr) auto auto; gap: 6px; padding: 8px; background: #111; border-bottom: 1px solid #333; align-items: center; }
         .hud-box { text-align: center; background: #222; padding: 6px; border-radius: 6px; border: 1px solid #333; position: relative; }
         .hud-label { font-size: 11px; font-weight: 900; color: #888; text-transform: uppercase; }
         .hud-val { font-size: 20px; font-weight: 900; color: white; }
@@ -546,6 +546,8 @@
             // NEW: every stat is entered action-first, then "who?" (same rule as the shot chart).
             // pendingAction holds the tapped action while the player picker is open.
             const [pendingAction, setPendingAction] = React.useState(null);
+            // NEW: the "?" help screen on Live game
+            const [showHelp, setShowHelp] = React.useState(false);
             // NEW: stat keeper mode, saved per device. Shows only Live game and Game log.
             const [statKeeperMode, setStatKeeperMode] = useStickyState(false, 'eagles_statkeeper');
             // NEW: which keypad panel to show (ours vs opponent's). Separate from selectedPlayer on
@@ -1766,6 +1768,36 @@
                                 <div className="score-box"><div className="flex justify-center mb-1"><div className="score-val text-white" title="Opponent points come from logged baskets and free throws, so every point can be undone">{gameMeta.oppScore}</div></div><input list="opp-suggestions" value={gameMeta.opp} onChange={e=>setGameMeta({...gameMeta, opp:e.target.value})} className="bg-transparent border-0 text-center score-label w-full outline-none placeholder-zinc-700" placeholder="OPPONENT"/></div>
                             </div>
                             
+                            {/* NEW: "?" help screen. Tap anywhere to close. */}
+                            {showHelp && (
+                                <div className="fixed inset-0 z-[110] bg-black/85 flex items-center justify-center p-4" onClick={()=>setShowHelp(false)}>
+                                    <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-2xl max-h-full overflow-y-auto">
+                                        <div className="text-center mb-5">
+                                            <div className="text-xs font-black uppercase text-zinc-400">The one rule</div>
+                                            <div className="text-3xl font-black text-gold">Tap what happened, then tap who</div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                            {[
+                                                ['Shots (both teams)', 'Tap the spot on the court. Then tap the shooter (or Opponent) and ✓ made or ✗ missed. It asks for the assist or rebound next.'],
+                                                ['Everything else for us', 'Tap the button (rebound, steal, foul, and so on), then the player.'],
+                                                ['The other team', 'Red buttons. One tap each, no player needed.'],
+                                                ['Made a mistake?', 'Tap the play in Recent plays and confirm to undo it.'],
+                                                ['Timeouts', 'Tap a gold dot to use one. If it was a mistake, undo it from Recent plays.'],
+                                                ['Subs', 'Tap 🔄 on the player coming out, then pick who goes in.'],
+                                                ['New quarter', 'Tap the next quarter at the top. Team fouls reset on their own (not in overtime).'],
+                                                ['End of game', 'Tap Save Game. Always save before switching between JV and Varsity.']
+                                            ].map(([h, t]) => (
+                                                <div key={h} className="bg-black/40 border border-zinc-800 rounded-lg p-3">
+                                                    <div className="font-black uppercase text-white mb-1">{h}</div>
+                                                    <div className="text-zinc-300 leading-snug">{t}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="text-center text-xs text-zinc-500 mt-5">Tap anywhere to close</div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* NEW: "who?" picker for the action-first keypad */}
                             {pendingAction && (
                                 <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4" onClick={()=>setPendingAction(null)}>
@@ -1796,6 +1828,7 @@
                                 <div className="hud-box"><div className="hud-label">Our FG%</div><div className={`hud-val ${insights.fgPct>=45?'text-green-500':(insights.fgPct<30?'text-red-500':'text-white')}`}>{insights.fgPct}%</div></div>
                                 <div className="hud-box"><div className="hud-label">Turnovers</div><div className={`hud-val ${insights.teamTO>=12?'text-red-500':'text-white'}`}>{insights.teamTO}</div></div>
                                 <button onClick={()=>setShowSnapshot(true)} className="bg-blue-600 text-white text-[10px] font-black uppercase p-2 rounded h-full">📊 Quick summary</button>
+                                <button onClick={()=>setShowHelp(true)} aria-label="How to keep stats" className="bg-zinc-800 border border-zinc-600 text-white font-black rounded h-full" style={{minWidth:'48px', fontSize:'22px'}}>?</button>
                             </div>
                             
                             {insights.alerts.length > 0 && (
@@ -1822,7 +1855,12 @@
                                 <div className="live-col">
                                     <div className="feed-title">Recent plays<span>tap one to undo</span></div>
                                     <div className="event-feed">
-                                        {eventLog.length === 0 && <div className="text-zinc-500 text-sm text-center italic py-6">No plays yet</div>}
+                                        {eventLog.length === 0 && (
+                                            <div className="text-zinc-400 text-sm text-center py-6 px-2 leading-snug">
+                                                <div className="font-black text-zinc-300 mb-1">No plays yet</div>
+                                                Tap what happened, then who did it. Plays show up here with the newest on top. Tap one to undo it.
+                                            </div>
+                                        )}
                                         {eventLog.map((ev, idx) => (
                                             <div key={ev.id} onClick={() => handleUndo(ev)} className={`event-item ${idx === 0 ? 'latest' : ''}`}>
                                                 <div className="flex flex-col min-w-0">
@@ -1839,7 +1877,7 @@
 
                                 {/* Column 2: the court (shots for both teams) */}
                                 <div className="live-col">
-                                    <ShotChartPanel activePlayers={activePlayers} onCommit={logShot} onRebound={logRebound} onAssist={logAssist} onOpponentCommit={logOpponentShot} onOpponentRebound={() => logOpponentAction('reb')} />
+                                    <ShotChartPanel firstShot={shotLog.length === 0} activePlayers={activePlayers} onCommit={logShot} onRebound={logRebound} onAssist={logAssist} onOpponentCommit={logOpponentShot} onOpponentRebound={() => logOpponentAction('reb')} />
                                 </div>
 
                                 {/* Column 3: everything else, ours on top, theirs in red */}
@@ -2676,7 +2714,7 @@ service cloud.firestore {
         // find the ASSIST/REBOUND buttons elsewhere. Free throws are NOT part of this flow — they still
         // use the regular FT MAKE/MISS buttons, since a free throw doesn't have a variable location.
         // Rendered directly inline in the live tab, not a popup.
-        function ShotChartPanel({ activePlayers, onCommit, onRebound, onAssist, onOpponentCommit, onOpponentRebound }) {
+        function ShotChartPanel({ firstShot, activePlayers, onCommit, onRebound, onAssist, onOpponentCommit, onOpponentRebound }) {
             const [step, setStep] = React.useState('location');
             const [pending, setPending] = React.useState(null);
             const [scorerId, setScorerId] = React.useState(null);
@@ -2700,7 +2738,8 @@ service cloud.firestore {
             return (
                 <div className="shot-panel bg-black/30 rounded-xl p-2 border border-zinc-800">
                     <div className="text-center text-xs font-black uppercase mb-1.5">
-                        {step === 'location' && <span className="text-zinc-400">🏀 Tap The Shot Location</span>}
+                        {step === 'location' && <span className="text-zinc-400">🏀 Tap where the shot was taken</span>}
+                        {step === 'location' && firstShot && <div className="text-[11px] font-bold normal-case text-zinc-500 mt-0.5">Works for both teams. Next you pick the shooter or Opponent, then ✓ made or ✗ missed.</div>}
                         {step === 'playerResult' && <span className={pending.isThree ? 'text-blue-400' : 'text-gold'}>{pending.isThree ? '🔵 3PT' : '🟡 2PT'} — Who, Made/Miss?</span>}
                         {step === 'assist' && <span className="text-green-400">Basket Made — Who Assisted?</span>}
                         {step === 'rebound' && <span className="text-white">Missed — Who Got The Rebound?</span>}
