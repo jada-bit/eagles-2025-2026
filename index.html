@@ -189,6 +189,17 @@
         const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','blk','to','pf'];
         const ZONES = ['top_3', 'wing_l_3', 'wing_r_3', 'corn_l_3', 'corn_r_3', 'mid_l_2', 'mid_r_2', 'paint'];
         const OPPONENT_ID = 'OPP';
+        // NEW: period label for quarters and overtime (5 = OT, 6 = 2OT, ...).
+        const periodLabel = (q) => q <= 4 ? `Q${q}` : (q === 5 ? 'OT' : `${q - 4}OT`);
+        // NEW: navigation grouped into four menus instead of 13 loose tabs. Plain-language labels.
+        const NAV_GROUPS = [
+            { name: 'Game', tabs: ['live', 'log', 'new'] },
+            { name: 'Team', tabs: ['stats', 'trends', 'profiles', 'season report'] },
+            { name: 'Prep', tabs: ['scout', 'practice', 'tactics', 'clipboard', 'ask coach'] },
+            { name: 'Admin', tabs: ['admin'] }
+        ];
+        const TAB_LABELS = { live: 'Live game', log: 'Game log', new: 'Edit box score', stats: 'Stats', trends: 'Trends', profiles: 'Player profiles', 'season report': 'Season report', scout: 'Scout', practice: 'Practice focus', tactics: 'Tactics', clipboard: 'Clipboard', 'ask coach': 'Ask coach', admin: 'Admin' };
+        const STAT_KEEPER_TABS = ['live', 'log'];
 
         // NEW: access control. Anyone with the link can VIEW everything (stats, history, roster) — no
         // login needed for that. Only the Google accounts listed here can EDIT anything (enter stats,
@@ -380,6 +391,11 @@
             // UI STATES
             const [newPlayName, setNewPlayName] = React.useState('');
             const [selectedPlayer, setSelectedPlayer] = React.useState(null); 
+            // NEW: every stat is entered action-first, then "who?" (same rule as the shot chart).
+            // pendingAction holds the tapped action while the player picker is open.
+            const [pendingAction, setPendingAction] = React.useState(null);
+            // NEW: stat keeper mode, saved per device. Shows only Live game and Game log.
+            const [statKeeperMode, setStatKeeperMode] = useStickyState(false, 'eagles_statkeeper');
             // NEW: which keypad panel to show (ours vs opponent's). Separate from selectedPlayer on
             // purpose — handleStatClick always resets selectedPlayer to null after committing a stat
             // (by design, so the next tap starts fresh), but the multi-step opponent shot flow needs to
@@ -507,10 +523,23 @@
             const changeQuarter = (q) => {
                 if(gameMeta.quarter === q) return;
                 if(!requireEditor()) return;
-                if(confirm(`Start Quarter ${q}? This will reset Team Fouls.`)) {
+                // NEW: overtime. Under NFHS rules, overtime is an extension of the 4th quarter, so team
+                // fouls carry over instead of resetting, and each team gets one extra full timeout per OT.
+                const prevQ = gameMeta.quarter;
+                const intoOT = q >= 5;
+                const msg = intoOT
+                    ? `Start ${periodLabel(q)}?\n\nTeam fouls carry over from the 4th quarter, and each team gets one extra full timeout.`
+                    : `Start ${periodLabel(q)}? This will reset Team Fouls.`;
+                if(confirm(msg)) {
                     setGameMeta(prev => ({ ...prev, quarter: q }));
-                    setQuarterFouls(0);
-                    showToast(`Quarter ${q} Started. Fouls Reset.`, "info");
+                    if (intoOT) {
+                        const added = q - Math.max(prevQ, 4);
+                        if (added > 0) setTimeouts(prev => ({ ...prev, full: [...prev.full, ...Array(added).fill(true)] }));
+                        showToast(`${periodLabel(q)} started. Team fouls carried over.`, "info");
+                    } else {
+                        setQuarterFouls(0);
+                        showToast(`${periodLabel(q)} started. Fouls reset.`, "info");
+                    }
                 }
             };
             
@@ -672,6 +701,26 @@
             };
             const logRebound = (pid) => logSupportStat(pid, 'reb');
             const logAssist = (pid) => logSupportStat(pid, 'ast');
+            // NEW: step 1 of the unified flow. Tap an action, then pick who did it.
+            const startAction = (statKey, pointVal, label) => {
+                if (!requireEditor()) return;
+                setPendingAction({ statKey, pointVal, label });
+            };
+            // NEW: step 2. Reuses the pendingShotStat reconciliation, so undo, plus-minus, and the event log all still work.
+            const commitAction = (pid) => {
+                const a = pendingAction;
+                if (!a) return;
+                setPendingAction(null);
+                setSelectedPlayer(pid);
+                setPendingShotStat({ statKey: a.statKey, pointVal: a.pointVal, forPid: pid });
+            };
+            // NEW: opponent buttons need no "who?" step. This also fixes a bug where a second opponent
+            // free throw in a row showed "Select a Player" because the selection had been cleared.
+            const logOpponentAction = (statKey, pointVal = 0) => {
+                if (!requireEditor()) return;
+                setSelectedPlayer(OPPONENT_ID);
+                setPendingShotStat({ statKey, pointVal, forPid: OPPONENT_ID });
+            };
 
             const handleUndo = (event) => {
                 if(!requireEditor()) return;
@@ -1235,6 +1284,12 @@
                 }
             };
 
+            // NEW: in stat keeper mode, only Live game and Game log are reachable.
+            React.useEffect(() => { if (statKeeperMode && !STAT_KEEPER_TABS.includes(view)) setView('live'); }, [statKeeperMode, view]);
+            const enterStatKeeperMode = () => { setStatKeeperMode(true); setView('live'); showToast("Stat keeper mode on. Only Live game and Game log are shown.", "info"); };
+            const exitStatKeeperMode = () => { if (confirm("Exit stat keeper mode?\n\nThis shows every coach tab again.")) setStatKeeperMode(false); };
+            const activeGroup = NAV_GROUPS.find(g => g.tabs.includes(view)) || NAV_GROUPS[0];
+
             if(loading) return <div className="p-20 text-center text-gold font-bold">LOADING DATA...</div>;
 
             const clipboard = getClipboardData();
@@ -1269,20 +1324,37 @@
                             ))}
                             {currentUser && <button onClick={signOutUser} className="text-[10px] font-bold text-zinc-500 hover:text-white uppercase underline">Sign Out</button>}
                         </div>
-                        <nav className="flex gap-1 overflow-x-auto w-full md:w-auto pb-1 no-scrollbar">
-                            {['live', 'new', 'clipboard', 'ask coach', 'tactics', 'trends', 'practice', 'stats', 'profiles', 'scout', 'log', 'season report', 'admin'].map(t => (<button key={t} onClick={()=>setView(t)} className={`nav-btn ${view===t?'active-nav':'inactive-nav'}`}>{t}</button>))}
+                        <nav className="flex flex-col gap-1 w-full md:w-auto">
+                            {statKeeperMode ? (
+                                <div className="flex gap-1 overflow-x-auto pb-1 no-scrollbar items-center">
+                                    {STAT_KEEPER_TABS.map(t => (<button key={t} onClick={()=>setView(t)} className={`nav-btn ${view===t?'active-nav':'inactive-nav'}`}>{TAB_LABELS[t]}</button>))}
+                                    <button onClick={exitStatKeeperMode} className="nav-btn inactive-nav">Exit stat keeper mode</button>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="flex gap-1 overflow-x-auto pb-1 no-scrollbar items-center">
+                                        {NAV_GROUPS.map(g => (<button key={g.name} onClick={()=>setView(g.tabs[0])} className={`nav-btn ${activeGroup.name===g.name?'active-nav':'inactive-nav'}`}>{g.name}</button>))}
+                                        {isEditor && <button onClick={enterStatKeeperMode} className="nav-btn inactive-nav">Stat keeper mode</button>}
+                                    </div>
+                                    {activeGroup.tabs.length > 1 && (
+                                        <div className="flex gap-1 overflow-x-auto pb-1 no-scrollbar">
+                                            {activeGroup.tabs.map(t => (<button key={t} onClick={()=>setView(t)} className={`nav-btn ${view===t?'active-nav':'inactive-nav'}`} style={{padding:'7px 12px'}}>{TAB_LABELS[t]}</button>))}
+                                        </div>
+                                    )}
+                                </>
+                            )}
                         </nav>
                     </div>
 
                     {/* NEW: Team + Season switcher. Filters every historical view below. */}
                     <div className="flex flex-wrap items-center gap-3 mb-6 no-print">
                         <div className="flex gap-1 bg-zinc-900 border border-zinc-800 rounded-full p-1">
-                            <button onClick={()=>setActiveTeam('varsity')} className={`nav-btn ${activeTeam==='varsity'?'active-nav':'inactive-nav'}`}>Varsity</button>
-                            <button onClick={()=>setActiveTeam('jv')} className={`nav-btn ${activeTeam==='jv'?'active-nav':'inactive-nav'}`}>JV</button>
+                            <button onClick={()=>{ if(statKeeperMode && activeTeam!=='varsity' && !confirm('Switch to the Varsity game?')) return; setActiveTeam('varsity'); }} className={`nav-btn ${activeTeam==='varsity'?'active-nav':'inactive-nav'}`}>Varsity</button>
+                            <button onClick={()=>{ if(statKeeperMode && activeTeam!=='jv' && !confirm('Switch to the JV game?')) return; setActiveTeam('jv'); }} className={`nav-btn ${activeTeam==='jv'?'active-nav':'inactive-nav'}`}>JV</button>
                         </div>
-                        <select value={activeSeason} onChange={e=>setActiveSeason(e.target.value)} className="bg-black border border-zinc-700 text-white text-xs font-bold rounded-full px-4 py-2 outline-none">
+                        {!statKeeperMode && <select value={activeSeason} onChange={e=>setActiveSeason(e.target.value)} className="bg-black border border-zinc-700 text-white text-xs font-bold rounded-full px-4 py-2 outline-none">
                             {seasonOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
+                        </select>}
                         <span className="text-[10px] font-bold text-zinc-600 uppercase">{visibleGames.length} game{visibleGames.length===1?'':'s'} in this view</span>
                     </div>
 
@@ -1301,17 +1373,39 @@
                             <div className="live-header">
                                 <div className="score-box"><div className="score-label">EAGLES</div><div className="score-val text-gold">{getTeamScore()}</div>
                                     <div className="timeout-pills">
-                                        {[...Array(3)].map((_,i)=><div key={`f-${i}`} onClick={()=>toggleTimeout('full',i)} className={`to-pill ${timeouts.full[i]?'active':'used'}`}>F</div>)}
-                                        {[...Array(2)].map((_,i)=><div key={`30-${i}`} onClick={()=>toggleTimeout('thirty',i)} className={`to-pill ${timeouts.thirty[i]?'active':'used'}`}>30</div>)}
+                                        {timeouts.full.map((t,i)=><div key={`f-${i}`} onClick={()=>toggleTimeout('full',i)} className={`to-pill ${t?'active':'used'}`}>F</div>)}
+                                        {timeouts.thirty.map((t,i)=><div key={`30-${i}`} onClick={()=>toggleTimeout('thirty',i)} className={`to-pill ${t?'active':'used'}`}>30</div>)}
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-center gap-1"><div onClick={togglePossession} className="poss-arrow text-white">{possession==='home'?'⬅️':'➡️'}</div><div className="text-zinc-600 font-black text-xs">POSS</div></div>
-                                <div className="score-box"><div className="flex justify-center gap-1 mb-1"><div onClick={()=>setGameMeta(p=>({...p, oppScore: Math.max(0, p.oppScore-1)}))} className="cursor-pointer text-zinc-500 hover:text-white">-</div><div className="score-val text-white">{gameMeta.oppScore}</div><div onClick={()=>setGameMeta(p=>({...p, oppScore: p.oppScore+1}))} className="cursor-pointer text-zinc-500 hover:text-white">+</div></div><input value={gameMeta.opp} onChange={e=>setGameMeta({...gameMeta, opp:e.target.value})} className="bg-transparent border-0 text-center score-label w-full outline-none placeholder-zinc-700" placeholder="OPPONENT"/></div>
+                                <div className="score-box"><div className="flex justify-center mb-1"><div onClick={()=>setTrackingOpponent(true)} className="score-val text-white cursor-pointer" title="Opponent points are added from the Opponent panel so every basket is logged and can be undone">{gameMeta.oppScore}</div></div><input value={gameMeta.opp} onChange={e=>setGameMeta({...gameMeta, opp:e.target.value})} className="bg-transparent border-0 text-center score-label w-full outline-none placeholder-zinc-700" placeholder="OPPONENT"/></div>
                             </div>
                             
+                            {/* NEW: "who?" picker for the action-first keypad */}
+                            {pendingAction && (
+                                <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4" onClick={()=>setPendingAction(null)}>
+                                    <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-5 w-full max-w-xl" onClick={e=>e.stopPropagation()}>
+                                        <div className="text-center text-2xl font-black uppercase mb-1">{pendingAction.label}</div>
+                                        <div className="text-center text-sm text-zinc-400 mb-4">Who was it? Tap the player.</div>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                            {activePlayers.map(p => {
+                                                const ps = playerStats[p.name] || {};
+                                                return (
+                                                    <button key={p.id} onClick={()=>commitAction(p.id)} className="bg-zinc-800 hover:bg-gold hover:text-black rounded-xl py-4 px-2 text-center" style={{minHeight:'72px'}}>
+                                                        <div className="text-xl font-black leading-tight">{p.name.split(' ')[0]}</div>
+                                                        <div className="text-sm text-zinc-400">#{p.id}{pendingAction.statKey==='pf' ? ` · ${ps.pf||0} fouls` : ''}</div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <button onClick={()=>setPendingAction(null)} className="w-full mt-4 py-3 bg-zinc-800 text-zinc-300 font-bold rounded-xl">Cancel</button>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* COACH HUD */}
                             <div className="coach-hud">
-                                <div className="q-selector">{[1,2,3,4].map(q=><button key={q} onClick={()=>changeQuarter(q)} className={`q-btn ${gameMeta.quarter===q?'active':''}`}>Q{q}</button>)}</div>
+                                <div className="q-selector">{Array.from({length: Math.min(8, Math.max(5, gameMeta.quarter + 1))}, (_, i) => i + 1).map(q=><button key={q} onClick={()=>changeQuarter(q)} className={`q-btn ${gameMeta.quarter===q?'active':''}`}>{periodLabel(q)}</button>)}</div>
                                 <div className="hud-box"><div className="hud-label">TEAM FOULS</div><div className={`hud-val ${quarterFouls>=5?'text-red-500':'text-white'}`}>{quarterFouls}</div>{quarterFouls>=5 && <div className="bonus-badge">BONUS</div>}</div>
                                 <div className="hud-box"><div className="hud-label">FG%</div><div className={`hud-val ${insights.fgPct>=45?'text-green-500':(insights.fgPct<30?'text-red-500':'text-white')}`}>{insights.fgPct}%</div></div>
                                 <div className="hud-box"><div className="hud-label">TO</div><div className={`hud-val ${insights.teamTO>=12?'text-red-500':'text-white'}`}>{insights.teamTO}</div></div>
@@ -1325,11 +1419,11 @@
                             <div className="p-2 flex-1 flex gap-2 overflow-hidden">
                                 <div className="w-1/3 flex flex-col gap-2 h-full overflow-y-auto pr-1 custom-scrollbar">
                                     {activePlayers.map(p => {
-                                        const isSelected = selectedPlayer === p.id;
+                                        const isSelected = false; // NEW: stats are entered action-first now, so cards no longer hold a selection
                                         const s = playerStats[p.name] || {};
                                         const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
                                         return (
-                                            <div key={p.id} onClick={() => { setSelectedPlayer(p.id); setTrackingOpponent(false); }} className={`kb-player-btn ${isSelected ? 'selected' : ''}`}>
+                                            <div key={p.id} onClick={() => setTrackingOpponent(false)} className={`kb-player-btn ${isSelected ? 'selected' : ''}`}>
                                                 <button onClick={(e)=>{e.stopPropagation(); setSubTarget(p.id)}} className="sub-icon">🔄</button>
                                                 <div className="text-lg font-black leading-none">{p.name.split(' ')[0]}</div>
                                                 <div className={`text-[10px] font-bold ${isSelected ? 'text-black' : 'text-zinc-500'}`}>#{p.id} • {pts} Pts</div>
@@ -1337,7 +1431,7 @@
                                             </div>
                                         )
                                     })}
-                                    <div onClick={() => { setSelectedPlayer(OPPONENT_ID); setTrackingOpponent(true); }} className={`kb-player-btn kb-opp-btn ${trackingOpponent ? 'selected' : ''}`}>
+                                    <div onClick={() => setTrackingOpponent(true)} className={`kb-player-btn kb-opp-btn ${trackingOpponent ? 'selected' : ''}`}>
                                         <div className="text-xl font-black italic tracking-widest">OPPONENT</div>
                                         <div className="text-[10px] opacity-70">Track Scoring</div>
                                     </div>
@@ -1364,15 +1458,15 @@
                                         <>
                                             <div className="h-10 flex items-center justify-center text-red-400 font-bold uppercase text-xs border-b border-red-900/30">TRACKING OPPONENT SCORING</div>
                                             <OpponentShotChartPanel activePlayers={activePlayers} onCommit={logOpponentShot} onRebound={logRebound} />
-                                            <div className="flex gap-2"><button onClick={() => handleStatClick('ftm', 1)} className="kb-stat-btn bg-make text-xl" style={{minHeight:'44px'}}>Opp FT (+1)</button><button onClick={() => handleStatClick('fta')} className="kb-stat-btn bg-miss text-xl" style={{minHeight:'44px'}}>Opp FT Miss</button></div>
-                                            <button onClick={() => handleStatClick('to')} className="kb-stat-btn bg-neg" style={{minHeight:'44px'}}>Opp TO (travel / bad pass / etc)</button>
+                                            <div className="flex gap-2"><button onClick={() => logOpponentAction('ftm', 1)} className="kb-stat-btn bg-make text-xl" style={{minHeight:'44px'}}>Opp FT (+1)</button><button onClick={() => logOpponentAction('fta')} className="kb-stat-btn bg-miss text-xl" style={{minHeight:'44px'}}>Opp FT Miss</button></div>
+                                            <button onClick={() => logOpponentAction('to')} className="kb-stat-btn bg-neg" style={{minHeight:'44px'}}>Opp TO (travel / bad pass / etc)</button>
                                         </>
                                     ) : (
                                         <>
                                             <ShotChartPanel activePlayers={activePlayers} onCommit={logShot} onRebound={logRebound} onAssist={logAssist} />
-                                            <div className="flex gap-2"><button onClick={() => handleStatClick('ftm', 1)} className="kb-stat-btn bg-make" style={{minHeight:'44px'}}>FT MAKE (+1)</button><button onClick={() => handleStatClick('fta')} className="kb-stat-btn bg-miss" style={{minHeight:'44px'}}>FT MISS</button></div>
-                                            <div className="flex gap-2"><button onClick={() => handleStatClick('reb')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>REBOUND</button><button onClick={() => handleStatClick('ast')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>ASSIST</button><button onClick={() => handleStatClick('stl')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>STEAL</button></div>
-                                            <div className="flex gap-2"><button onClick={() => handleStatClick('blk')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>BLOCK</button><button onClick={() => handleStatClick('to')} className="kb-stat-btn bg-neg" style={{minHeight:'44px'}}>TURNOVER</button><button onClick={() => handleStatClick('pf')} className="kb-stat-btn bg-neg" style={{minHeight:'44px'}}>FOUL</button></div>
+                                            <div className="flex gap-2"><button onClick={() => startAction('ftm', 1, 'FT made')} className="kb-stat-btn bg-make" style={{minHeight:'44px'}}>FT MAKE (+1)</button><button onClick={() => startAction('fta', 0, 'FT missed')} className="kb-stat-btn bg-miss" style={{minHeight:'44px'}}>FT MISS</button></div>
+                                            <div className="flex gap-2"><button onClick={() => startAction('reb', 0, 'Rebound')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>REBOUND</button><button onClick={() => startAction('ast', 0, 'Assist')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>ASSIST</button><button onClick={() => startAction('stl', 0, 'Steal')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>STEAL</button></div>
+                                            <div className="flex gap-2"><button onClick={() => startAction('blk', 0, 'Block')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>BLOCK</button><button onClick={() => startAction('to', 0, 'Turnover')} className="kb-stat-btn bg-neg" style={{minHeight:'44px'}}>TURNOVER</button><button onClick={() => startAction('pf', 0, 'Foul')} className="kb-stat-btn bg-neg" style={{minHeight:'44px'}}>FOUL</button></div>
                                         </>
                                     )}
                                 </div>
@@ -1749,8 +1843,8 @@
                                             </div>
                                             <div className="flex gap-2 w-full md:w-auto">
                                                 <button onClick={() => setViewGame(g)} className="flex-1 md:flex-none py-2 px-4 bg-zinc-800 rounded hover:bg-white hover:text-black font-bold text-xs uppercase transition">👁️ View</button>
-                                                <button onClick={()=>{if(!requireEditor())return;editingHistoryRef.current=true;setEditId(g.id);setGameMeta({date:g.date,opp:g.opp,oppScore:g.oppScore,venue:g.venue});setPlayStats(g.playStats||[]);setOpponentStats(g.opponentStats||{fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0,to:0});const sm={};g.stats.forEach(s=>sm[s.name]=s);setPlayerStats(sm);setView('new');}} className="flex-1 md:flex-none py-2 px-4 bg-blue-900/50 text-blue-200 rounded hover:bg-blue-600 hover:text-white font-bold text-xs uppercase transition">✏️ Edit</button>
-                                                <button onClick={() => deleteGame(g.id)} className="flex-1 md:flex-none py-2 px-4 bg-red-900/30 text-red-400 rounded hover:bg-red-600 hover:text-white font-bold text-xs uppercase transition">🗑️</button>
+                                                {!statKeeperMode && (<button onClick={()=>{if(!requireEditor())return;editingHistoryRef.current=true;setEditId(g.id);setGameMeta({date:g.date,opp:g.opp,oppScore:g.oppScore,venue:g.venue});setPlayStats(g.playStats||[]);setOpponentStats(g.opponentStats||{fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0,to:0});const sm={};g.stats.forEach(s=>sm[s.name]=s);setPlayerStats(sm);setView('new');}} className="flex-1 md:flex-none py-2 px-4 bg-blue-900/50 text-blue-200 rounded hover:bg-blue-600 hover:text-white font-bold text-xs uppercase transition">✏️ Edit</button>)}
+                                                {!statKeeperMode && (<button onClick={() => deleteGame(g.id)} className="flex-1 md:flex-none py-2 px-4 bg-red-900/30 text-red-400 rounded hover:bg-red-600 hover:text-white font-bold text-xs uppercase transition">🗑️</button>)}
                                             </div>
                                         </div>
                                     </div>
@@ -1923,7 +2017,7 @@ service cloud.firestore {
 
                                 <div className="flex justify-between items-center bg-black/40 border border-white/10 rounded-lg p-3 mb-4 text-center">
                                     <div><div className="text-[9px] text-zinc-500 uppercase font-bold">Score</div><div className="text-lg font-black">{getTeamScore()}-{gameMeta.oppScore}</div></div>
-                                    <div><div className="text-[9px] text-zinc-500 uppercase font-bold">Quarter</div><div className="text-lg font-black">Q{gameMeta.quarter}</div></div>
+                                    <div><div className="text-[9px] text-zinc-500 uppercase font-bold">Quarter</div><div className="text-lg font-black">{periodLabel(gameMeta.quarter)}</div></div>
                                     <div><div className="text-[9px] text-zinc-500 uppercase font-bold">Team Fouls</div><div className={`text-lg font-black ${quarterFouls>=5?'text-red-500':'text-white'}`}>{quarterFouls}{quarterFouls>=5?' (BONUS)':''}</div></div>
                                     <div><div className="text-[9px] text-zinc-500 uppercase font-bold">Timeouts</div><div className="text-lg font-black">{timeouts.full.filter(Boolean).length}F / {timeouts.thirty.filter(Boolean).length}×30</div></div>
                                 </div>
