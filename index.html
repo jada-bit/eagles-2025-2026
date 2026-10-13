@@ -65,7 +65,7 @@
         .timeout-pills { display: flex; gap: 4px; justify-content: center; margin-top: 4px; }
         .to-pill { width: 30px; height: 30px; border-radius: 50%; font-size: 11px; font-weight: 900; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 1px solid #333; transition: 0.2s; }
         .to-pill.active { background: var(--gold); color: black; border-color: white; }
-        .to-pill.used { background: #333; color: #555; border-color: #222; }
+        .to-pill.used { background: #333; color: #555; border-color: #222; cursor: default; }
         
         .poss-arrow { font-size: 2rem; cursor: pointer; user-select: none; transition: 0.2s; filter: drop-shadow(0 0 5px rgba(255, 184, 28, 0.5)); }
         .poss-arrow:active { transform: scale(0.9); }
@@ -102,8 +102,32 @@
         .bg-neg { background: #3f3f46; color: #a1a1aa; }
 
         /* EVENT FEED */
-        .event-feed { background: #111; border-top: 1px solid #333; overflow-y: auto; height: 300px; padding: 10px; display: flex; flex-direction: column-reverse; gap: 8px; -webkit-overflow-scrolling: touch; }
-        .event-item { background: #222; border: 1px solid #333; padding: 12px 16px; border-radius: 8px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; animation: slideInLeft 0.2s; cursor: pointer; border-left: 4px solid var(--gold); min-height: 50px; }
+        .event-feed { background: #111; border: 1px solid #333; border-radius: 10px; overflow-y: auto; height: 260px; padding: 8px; display: flex; flex-direction: column; gap: 6px; -webkit-overflow-scrolling: touch; }
+        /* NEW: feed is easier to read: newest play on top, highlighted */
+        .event-item.latest { border-color: var(--gold); background: #2a2410; }
+        .feed-title { font-weight: 900; text-transform: uppercase; font-size: 13px; color: var(--gold); }
+        .feed-title span { color: #888; text-transform: none; font-weight: 600; margin-left: 6px; }
+        /* NEW: one-screen live layout. Phones stack and scroll; iPad and up fit on one screen. */
+        .live-grid { display: flex; flex-direction: column; gap: 8px; padding: 8px; }
+        .live-col { display: flex; flex-direction: column; gap: 8px; }
+        .keypad-row { display: flex; gap: 8px; }
+        .opp-pad { border: 1px solid rgba(127,29,29,0.6); background: rgba(69,10,10,0.3); border-radius: 10px; padding: 6px; display: flex; flex-direction: column; gap: 6px; }
+        .shot-panel { display: flex; flex-direction: column; }
+        .court-area { width: 100%; max-width: 440px; margin: 0 auto; aspect-ratio: 500 / 470; container-type: size; display: flex; align-items: center; justify-content: center; }
+        .court-box { width: min(100cqw, calc(100cqh * 500 / 470)); }
+        .shot-list { overflow-y: auto; }
+        @media (min-width: 768px) {
+            .live-grid { display: grid; grid-template-columns: minmax(190px, 1fr) minmax(0, 2fr) minmax(230px, 1.4fr); flex: 1; min-height: 0; }
+            .live-col { min-height: 0; }
+            .live-col .event-feed { flex: 1; height: auto; min-height: 0; }
+            .shot-panel { flex: 1; min-height: 0; }
+            .court-area { flex: 1; min-height: 0; max-width: none; aspect-ratio: auto; }
+            .shot-list { flex: 1; min-height: 0; }
+            .keypad .keypad-row { flex: 1; min-height: 44px; }
+            .keypad .opp-pad { flex: 2; min-height: 0; }
+            .keypad .opp-pad .keypad-row { flex: 1; }
+        }
+        .event-item { background: #222; border: 1px solid #333; padding: 10px 12px; border-radius: 8px; font-size: 15px; display: flex; justify-content: space-between; align-items: center; animation: slideInLeft 0.2s; cursor: pointer; border-left: 4px solid var(--gold); min-height: 50px; }
         .event-item:hover { background: #333; border-color: #555; }
         .undo-hint { color: #ef4444; font-weight: 900; font-size: 11px; text-transform: uppercase; padding: 4px 8px; border: 1px solid rgba(239,68,68,0.3); border-radius: 4px; background: rgba(239,68,68,0.1); }
 
@@ -661,8 +685,15 @@
             };
 
             // --- GAME MANAGEMENT LOGIC ---
+            // CHANGED: tapping an unused timeout marks it used and adds it to the feed. A used timeout can't
+            // be tapped back on; a mistake is fixed by undoing it in the feed, which asks to confirm.
             const toggleTimeout = (type, index) => {
-                setTimeouts(prev => ({ ...prev, [type]: prev[type].map((t, i) => i === index ? !t : t) }));
+                if (!timeouts[type][index]) return;
+                if (!requireEditor()) return;
+                setTimeouts(prev => ({ ...prev, [type]: prev[type].map((t, i) => i === index ? false : t) }));
+                const desc = type === 'full' ? 'Timeout (60 sec)' : 'Timeout (30 sec)';
+                setEventLog(prev => [{ id: Date.now(), type: 'timeout', toType: type, toIndex: index, name: 'Eagles', desc }, ...prev].slice(0, 30));
+                showToast(`Eagles: ${desc}`);
             };
 
             const togglePossession = () => setPossession(prev => prev === 'home' ? 'away' : 'home');
@@ -877,7 +908,9 @@
                 if(!requireEditor()) return;
                 if(!confirm(`Undo ${event.name} ${event.desc}?`)) return;
                 
-                if (event.type === 'opp') {
+                if (event.type === 'timeout') {
+                    setTimeouts(prev => ({ ...prev, [event.toType]: prev[event.toType].map((t, i) => i === event.toIndex ? true : t) }));
+                } else if (event.type === 'opp') {
                     setOpponentStats(prev => {
                         let u = { [event.stat]: Math.max(0, prev[event.stat] - 1) };
                         if (event.stat === 'fg2m') u['fg2a'] = Math.max(0, prev.fg2a - 1);
@@ -1567,6 +1600,22 @@
                 } catch (e) { showToast("Couldn't clear test data: " + e.message, "error"); }
             };
 
+            // NEW: Live game fills exactly the rest of the screen on iPad, so nothing scrolls.
+            const liveRef = React.useRef(null);
+            const [liveHeight, setLiveHeight] = React.useState(null);
+            React.useEffect(() => {
+                if (view !== 'live') return;
+                const measure = () => {
+                    const el = liveRef.current; if (!el) return;
+                    if (window.innerWidth < 768) { setLiveHeight(null); return; }
+                    const top = el.getBoundingClientRect().top + window.scrollY;
+                    setLiveHeight(Math.max(460, window.innerHeight - top - 8));
+                };
+                const raf = requestAnimationFrame(measure);
+                window.addEventListener('resize', measure); window.addEventListener('orientationchange', measure);
+                return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', measure); window.removeEventListener('orientationchange', measure); };
+            }, [view, keeperOnly, backupDue, isEditor, activeLineup.length]);
+
             // NEW: sign-in gate. Without a coach or stat keeper login, nothing is shown or loaded.
             if (!authReady) return <div className="p-20 text-center text-gold font-bold">LOADING...</div>;
             if (!isEditor) return (
@@ -1611,7 +1660,7 @@
             const scoutNotesForOpp = scoutOppKey && scoutReports[scoutOppKey] ? [...scoutReports[scoutOppKey].notes].sort((a,b)=>new Date(b.date)-new Date(a.date)) : [];
 
             return (
-                <div className="pb-24 max-w-7xl mx-auto p-4">
+                <div className={`${view === 'live' ? 'pb-2' : 'pb-24'} max-w-7xl mx-auto p-4`}>
                     <div className="toast-container">{toasts.map(t => <div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>)}</div>
 
                     <div className="flex flex-col md:flex-row justify-between items-center mb-4 bg-zinc-900 p-4 rounded-xl border border-white/10 sticky top-2 z-50 shadow-xl no-print">
@@ -1650,7 +1699,7 @@
                     </div>
 
                     {/* NEW: Team + Season switcher. Filters every historical view below. */}
-                    <div className="flex flex-wrap items-center gap-3 mb-6 no-print">
+                    <div className={`flex flex-wrap items-center gap-3 ${view === 'live' ? 'mb-2' : 'mb-6'} no-print`}>
                         <div className="flex gap-1 bg-zinc-900 border border-zinc-800 rounded-full p-1">
                             <button onClick={()=>requestTeamSwitch('varsity')} className={`nav-btn ${activeTeam==='varsity'?'active-nav':'inactive-nav'}`}>Varsity</button>
                             <button onClick={()=>requestTeamSwitch('jv')} className={`nav-btn ${activeTeam==='jv'?'active-nav':'inactive-nav'}`}>JV</button>
@@ -1692,7 +1741,7 @@
 
                     {/* LIVE VIEW */}
                     {view === 'live' && (
-                        <div className="flex flex-col h-[85vh] overflow-hidden">
+                        <div ref={liveRef} className="flex flex-col overflow-hidden" style={liveHeight ? { height: liveHeight } : undefined}>
                             {authReady && !isEditor && (
                                 <div className="bg-yellow-900/30 border border-yellow-700 text-yellow-300 text-xs font-bold uppercase text-center py-2 rounded-lg mb-2">👁️ View only. Tap Sign In To Edit at the top to record stats</div>
                             )}
@@ -1753,49 +1802,55 @@
                                 <div className="alert-ticker">{insights.alerts.map((a,i) => <div key={i} className={`live-alert ${a.type}`}>{a.msg}</div>)}</div>
                             )}
                             
-                            <div className="p-2 flex-1 flex gap-2 overflow-hidden">
-                                <div className="w-1/3 flex flex-col gap-2 h-full overflow-y-auto pr-1 custom-scrollbar">
-                                    {activePlayers.map(p => {
-                                        const isSelected = false; // NEW: stats are entered action-first now, so cards no longer hold a selection
-                                        const s = playerStats[p.name] || {};
-                                        const pts = ((s.fg2m||0)*2)+((s.fg3m||0)*3)+(s.ftm||0);
-                                        return (
-                                            <div key={p.id} className={`kb-player-btn ${isSelected ? 'selected' : ''}`}>
-                                                <button onClick={(e)=>{e.stopPropagation(); setSubTarget(p.id)}} className="sub-icon">🔄</button>
-                                                <div className="text-lg font-black leading-none">{p.name.split(' ')[0]}</div>
-                                                <div className={`text-[10px] font-bold ${isSelected ? 'text-black' : 'text-zinc-500'}`}>#{p.id} • {pts} Pts</div>
-                                                {s.pf > 0 && <div className="absolute bottom-1 left-2 text-[9px] font-bold text-red-500">{s.pf} PF</div>}
-                                            </div>
-                                        )
-                                    })}
-                                    
-                                    {/* LIVE EVENT FEED (UNDO LIST) */}
+                            {/* NEW: on-court strip: points, fouls, and the sub button, in one row */}
+                            <div className="flex gap-2 px-2 pt-2">
+                                {activePlayers.map(p => {
+                                    const st = playerStats[p.name] || {};
+                                    const pts = ((st.fg2m||0)*2)+((st.fg3m||0)*3)+(st.ftm||0);
+                                    return (
+                                        <div key={p.id} className="flex-1 min-w-0 relative bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1.5">
+                                            <div className="text-base font-black leading-tight truncate pr-9">{p.name.split(' ')[0]}</div>
+                                            <div className="text-xs text-zinc-400 truncate">#{p.id} • {pts} pts{st.pf > 0 && <span className={st.pf >= 4 ? 'text-red-400 font-bold' : ''}> • {st.pf} PF</span>}</div>
+                                            <button onClick={()=>setSubTarget(p.id)} className="sub-icon" title="Substitute">🔄</button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="live-grid">
+                                {/* Column 1: the play-by-play feed (tap to undo), then save/reset */}
+                                <div className="live-col">
+                                    <div className="feed-title">Recent plays<span>tap one to undo</span></div>
                                     <div className="event-feed">
-                                        {eventLog.length === 0 && <div className="text-zinc-600 text-xs text-center italic">No actions yet</div>}
-                                        {eventLog.map(ev => (
-                                            <div key={ev.id} onClick={() => handleUndo(ev)} className="event-item">
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold text-white">{ev.name}</span>
-                                                    <span className="text-zinc-400">{ev.desc}</span>
+                                        {eventLog.length === 0 && <div className="text-zinc-500 text-sm text-center italic py-6">No plays yet</div>}
+                                        {eventLog.map((ev, idx) => (
+                                            <div key={ev.id} onClick={() => handleUndo(ev)} className={`event-item ${idx === 0 ? 'latest' : ''}`}>
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="font-black text-white truncate">{ev.name}</span>
+                                                    <span className="text-zinc-300 truncate">{ev.desc}</span>
                                                 </div>
-                                                <span className="undo-hint">UNDO</span>
+                                                <span className="undo-hint">Undo</span>
                                             </div>
                                         ))}
                                     </div>
-                                    
-                                    <button onClick={saveGame} className="mt-auto w-full py-4 bg-blue-700 hover:bg-blue-600 rounded font-black uppercase text-xs">SAVE GAME</button>
-                                    <button onClick={resetLiveGame} className="mt-2 w-full py-3 bg-zinc-900 text-red-500 font-bold text-xs rounded hover:bg-red-900/20">RESET / CLEAR GAME</button>
+                                    <button onClick={saveGame} className="w-full py-3 bg-blue-700 hover:bg-blue-600 rounded font-black uppercase text-xs">SAVE GAME</button>
+                                    <button onClick={resetLiveGame} className="w-full py-2 bg-zinc-900 text-red-500 font-bold text-xs rounded hover:bg-red-900/20">RESET / CLEAR GAME</button>
                                 </div>
-                                <div className="w-2/3 h-full flex flex-col gap-2 overflow-y-auto custom-scrollbar">
-                                    {/* NEW: one screen for both teams. Opponent shots go through the same court
-                                        (an Opponent row in the "who" list) and opponent stats have their own red row. */}
+
+                                {/* Column 2: the court (shots for both teams) */}
+                                <div className="live-col">
                                     <ShotChartPanel activePlayers={activePlayers} onCommit={logShot} onRebound={logRebound} onAssist={logAssist} onOpponentCommit={logOpponentShot} onOpponentRebound={() => logOpponentAction('reb')} />
-                                    <div className="flex gap-2"><button onClick={() => startAction('ftm', 1, 'FT made')} className="kb-stat-btn bg-make" style={{minHeight:'56px'}}>FT MADE (+1)</button><button onClick={() => startAction('fta', 0, 'FT missed')} className="kb-stat-btn bg-miss" style={{minHeight:'56px'}}>FT MISSED</button></div>
-                                    <div className="flex gap-2"><button onClick={() => startAction('reb', 0, 'Rebound')} className="kb-stat-btn bg-action" style={{minHeight:'56px'}}>REBOUND</button><button onClick={() => startAction('ast', 0, 'Assist')} className="kb-stat-btn bg-action" style={{minHeight:'56px'}}>ASSIST</button><button onClick={() => startAction('stl', 0, 'Steal')} className="kb-stat-btn bg-action" style={{minHeight:'56px'}}>STEAL</button></div>
-                                    <div className="flex gap-2"><button onClick={() => startAction('blk', 0, 'Block')} className="kb-stat-btn bg-action" style={{minHeight:'56px'}}>BLOCK</button><button onClick={() => startAction('to', 0, 'Turnover')} className="kb-stat-btn bg-neg" style={{minHeight:'56px'}}>TURNOVER</button><button onClick={() => startAction('pf', 0, 'Foul')} className="kb-stat-btn bg-neg" style={{minHeight:'56px'}}>FOUL</button></div>
-                                    <div className="rounded-lg border border-red-900/60 bg-red-950/30 p-2">
-                                        <div className="text-[10px] font-black uppercase text-red-400 mb-1.5 text-center">Opponent (one tap)</div>
-                                        <div className="flex gap-2"><button onClick={() => logOpponentAction('ftm', 1)} className="kb-stat-btn bg-make" style={{minHeight:'56px'}}>THEIR FT MADE</button><button onClick={() => logOpponentAction('fta')} className="kb-stat-btn bg-miss" style={{minHeight:'56px'}}>THEIR FT MISSED</button><button onClick={() => logOpponentAction('to')} className="kb-stat-btn bg-neg" style={{minHeight:'56px'}}>THEIR TURNOVER</button><button onClick={() => logOpponentAction('pf')} className="kb-stat-btn bg-neg" style={{minHeight:'56px'}}>THEIR FOUL</button></div>
+                                </div>
+
+                                {/* Column 3: everything else, ours on top, theirs in red */}
+                                <div className="live-col keypad">
+                                    <div className="keypad-row"><button onClick={() => startAction('ftm', 1, 'FT made')} className="kb-stat-btn bg-make" style={{minHeight:'48px'}}>FT MADE (+1)</button><button onClick={() => startAction('fta', 0, 'FT missed')} className="kb-stat-btn bg-miss" style={{minHeight:'48px'}}>FT MISSED</button></div>
+                                    <div className="keypad-row"><button onClick={() => startAction('reb', 0, 'Rebound')} className="kb-stat-btn bg-action" style={{minHeight:'48px'}}>REBOUND</button><button onClick={() => startAction('ast', 0, 'Assist')} className="kb-stat-btn bg-action" style={{minHeight:'48px'}}>ASSIST</button><button onClick={() => startAction('stl', 0, 'Steal')} className="kb-stat-btn bg-action" style={{minHeight:'48px'}}>STEAL</button></div>
+                                    <div className="keypad-row"><button onClick={() => startAction('blk', 0, 'Block')} className="kb-stat-btn bg-action" style={{minHeight:'48px'}}>BLOCK</button><button onClick={() => startAction('to', 0, 'Turnover')} className="kb-stat-btn bg-neg" style={{minHeight:'48px'}}>TURNOVER</button><button onClick={() => startAction('pf', 0, 'Foul')} className="kb-stat-btn bg-neg" style={{minHeight:'48px'}}>FOUL</button></div>
+                                    <div className="opp-pad">
+                                        <div className="text-[10px] font-black uppercase text-red-400 text-center">Opponent (one tap)</div>
+                                        <div className="keypad-row"><button onClick={() => logOpponentAction('ftm', 1)} className="kb-stat-btn bg-make" style={{minHeight:'48px'}}>THEIR FT MADE</button><button onClick={() => logOpponentAction('fta')} className="kb-stat-btn bg-miss" style={{minHeight:'48px'}}>THEIR FT MISSED</button></div>
+                                        <div className="keypad-row"><button onClick={() => logOpponentAction('to')} className="kb-stat-btn bg-neg" style={{minHeight:'48px'}}>THEIR TURNOVER</button><button onClick={() => logOpponentAction('pf')} className="kb-stat-btn bg-neg" style={{minHeight:'48px'}}>THEIR FOUL</button></div>
                                     </div>
                                 </div>
                             </div>
@@ -2643,7 +2698,7 @@ service cloud.firestore {
             };
 
             return (
-                <div className="bg-black/30 rounded-xl p-2 border border-zinc-800">
+                <div className="shot-panel bg-black/30 rounded-xl p-2 border border-zinc-800">
                     <div className="text-center text-xs font-black uppercase mb-1.5">
                         {step === 'location' && <span className="text-zinc-400">🏀 Tap The Shot Location</span>}
                         {step === 'playerResult' && <span className={pending.isThree ? 'text-blue-400' : 'text-gold'}>{pending.isThree ? '🔵 3PT' : '🟡 2PT'} — Who, Made/Miss?</span>}
@@ -2651,21 +2706,21 @@ service cloud.firestore {
                         {step === 'rebound' && <span className="text-white">Missed — Who Got The Rebound?</span>}
                         {step === 'oppRebound' && <span className="text-white">They Missed — Did We Get The Rebound?</span>}
                     </div>
-                    <div style={{maxWidth: 'min(100%, 46vh)', margin: '0 auto'}}>
-                        <CourtSVG onTap={step === 'location' ? handleTap : undefined}>
-                            {pending && <circle cx={pending.x} cy={pending.y} r="9" fill={pending.isThree ? '#3b82f6' : '#FFB81C'} stroke="white" strokeWidth="2" />}
-                        </CourtSVG>
-                    </div>
+                    {step === 'location' && (
+                        <div className="court-area"><div className="court-box">
+                            <CourtSVG onTap={handleTap} />
+                        </div></div>
+                    )}
                     {step === 'playerResult' && (
-                        <div className="space-y-1.5 mt-2">
+                        <div className="shot-list space-y-1.5 mt-2">
                             {activePlayers.map(p => (
                                 <div key={p.id} className="flex items-center gap-2">
-                                    <div className="flex-1 min-w-0 bg-zinc-900 rounded-lg px-3 py-2">
+                                    <div className="flex-1 min-w-0 bg-zinc-900 rounded-lg px-3 py-3">
                                         <div className="text-base font-black leading-tight truncate">{p.name.split(' ')[0]}</div>
                                         <div className="text-[10px] text-zinc-500 leading-none">#{p.id}</div>
                                     </div>
-                                    <button onClick={()=>commit(p, true)} className="bg-make rounded-lg flex items-center justify-center font-black text-white text-lg" style={{width:'42px', height:'42px', flexShrink:0}}>✓</button>
-                                    <button onClick={()=>commit(p, false)} className="bg-miss rounded-lg flex items-center justify-center font-black text-white text-lg" style={{width:'42px', height:'42px', flexShrink:0}}>✗</button>
+                                    <button onClick={()=>commit(p, true)} className="bg-make rounded-lg flex items-center justify-center font-black text-white text-lg" style={{width:'56px', height:'56px', flexShrink:0}}>✓</button>
+                                    <button onClick={()=>commit(p, false)} className="bg-miss rounded-lg flex items-center justify-center font-black text-white text-lg" style={{width:'56px', height:'56px', flexShrink:0}}>✗</button>
                                 </div>
                             ))}
                             {onOpponentCommit && (
@@ -2673,16 +2728,16 @@ service cloud.firestore {
                                     <div className="flex-1 min-w-0 bg-red-950/60 border border-red-900 rounded-lg px-3 py-2">
                                         <div className="text-base font-black leading-tight text-red-300">Opponent</div>
                                     </div>
-                                    <button onClick={()=>commitOpponent(true)} className="bg-make rounded-lg flex items-center justify-center font-black text-white text-lg" style={{width:'42px', height:'42px', flexShrink:0}}>✓</button>
-                                    <button onClick={()=>commitOpponent(false)} className="bg-miss rounded-lg flex items-center justify-center font-black text-white text-lg" style={{width:'42px', height:'42px', flexShrink:0}}>✗</button>
+                                    <button onClick={()=>commitOpponent(true)} className="bg-make rounded-lg flex items-center justify-center font-black text-white text-lg" style={{width:'56px', height:'56px', flexShrink:0}}>✓</button>
+                                    <button onClick={()=>commitOpponent(false)} className="bg-miss rounded-lg flex items-center justify-center font-black text-white text-lg" style={{width:'56px', height:'56px', flexShrink:0}}>✗</button>
                                 </div>
                             )}
                         </div>
                     )}
                     {step === 'assist' && (
-                        <div className="grid grid-cols-3 gap-1.5 mt-2">
+                        <div className="shot-list grid grid-cols-3 gap-2 mt-2 content-start">
                             {activePlayers.filter(p => p.id !== scorerId).map(p => (
-                                <button key={p.id} onClick={()=>finishAssist(p.id)} className="kb-player-btn" style={{minHeight:'46px'}}>
+                                <button key={p.id} onClick={()=>finishAssist(p.id)} className="kb-player-btn" style={{minHeight:'64px'}}>
                                     <div className="text-xs font-black leading-none">{p.name.split(' ')[0]}</div>
                                 </button>
                             ))}
@@ -2690,9 +2745,9 @@ service cloud.firestore {
                         </div>
                     )}
                     {step === 'rebound' && (
-                        <div className="grid grid-cols-3 gap-1.5 mt-2">
+                        <div className="shot-list grid grid-cols-3 gap-2 mt-2 content-start">
                             {activePlayers.map(p => (
-                                <button key={p.id} onClick={()=>finishRebound(p.id)} className="kb-player-btn" style={{minHeight:'46px'}}>
+                                <button key={p.id} onClick={()=>finishRebound(p.id)} className="kb-player-btn" style={{minHeight:'64px'}}>
                                     <div className="text-xs font-black leading-none">{p.name.split(' ')[0]}</div>
                                 </button>
                             ))}
@@ -2700,9 +2755,9 @@ service cloud.firestore {
                         </div>
                     )}
                     {step === 'oppRebound' && (
-                        <div className="grid grid-cols-3 gap-1.5 mt-2">
+                        <div className="shot-list grid grid-cols-3 gap-2 mt-2 content-start">
                             {activePlayers.map(p => (
-                                <button key={p.id} onClick={()=>finishRebound(p.id)} className="kb-player-btn" style={{minHeight:'46px'}}>
+                                <button key={p.id} onClick={()=>finishRebound(p.id)} className="kb-player-btn" style={{minHeight:'64px'}}>
                                     <div className="text-xs font-black leading-none">{p.name.split(' ')[0]}</div>
                                 </button>
                             ))}
