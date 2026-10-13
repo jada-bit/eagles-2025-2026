@@ -2901,11 +2901,52 @@ service cloud.firestore {
             for (let i = 1; i < n; i++) { const t = i / n, o = i % 2 ? 7 : -7; pts.push([a[0] + dx * t + nx * o, a[1] + dy * t + ny * o]); }
             pts.push(b); return pts.map(p => p.join(',')).join(' ');
         };
+        // NEW: curved paths. A move can carry path: [{x,y}, ...] (waypoints between start and end; stored
+        // as objects because Firestore doesn't allow arrays inside arrays). Drawn as a smooth curve.
+        const pbCurve = (pts) => {
+            if (pts.length < 3) return pts;
+            const out = [];
+            for (let i = 0; i < pts.length - 1; i++) {
+                const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+                for (let s = 0; s < 8; s++) {
+                    const t = s / 8, t2 = t * t, t3 = t2 * t;
+                    const f = (j) => 0.5 * ((2 * p1[j]) + (-p0[j] + p2[j]) * t + (2 * p0[j] - 5 * p1[j] + 4 * p2[j] - p3[j]) * t2 + (-p0[j] + 3 * p1[j] - 3 * p2[j] + p3[j]) * t3);
+                    out.push([f(0), f(1)]);
+                }
+            }
+            out.push(pts[pts.length - 1]); return out;
+        };
+        const pbLen = (pts) => { let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return L; };
+        const pbAlong = (pts, f) => {
+            if (pts.length === 1) return pts[0];
+            let target = pbLen(pts) * f;
+            for (let i = 1; i < pts.length; i++) {
+                const a = pts[i - 1], b = pts[i], d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+                if (target <= d || i === pts.length - 1) { const r = d ? Math.min(1, target / d) : 1; return [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r]; }
+                target -= d;
+            }
+            return pts[pts.length - 1];
+        };
+        const pbResample = (pts, step) => { const L = pbLen(pts), n = Math.max(1, Math.round(L / step)), out = []; for (let i = 0; i <= n; i++) out.push(pbAlong(pts, i / n)); return out; };
+        const pbMovePts = (from, m) => pbCurve([from, ...((m.path || []).map(o => [o.x, o.y])), m.to]);
+        const pbTrim = (pts, by) => { const L = pbLen(pts); return L <= by ? pts : pbResample(pts, 4).filter((_, i, arr) => pbLen(arr.slice(0, i + 1)) <= L - by).concat([pbAlong(pts, (L - by) / L)]); };
+        const pbZigzagAlong = (pts) => {
+            const r = pbResample(pts, 8);
+            return r.map((p, i) => {
+                if (i === 0 || i === r.length - 1) return p;
+                const a = r[i - 1], b = r[i + 1], dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, o = i % 2 ? 7 : -7;
+                return [p[0] - dy / L * o, p[1] + dx / L * o];
+            }).map(p => p.join(',')).join(' ');
+        };
         const PB_MOVE_LABEL = { cut: 'cuts to', dribble: 'dribbles to', screen: 'sets a screen at', pass: 'passes to' };
 
         // The court with players, ball, and this step's arrows. t (0..1) animates the step.
-        function PlayCourtSVG({ play, k, t, onCourtTap, onPlayerTap, selected }) {
+        // dragMode 'place' drags players to their starting spots. dragMode 'path' draws a curved path
+        // by dragging from a player. A short tap still works as a tap.
+        function PlayCourtSVG({ play, k, t, onCourtTap, onPlayerTap, selected, dragMode, onDragDone }) {
             const svgRef = React.useRef(null);
+            const suppressClick = React.useRef(false);
+            const [drag, setDrag] = React.useState(null); // { p, pts }
             const st = pbStateAt(play, k);
             const step = play.steps[k] || { moves: [] };
             const moves = step.moves || [];
@@ -2917,14 +2958,37 @@ service cloud.firestore {
                     if (m.type === 'pass') {
                         const a = st.pos[m.from], recv = moves.find(x => x.p == m.to && x.type !== 'pass'), b = recv ? recv.to : st.pos[m.to];
                         if (a && b) { ballAt = [a[0] + (b[0] - a[0]) * e, a[1] + (b[1] - a[1]) * e]; holder = e >= 1 ? m.to : null; }
-                    } else if (st.pos[m.p]) { const a = st.pos[m.p]; pos[m.p] = [a[0] + (m.to[0] - a[0]) * e, a[1] + (m.to[1] - a[1]) * e]; }
+                    } else if (st.pos[m.p]) pos[m.p] = pbAlong(pbMovePts(st.pos[m.p], m), e);
                 });
             }
-            const click = (e) => {
-                if (!onCourtTap || !svgRef.current) return;
+            if (drag && dragMode === 'place') pos[drag.p] = drag.pts[drag.pts.length - 1];
+            const toCourt = (e) => {
                 const pt = svgRef.current.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
                 const loc = pt.matrixTransform(svgRef.current.getScreenCTM().inverse());
-                onCourtTap([Math.round(Math.max(-5, Math.min(505, loc.x))), Math.round(Math.max(-45, Math.min(432, loc.y)))]);
+                return [Math.round(Math.max(-5, Math.min(505, loc.x))), Math.round(Math.max(-45, Math.min(432, loc.y)))];
+            };
+            const click = (e) => {
+                if (suppressClick.current) { suppressClick.current = false; return; }
+                if (!onCourtTap || !svgRef.current) return;
+                onCourtTap(toCourt(e));
+            };
+            const down = (p) => (e) => {
+                if (!dragMode || !svgRef.current) return;
+                e.stopPropagation(); e.preventDefault();
+                try { svgRef.current.setPointerCapture(e.pointerId); } catch (_) {}
+                setDrag({ p, pts: [pos[p]] });
+            };
+            const move = (e) => {
+                if (!drag) return;
+                const pt = toCourt(e), last = drag.pts[drag.pts.length - 1];
+                if (Math.hypot(pt[0] - last[0], pt[1] - last[1]) >= 6) setDrag(d => d && ({ ...d, pts: [...d.pts, pt] }));
+            };
+            const up = () => {
+                if (!drag) return;
+                suppressClick.current = true;
+                const d = drag; setDrag(null);
+                if (pbLen(d.pts) > 20 && onDragDone) onDragDone(d.p, d.pts); else if (onPlayerTap) onPlayerTap(d.p);
+                setTimeout(() => { suppressClick.current = false; }, 400);
             };
             const line = { stroke: 'white', strokeWidth: 2.5, fill: 'none' };
             const arrows = t == null ? moves.map((m, i) => {
@@ -2932,18 +2996,19 @@ service cloud.firestore {
                     const a = st.pos[m.from], b0 = st.pos[m.to]; if (!a || !b0) return null; const b = pbShorten(a, b0, 20);
                     return <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#111" strokeWidth="3" strokeDasharray="9 7" markerEnd="url(#pbAh)" />;
                 }
-                const a = st.pos[m.p]; if (!a) return null; const b = m.to;
-                if (m.type === 'dribble') return <polyline key={i} points={pbZigzag(a, pbShorten(a, b, 4))} fill="none" stroke="#111" strokeWidth="2.5" markerEnd="url(#pbAh)" />;
+                const a = st.pos[m.p]; if (!a) return null;
+                const pts = pbMovePts(a, m), last = pts[pts.length - 1], prev = pts[Math.max(0, pts.length - 2)];
+                if (m.type === 'dribble') return <polyline key={i} points={pbZigzagAlong(pbTrim(pts, 4))} fill="none" stroke="#111" strokeWidth="2.5" strokeLinejoin="round" markerEnd="url(#pbAh)" />;
                 if (m.type === 'screen') {
-                    const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L * 13, ny = dx / L * 13;
-                    return <g key={i}><line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#111" strokeWidth="3" /><line x1={b[0] + nx} y1={b[1] + ny} x2={b[0] - nx} y2={b[1] - ny} stroke="#111" strokeWidth="5" strokeLinecap="round" /></g>;
+                    const dx = last[0] - prev[0], dy = last[1] - prev[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L * 13, ny = dx / L * 13;
+                    return <g key={i}><polyline points={pts.map(q => q.join(',')).join(' ')} fill="none" stroke="#111" strokeWidth="3" strokeLinejoin="round" /><line x1={last[0] + nx} y1={last[1] + ny} x2={last[0] - nx} y2={last[1] - ny} stroke="#111" strokeWidth="5" strokeLinecap="round" /></g>;
                 }
-                const e2 = pbShorten(a, b, 4);
-                return <line key={i} x1={a[0]} y1={a[1]} x2={e2[0]} y2={e2[1]} stroke="#111" strokeWidth="3" markerEnd="url(#pbAh)" />;
+                return <polyline key={i} points={pbTrim(pts, 4).map(q => q.join(',')).join(' ')} fill="none" stroke="#111" strokeWidth="3" strokeLinejoin="round" markerEnd="url(#pbAh)" />;
             }) : null;
             const bx = holder != null && pos[holder] ? pos[holder][0] + 14 : ballAt[0], by = holder != null && pos[holder] ? pos[holder][1] - 14 : ballAt[1];
             return (
-                <svg ref={svgRef} viewBox="-12 -55 524 495" onClick={click} style={{ width: '100%', height: 'auto', display: 'block', touchAction: 'manipulation', cursor: onCourtTap ? 'crosshair' : 'default' }}>
+                <svg ref={svgRef} viewBox="-12 -55 524 495" onClick={click} onPointerMove={move} onPointerUp={up} onPointerCancel={() => setDrag(null)}
+                     style={{ width: '100%', height: 'auto', display: 'block', touchAction: dragMode ? 'none' : 'manipulation', cursor: onCourtTap ? 'crosshair' : 'default', userSelect: 'none' }}>
                     <defs><marker id="pbAh" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#111" /></marker></defs>
                     <rect x="-12" y="-55" width="524" height="495" fill="#3a2c1e" rx="10" />
                     <text x="14" y="-32" fill="#c9a87f" fontSize="14" fontWeight="700">OUT OF BOUNDS</text>
@@ -2958,13 +3023,14 @@ service cloud.firestore {
                     <line x1="220" y1="50" x2="280" y2="50" stroke="#222" strokeWidth="5" />
                     <circle cx="250" cy="62.5" r="7.5" fill="none" stroke="#ff6a00" strokeWidth="3" />
                     {arrows}
+                    {drag && dragMode === 'path' && drag.pts.length > 1 && <polyline points={pbCurve(drag.pts).map(q => q.join(',')).join(' ')} fill="none" stroke="#FFB81C" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />}
                     {Object.keys(pos).map(p => {
-                        const [x, y] = pos[p], sel = selected == p;
+                        const [x, y] = pos[p], sel = selected == p || (drag && drag.p == p);
                         return (
-                            <g key={p} onClick={(e) => { if (onPlayerTap) { e.stopPropagation(); onPlayerTap(+p); } }} style={{ cursor: onPlayerTap ? 'pointer' : 'default' }}>
+                            <g key={p} onPointerDown={down(+p)} onClick={(e) => { if (dragMode) { e.stopPropagation(); return; } if (onPlayerTap) { e.stopPropagation(); onPlayerTap(+p); } }} style={{ cursor: dragMode ? 'grab' : (onPlayerTap ? 'pointer' : 'default') }}>
                                 {sel && <circle cx={x} cy={y} r="27" fill="none" stroke="#FFB81C" strokeWidth="4" />}
                                 <circle cx={x} cy={y} r="19" fill={sel ? '#FFB81C' : '#1f3a8a'} stroke="#fff" strokeWidth="2.5" />
-                                <text x={x} y={y + 7} textAnchor="middle" fontSize="21" fontWeight="800" fill={sel ? '#111' : '#fff'}>{p}</text>
+                                <text x={x} y={y + 7} textAnchor="middle" fontSize="21" fontWeight="800" fill={sel ? '#111' : '#fff'} pointerEvents="none">{p}</text>
                             </g>
                         );
                     })}
@@ -3024,6 +3090,19 @@ service cloud.firestore {
                 setActor(null);
             };
 
+            // NEW: drag a player in Setup to place them, or drag from a player to draw a curved path.
+            const onDragDone = (p, pts) => {
+                const end = pts[pts.length - 1].map(Math.round);
+                if (k === 0) { change(d => { d.start[p] = end; }); setActor(null); return; }
+                if (tool === 'pass') return;
+                const mids = pbResample(pts, 30).slice(1, -1);
+                const step = Math.max(1, Math.ceil(mids.length / 12));
+                const path = mids.filter((_, i) => i % step === 0).map(q => ({ x: Math.round(q[0]), y: Math.round(q[1]) }));
+                change(d => { d.steps[k].moves = (d.steps[k].moves || []).filter(m => m.type === 'pass' || m.p !== p); d.steps[k].moves.push(path.length ? { p, type: tool, to: end, path } : { p, type: tool, to: end }); });
+                setActor(null);
+            };
+            const dragMode = anim ? null : (k === 0 ? 'place' : (tool === 'pass' ? null : 'path'));
+
             const addStep = () => { change(d => { d.steps.push({ say: '', moves: [], notes: {} }); }); setK(draft.steps.length); setActor(null); };
             const delStep = () => { if (k === 0) return; change(d => { d.steps.splice(k, 1); }); setK(Math.max(0, k - 1)); };
             const moveStep = (dir) => { const j = k + dir; if (k === 0 || j < 1 || j >= draft.steps.length) return; change(d => { const tmp = d.steps[k]; d.steps[k] = d.steps[j]; d.steps[j] = tmp; }); setK(j); };
@@ -3043,10 +3122,10 @@ service cloud.firestore {
             };
 
             const hint = k === 0
-                ? (actor == null ? 'Tap a player, then tap their starting spot.' : `Now tap where ${actor} starts.`)
+                ? (actor == null ? 'Drag each player to their starting spot (or tap a player, then tap the spot).' : `Now tap where ${actor} starts.`)
                 : tool === 'pass'
                     ? (actor == null ? 'Tap the player passing the ball.' : `Now tap the player ${actor} passes to.`)
-                    : (actor == null ? `Tap the player who ${tool === 'screen' ? 'sets the screen' : tool === 'dribble' ? 'dribbles' : 'cuts'}.` : `Now tap where ${actor} ${tool === 'screen' ? 'sets the screen' : 'goes'}.`);
+                    : (actor == null ? `Drag from the player along the ${tool === 'screen' ? 'route to the screen' : tool === 'dribble' ? 'dribble' : 'cut'}. Curves are fine. Or tap the player, then tap the spot for a straight line.` : `Now tap where ${actor} ${tool === 'screen' ? 'sets the screen' : 'goes'}, for a straight line.`);
 
             if (!draft) return (
                 <div className="space-y-4 animate-slideIn max-w-4xl mx-auto">
@@ -3090,7 +3169,7 @@ service cloud.firestore {
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                         <div className="lg:col-span-7 bento-card">
                             <div className="text-sm font-bold text-gold mb-2 min-h-[1.25rem]">{anim ? `Previewing step ${anim.k + 1}` : hint}</div>
-                            <PlayCourtSVG play={draft} k={anim ? anim.k : k} t={anim ? anim.t : null} selected={anim ? null : actor} onCourtTap={anim ? null : onCourtTap} onPlayerTap={anim ? null : onPlayerTap} />
+                            <PlayCourtSVG play={draft} k={anim ? anim.k : k} t={anim ? anim.t : null} selected={anim ? null : actor} onCourtTap={anim ? null : onCourtTap} onPlayerTap={anim ? null : onPlayerTap} dragMode={dragMode} onDragDone={onDragDone} />
                         </div>
 
                         <div className="lg:col-span-5 space-y-3">
@@ -3125,7 +3204,7 @@ service cloud.firestore {
                                             {(step.moves || []).length === 0 && <div className="text-xs text-zinc-500 italic">No moves yet. Pick an action above, then tap on the court.</div>}
                                             {(step.moves || []).map((m, i) => (
                                                 <div key={i} className="flex justify-between items-center text-sm bg-black/40 rounded px-2 py-1.5">
-                                                    <span>{m.type === 'pass' ? `${m.from} passes to ${m.to}` : `${m.p} ${PB_MOVE_LABEL[m.type]} the spot shown`}</span>
+                                                    <span>{m.type === 'pass' ? `${m.from} passes to ${m.to}` : `${m.p} ${PB_MOVE_LABEL[m.type]} the spot shown${m.path && m.path.length ? ' (curved)' : ''}`}</span>
                                                     <button onClick={() => change(d => { d.steps[k].moves.splice(i, 1); })} className="text-zinc-500 hover:text-red-400">✕</button>
                                                 </div>
                                             ))}

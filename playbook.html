@@ -290,14 +290,46 @@ function drawMove(g, m, st, style) {
     el('line', { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: color, 'stroke-width': w, 'stroke-dasharray': '9 7', 'marker-end': marker }, g);
     return;
   }
-  const a = st.pos[m.p], b = m.to;
-  if (m.type === 'dribble') { const e = shorten(a, b, 4); el('polyline', { points: zigzag(a, e), fill: 'none', stroke: color, 'stroke-width': w - .5, 'stroke-linejoin': 'round', 'marker-end': marker }, g); }
+  const pts = movePts(st.pos[m.p], m), b = pts[pts.length - 1], prev = pts[Math.max(0, pts.length - 2)];
+  if (m.type === 'dribble') el('polyline', { points: zigzagAlong(trimEnd(pts, 4)), fill: 'none', stroke: color, 'stroke-width': w - .5, 'stroke-linejoin': 'round', 'marker-end': marker }, g);
   else if (m.type === 'screen') {
-    el('line', { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: color, 'stroke-width': w }, g);
-    const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L * 13, ny = dx / L * 13;
+    el('polyline', { points: ptsAttr(pts), fill: 'none', stroke: color, 'stroke-width': w, 'stroke-linejoin': 'round' }, g);
+    const dx = b[0] - prev[0], dy = b[1] - prev[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L * 13, ny = dx / L * 13;
     el('line', { x1: b[0] + nx, y1: b[1] + ny, x2: b[0] - nx, y2: b[1] - ny, stroke: color, 'stroke-width': w + 2, 'stroke-linecap': 'round' }, g);
-  } else { const e = shorten(a, b, 4); el('line', { x1: a[0], y1: a[1], x2: e[0], y2: e[1], stroke: color, 'stroke-width': w, 'marker-end': marker }, g); }
+  } else el('polyline', { points: ptsAttr(trimEnd(pts, 4)), fill: 'none', stroke: color, 'stroke-width': w, 'stroke-linejoin': 'round', 'marker-end': marker }, g);
 }
+// Curved paths: a move may carry path: [{x,y}, ...] between its start and end (drawn in the
+// coaches' play builder by dragging). Drawn as a smooth curve; players follow it when animating.
+function curve(pts) {
+  if (pts.length < 3) return pts;
+  const out = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    for (let s = 0; s < 8; s++) {
+      const t = s / 8, t2 = t * t, t3 = t2 * t;
+      const f = j => 0.5 * ((2 * p1[j]) + (-p0[j] + p2[j]) * t + (2 * p0[j] - 5 * p1[j] + 4 * p2[j] - p3[j]) * t2 + (-p0[j] + 3 * p1[j] - 3 * p2[j] + p3[j]) * t3);
+      out.push([f(0), f(1)]);
+    }
+  }
+  out.push(pts[pts.length - 1]); return out;
+}
+const plen = pts => { let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return L; };
+function along(pts, f) {
+  if (pts.length === 1) return pts[0];
+  let target = plen(pts) * f;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (target <= d || i === pts.length - 1) { const r = d ? Math.min(1, target / d) : 1; return [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r]; }
+    target -= d;
+  }
+  return pts[pts.length - 1];
+}
+const resample = (pts, step) => { const n = Math.max(1, Math.round(plen(pts) / step)), out = []; for (let i = 0; i <= n; i++) out.push(along(pts, i / n)); return out; };
+const movePts = (from, m) => curve([from, ...((m.path || []).map(o => [o.x, o.y])), m.to]);
+const trimEnd = (pts, by) => { const L = plen(pts); if (L <= by) return pts; const r = resample(pts, 4), keep = [r[0]]; let acc = 0; for (let i = 1; i < r.length; i++) { acc += Math.hypot(r[i][0] - r[i - 1][0], r[i][1] - r[i - 1][1]); if (acc <= L - by) keep.push(r[i]); } keep.push(along(pts, (L - by) / L)); return keep; };
+const zigzagAlong = pts => { const r = resample(pts, 8); return r.map((p, i) => { if (i === 0 || i === r.length - 1) return p; const a = r[i - 1], b = r[i + 1], dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, o = i % 2 ? 7 : -7; return [p[0] - dy / L * o, p[1] + dx / L * o]; }).map(p => p.join(',')).join(' '); };
+const ptsAttr = pts => pts.map(p => p.join(',')).join(' ');
+
 const involves = (m, p) => m.type === 'pass' ? (m.from == p || m.to == p) : m.p == p;
 
 /* ---------- render a frame ---------- */
@@ -322,7 +354,7 @@ function render(k, t) {
       if (m.type === 'pass') {
         const a = st.pos[m.from], bEnd = (step.moves.find(x => x.p == m.to && x.type !== 'pass') || {}).to || st.pos[m.to];
         ballAt = [a[0] + (bEnd[0] - a[0]) * e, a[1] + (bEnd[1] - a[1]) * e]; holder = e >= 1 ? m.to : null;
-      } else { const a = st.pos[m.p]; pos[m.p] = [a[0] + (m.to[0] - a[0]) * e, a[1] + (m.to[1] - a[1]) * e]; }
+      } else { pos[m.p] = along(movePts(st.pos[m.p], m), e); }
     }
     if (holder != null && !step.moves.some(m => m.type === 'pass')) ballAt = pos[holder];
   }
