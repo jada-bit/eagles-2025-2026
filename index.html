@@ -2928,7 +2928,15 @@ service cloud.firestore {
             return pts[pts.length - 1];
         };
         const pbResample = (pts, step) => { const L = pbLen(pts), n = Math.max(1, Math.round(L / step)), out = []; for (let i = 0; i <= n; i++) out.push(pbAlong(pts, i / n)); return out; };
-        const pbMovePts = (from, m) => pbCurve([from, ...((m.path || []).map(o => [o.x, o.y])), m.to]);
+        // NEW: bend. A move can carry bend: {x, y}, a point the curve passes through at its middle.
+        // Drawn as a clean quadratic curve, so there are no wobbles. (path is the older freehand style.)
+        const pbBendPts = (a, b, h) => {
+            const c = [2 * h.x - (a[0] + b[0]) / 2, 2 * h.y - (a[1] + b[1]) / 2], out = [];
+            for (let i = 0; i <= 24; i++) { const t = i / 24, u = 1 - t; out.push([u * u * a[0] + 2 * u * t * c[0] + t * t * b[0], u * u * a[1] + 2 * u * t * c[1] + t * t * b[1]]); }
+            return out;
+        };
+        const pbMovePts = (from, m) => m.bend ? pbBendPts(from, m.to, m.bend) : pbCurve([from, ...((m.path || []).map(o => [o.x, o.y])), m.to]);
+        const pbHandle = (from, m) => m.bend ? [m.bend.x, m.bend.y] : pbAlong(pbMovePts(from, m), 0.5);
         const pbTrim = (pts, by) => { const L = pbLen(pts); return L <= by ? pts : pbResample(pts, 4).filter((_, i, arr) => pbLen(arr.slice(0, i + 1)) <= L - by).concat([pbAlong(pts, (L - by) / L)]); };
         const pbZigzagAlong = (pts) => {
             const r = pbResample(pts, 8);
@@ -2943,13 +2951,13 @@ service cloud.firestore {
         // The court with players, ball, and this step's arrows. t (0..1) animates the step.
         // dragMode 'place' drags players to their starting spots. dragMode 'path' draws a curved path
         // by dragging from a player. A short tap still works as a tap.
-        function PlayCourtSVG({ play, k, t, onCourtTap, onPlayerTap, selected, dragMode, onDragDone }) {
+        function PlayCourtSVG({ play, k, t, onCourtTap, onPlayerTap, selected, dragMode, onDragDone, onBend }) {
             const svgRef = React.useRef(null);
             const suppressClick = React.useRef(false);
-            const [drag, setDrag] = React.useState(null); // { p, pts }
+            const [drag, setDrag] = React.useState(null); // { p, pts } or { bend: moveIndex, pt }
             const st = pbStateAt(play, k);
             const step = play.steps[k] || { moves: [] };
-            const moves = step.moves || [];
+            const moves = (step.moves || []).map((m, i) => drag && drag.bend === i ? { ...m, bend: { x: drag.pt[0], y: drag.pt[1] } } : m);
             const pos = {}; Object.keys(st.pos).forEach(p => pos[p] = [...st.pos[p]]);
             let holder = st.ball, ballAt = st.pos[st.ball] || [250, 320];
             if (t != null) {
@@ -2978,8 +2986,15 @@ service cloud.firestore {
                 try { svgRef.current.setPointerCapture(e.pointerId); } catch (_) {}
                 setDrag({ p, pts: [pos[p]] });
             };
+            const downBend = (i) => (e) => {
+                if (!onBend || !svgRef.current) return;
+                e.stopPropagation(); e.preventDefault();
+                try { svgRef.current.setPointerCapture(e.pointerId); } catch (_) {}
+                setDrag({ bend: i, pt: toCourt(e) });
+            };
             const move = (e) => {
                 if (!drag) return;
+                if (drag.bend != null) { const pt = toCourt(e); setDrag(d => d && ({ ...d, pt })); return; }
                 const pt = toCourt(e), last = drag.pts[drag.pts.length - 1];
                 if (Math.hypot(pt[0] - last[0], pt[1] - last[1]) >= 6) setDrag(d => d && ({ ...d, pts: [...d.pts, pt] }));
             };
@@ -2987,6 +3002,7 @@ service cloud.firestore {
                 if (!drag) return;
                 suppressClick.current = true;
                 const d = drag; setDrag(null);
+                if (d.bend != null) { onBend && onBend(d.bend, d.pt); setTimeout(() => { suppressClick.current = false; }, 400); return; }
                 if (pbLen(d.pts) > 20 && onDragDone) onDragDone(d.p, d.pts); else if (onPlayerTap) onPlayerTap(d.p);
                 setTimeout(() => { suppressClick.current = false; }, 400);
             };
@@ -3023,7 +3039,7 @@ service cloud.firestore {
                     <line x1="220" y1="50" x2="280" y2="50" stroke="#222" strokeWidth="5" />
                     <circle cx="250" cy="62.5" r="7.5" fill="none" stroke="#ff6a00" strokeWidth="3" />
                     {arrows}
-                    {drag && dragMode === 'path' && drag.pts.length > 1 && <polyline points={pbCurve(drag.pts).map(q => q.join(',')).join(' ')} fill="none" stroke="#FFB81C" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />}
+                    {drag && dragMode === 'path' && drag.pts && drag.pts.length > 1 && <line x1={drag.pts[0][0]} y1={drag.pts[0][1]} x2={drag.pts[drag.pts.length - 1][0]} y2={drag.pts[drag.pts.length - 1][1]} stroke="#FFB81C" strokeWidth="4" strokeLinecap="round" pointerEvents="none" />}
                     {Object.keys(pos).map(p => {
                         const [x, y] = pos[p], sel = selected == p || (drag && drag.p == p);
                         return (
@@ -3035,6 +3051,16 @@ service cloud.firestore {
                         );
                     })}
                     <circle cx={bx} cy={by} r="8" fill="#f97316" stroke="#111" strokeWidth="1.5" pointerEvents="none" />
+                    {onBend && t == null && moves.map((m, i) => {
+                        if (m.type === 'pass' || !st.pos[m.p]) return null;
+                        const [hx, hy] = pbHandle(st.pos[m.p], m), active = drag && drag.bend === i;
+                        return (
+                            <g key={'h' + i} onPointerDown={downBend(i)} onClick={(e) => e.stopPropagation()} style={{ cursor: 'grab' }}>
+                                <circle cx={hx} cy={hy} r="20" fill="transparent" />
+                                <circle cx={hx} cy={hy} r={active ? 10 : 8} fill="#FFB81C" stroke="#111" strokeWidth="2" />
+                            </g>
+                        );
+                    })}
                 </svg>
             );
         }
@@ -3095,13 +3121,17 @@ service cloud.firestore {
                 const end = pts[pts.length - 1].map(Math.round);
                 if (k === 0) { change(d => { d.start[p] = end; }); setActor(null); return; }
                 if (tool === 'pass') return;
-                const mids = pbResample(pts, 30).slice(1, -1);
-                const step = Math.max(1, Math.ceil(mids.length / 12));
-                const path = mids.filter((_, i) => i % step === 0).map(q => ({ x: Math.round(q[0]), y: Math.round(q[1]) }));
-                change(d => { d.steps[k].moves = (d.steps[k].moves || []).filter(m => m.type === 'pass' || m.p !== p); d.steps[k].moves.push(path.length ? { p, type: tool, to: end, path } : { p, type: tool, to: end }); });
+                change(d => { d.steps[k].moves = (d.steps[k].moves || []).filter(m => m.type === 'pass' || m.p !== p); d.steps[k].moves.push({ p, type: tool, to: end }); });
                 setActor(null);
             };
             const dragMode = anim ? null : (k === 0 ? 'place' : (tool === 'pass' ? null : 'path'));
+            // NEW: drag the gold dot on a line to bend it. Dropping it back on the line straightens it.
+            const onBend = (i, pt) => change(d => {
+                const m = d.steps[k].moves[i]; if (!m || m.type === 'pass') return;
+                const a = pbStateAt(d, k).pos[m.p], mid = [(a[0] + m.to[0]) / 2, (a[1] + m.to[1]) / 2];
+                delete m.path;
+                if (Math.hypot(pt[0] - mid[0], pt[1] - mid[1]) < 10) delete m.bend; else m.bend = { x: Math.round(pt[0]), y: Math.round(pt[1]) };
+            });
 
             const addStep = () => { change(d => { d.steps.push({ say: '', moves: [], notes: {} }); }); setK(draft.steps.length); setActor(null); };
             const delStep = () => { if (k === 0) return; change(d => { d.steps.splice(k, 1); }); setK(Math.max(0, k - 1)); };
@@ -3125,7 +3155,7 @@ service cloud.firestore {
                 ? (actor == null ? 'Drag each player to their starting spot (or tap a player, then tap the spot).' : `Now tap where ${actor} starts.`)
                 : tool === 'pass'
                     ? (actor == null ? 'Tap the player passing the ball.' : `Now tap the player ${actor} passes to.`)
-                    : (actor == null ? `Drag from the player along the ${tool === 'screen' ? 'route to the screen' : tool === 'dribble' ? 'dribble' : 'cut'}. Curves are fine. Or tap the player, then tap the spot for a straight line.` : `Now tap where ${actor} ${tool === 'screen' ? 'sets the screen' : 'goes'}, for a straight line.`);
+                    : (actor == null ? `Drag a player to where they ${tool === 'screen' ? 'set the screen' : 'go'} (or tap the player, then the spot). To curve it, drag the gold dot on the line.` : `Now tap where ${actor} ${tool === 'screen' ? 'sets the screen' : 'goes'}.`);
 
             if (!draft) return (
                 <div className="space-y-4 animate-slideIn max-w-4xl mx-auto">
@@ -3169,7 +3199,7 @@ service cloud.firestore {
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                         <div className="lg:col-span-7 bento-card">
                             <div className="text-sm font-bold text-gold mb-2 min-h-[1.25rem]">{anim ? `Previewing step ${anim.k + 1}` : hint}</div>
-                            <PlayCourtSVG play={draft} k={anim ? anim.k : k} t={anim ? anim.t : null} selected={anim ? null : actor} onCourtTap={anim ? null : onCourtTap} onPlayerTap={anim ? null : onPlayerTap} dragMode={dragMode} onDragDone={onDragDone} />
+                            <PlayCourtSVG play={draft} k={anim ? anim.k : k} t={anim ? anim.t : null} selected={anim ? null : actor} onCourtTap={anim ? null : onCourtTap} onPlayerTap={anim ? null : onPlayerTap} dragMode={dragMode} onDragDone={onDragDone} onBend={anim || k === 0 ? null : onBend} />
                         </div>
 
                         <div className="lg:col-span-5 space-y-3">
@@ -3204,8 +3234,11 @@ service cloud.firestore {
                                             {(step.moves || []).length === 0 && <div className="text-xs text-zinc-500 italic">No moves yet. Pick an action above, then tap on the court.</div>}
                                             {(step.moves || []).map((m, i) => (
                                                 <div key={i} className="flex justify-between items-center text-sm bg-black/40 rounded px-2 py-1.5">
-                                                    <span>{m.type === 'pass' ? `${m.from} passes to ${m.to}` : `${m.p} ${PB_MOVE_LABEL[m.type]} the spot shown${m.path && m.path.length ? ' (curved)' : ''}`}</span>
-                                                    <button onClick={() => change(d => { d.steps[k].moves.splice(i, 1); })} className="text-zinc-500 hover:text-red-400">✕</button>
+                                                    <span>{m.type === 'pass' ? `${m.from} passes to ${m.to}` : `${m.p} ${PB_MOVE_LABEL[m.type]} the spot shown${m.bend || (m.path && m.path.length) ? ' (curved)' : ''}`}</span>
+                                                    <span className="flex items-center gap-3">
+                                                        {(m.bend || (m.path && m.path.length)) && <button onClick={() => change(d => { delete d.steps[k].moves[i].bend; delete d.steps[k].moves[i].path; })} className="text-xs text-zinc-400 underline">Straighten</button>}
+                                                        <button onClick={() => change(d => { d.steps[k].moves.splice(i, 1); })} className="text-zinc-500 hover:text-red-400">✕</button>
+                                                    </span>
                                                 </div>
                                             ))}
                                         </div>

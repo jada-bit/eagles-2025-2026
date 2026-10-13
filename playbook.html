@@ -325,7 +325,9 @@ function along(pts, f) {
   return pts[pts.length - 1];
 }
 const resample = (pts, step) => { const n = Math.max(1, Math.round(plen(pts) / step)), out = []; for (let i = 0; i <= n; i++) out.push(along(pts, i / n)); return out; };
-const movePts = (from, m) => curve([from, ...((m.path || []).map(o => [o.x, o.y])), m.to]);
+// bend: {x, y} is a point the curve passes through at its middle (a clean quadratic curve).
+const bendPts = (a, b, h) => { const c = [2 * h.x - (a[0] + b[0]) / 2, 2 * h.y - (a[1] + b[1]) / 2], out = []; for (let i = 0; i <= 24; i++) { const t = i / 24, u = 1 - t; out.push([u * u * a[0] + 2 * u * t * c[0] + t * t * b[0], u * u * a[1] + 2 * u * t * c[1] + t * t * b[1]]); } return out; };
+const movePts = (from, m) => m.bend ? bendPts(from, m.to, m.bend) : curve([from, ...((m.path || []).map(o => [o.x, o.y])), m.to]);
 const trimEnd = (pts, by) => { const L = plen(pts); if (L <= by) return pts; const r = resample(pts, 4), keep = [r[0]]; let acc = 0; for (let i = 1; i < r.length; i++) { acc += Math.hypot(r[i][0] - r[i - 1][0], r[i][1] - r[i - 1][1]); if (acc <= L - by) keep.push(r[i]); } keep.push(along(pts, (L - by) / L)); return keep; };
 const zigzagAlong = pts => { const r = resample(pts, 8); return r.map((p, i) => { if (i === 0 || i === r.length - 1) return p; const a = r[i - 1], b = r[i + 1], dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, o = i % 2 ? 7 : -7; return [p[0] - dy / L * o, p[1] + dx / L * o]; }).map(p => p.join(',')).join(' '); };
 const ptsAttr = pts => pts.map(p => p.join(',')).join(' ');
