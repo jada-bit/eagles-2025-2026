@@ -113,8 +113,8 @@
         .keypad-row { display: flex; gap: 8px; }
         .opp-pad { border: 1px solid rgba(127,29,29,0.6); background: rgba(69,10,10,0.3); border-radius: 10px; padding: 6px; display: flex; flex-direction: column; gap: 6px; }
         .shot-panel { display: flex; flex-direction: column; }
-        .court-area { width: 100%; max-width: 440px; margin: 0 auto; aspect-ratio: 500 / 470; container-type: size; display: flex; align-items: center; justify-content: center; }
-        .court-box { width: min(100cqw, calc(100cqh * 500 / 470)); }
+        .court-area { width: 100%; max-width: 440px; margin: 0 auto; aspect-ratio: 500 / 440; container-type: size; display: flex; align-items: center; justify-content: center; }
+        .court-box { width: min(100cqw, calc(100cqh * 500 / 440)); }
         .shot-list { overflow-y: auto; }
         @media (min-width: 768px) {
             .live-grid { display: grid; grid-template-columns: minmax(190px, 1fr) minmax(0, 2fr) minmax(230px, 1.4fr); flex: 1; min-height: 0; }
@@ -862,7 +862,7 @@
             }, [selectedPlayer, pendingShotStat]);
             const logShot = (pid, isThree, made, x, y) => {
                 if (!requireEditor()) return;
-                setShotLog(prev => [...prev, { id: Date.now(), team: 'us', pid, x, y, isThree, made }]);
+                setShotLog(prev => [...prev, { id: Date.now(), team: 'us', pid, x, y, isThree, made, v: 2 }]);
                 setSelectedPlayer(pid);
                 setPendingShotStat({ statKey: made ? (isThree?'fg3m':'fg2m') : (isThree?'fg3a':'fg2a'), pointVal: made ? (isThree?3:2) : 0, forPid: pid });
             };
@@ -871,7 +871,7 @@
             // *where* they're getting shots up without adding a step to enter it.
             const logOpponentShot = (isThree, made, x, y) => {
                 if (!requireEditor()) return;
-                setShotLog(prev => [...prev, { id: Date.now(), team: 'opp', x, y, isThree, made }]);
+                setShotLog(prev => [...prev, { id: Date.now(), team: 'opp', x, y, isThree, made, v: 2 }]);
                 setSelectedPlayer(OPPONENT_ID);
                 setPendingShotStat({ statKey: made ? (isThree?'fg3m':'fg2m') : (isThree?'fg3a':'fg2a'), pointVal: made ? (isThree?3:2) : 0, forPid: OPPONENT_ID });
             };
@@ -2107,13 +2107,13 @@
                                         <div>
                                             <div className="text-xs font-black text-gold uppercase mb-2 text-center">Us ({usShots.length})</div>
                                             {usShots.length > 0 ? (
-                                                <CourtSVG>{usShots.map(s => <circle key={s.id} cx={s.x} cy={s.y} r="6" fill={s.made ? '#22c55e' : '#ef4444'} fillOpacity="0.8" stroke="white" strokeWidth="1" />)}</CourtSVG>
+                                                <CourtSVG>{usShots.map(s => <circle key={s.id} cx={shotXY(s)[0]} cy={shotXY(s)[1]} r="6" fill={s.made ? '#22c55e' : '#ef4444'} fillOpacity="0.8" stroke="white" strokeWidth="1" />)}</CourtSVG>
                                             ) : <div className="text-zinc-500 text-xs italic py-8 text-center">No shots logged yet.</div>}
                                         </div>
                                         <div>
                                             <div className="text-xs font-black text-red-400 uppercase mb-2 text-center">Opponent ({oppShots.length})</div>
                                             {oppShots.length > 0 ? (
-                                                <CourtSVG>{oppShots.map(s => <circle key={s.id} cx={s.x} cy={s.y} r="6" fill={s.made ? '#22c55e' : '#ef4444'} fillOpacity="0.8" stroke="white" strokeWidth="1" />)}</CourtSVG>
+                                                <CourtSVG>{oppShots.map(s => <circle key={s.id} cx={shotXY(s)[0]} cy={shotXY(s)[1]} r="6" fill={s.made ? '#22c55e' : '#ef4444'} fillOpacity="0.8" stroke="white" strokeWidth="1" />)}</CourtSVG>
                                             ) : <div className="text-zinc-500 text-xs italic py-8 text-center">No opponent shots logged yet.</div>}
                                         </div>
                                     </div>
@@ -2618,11 +2618,11 @@ service cloud.firestore {
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <div className="text-[10px] font-black text-gold uppercase mb-1 text-center">Us ({shotLog.filter(s=>(s.team||'us')==='us').length})</div>
-                                            <CourtSVG>{shotLog.filter(s=>(s.team||'us')==='us').map(s => <circle key={s.id} cx={s.x} cy={s.y} r="6" fill={s.made ? '#22c55e' : '#ef4444'} fillOpacity="0.8" stroke="white" strokeWidth="1" />)}</CourtSVG>
+                                            <CourtSVG>{shotLog.filter(s=>(s.team||'us')==='us').map(s => <circle key={s.id} cx={shotXY(s)[0]} cy={shotXY(s)[1]} r="6" fill={s.made ? '#22c55e' : '#ef4444'} fillOpacity="0.8" stroke="white" strokeWidth="1" />)}</CourtSVG>
                                         </div>
                                         <div>
                                             <div className="text-[10px] font-black text-red-400 uppercase mb-1 text-center">Opponent ({shotLog.filter(s=>s.team==='opp').length})</div>
-                                            <CourtSVG>{shotLog.filter(s=>s.team==='opp').map(s => <circle key={s.id} cx={s.x} cy={s.y} r="6" fill={s.made ? '#22c55e' : '#ef4444'} fillOpacity="0.8" stroke="white" strokeWidth="1" />)}</CourtSVG>
+                                            <CourtSVG>{shotLog.filter(s=>s.team==='opp').map(s => <circle key={s.id} cx={shotXY(s)[0]} cy={shotXY(s)[1]} r="6" fill={s.made ? '#22c55e' : '#ef4444'} fillOpacity="0.8" stroke="white" strokeWidth="1" />)}</CourtSVG>
                                         </div>
                                     </div>
                                 </div>
@@ -2668,13 +2668,21 @@ service cloud.firestore {
         // (flipped from the original bottom-hoop orientation) — this is where taps get converted from
         // screen coordinates and classified as a 2 or 3 pointer, matching real NBA-style court
         // proportions (straight corner lines, then an arc).
-        const HOOP = { x: 250, y: 42 };
-        const THREE_PT_RADIUS = 220;
-        const THREE_PT_BREAK_Y = 150; // above this y (closer to the hoop), the 3PT line is the straight corner segment
+        // CHANGED: real high school (NFHS) half court at 10 units per foot: 50 ft wide x 42 ft deep.
+        // Baseline y=10, half court y=430, rim center 5 ft 3 in from the baseline, 3-point arc 19 ft 9 in,
+        // with straight corner lines from the baseline to the arc's center line.
+        const HOOP = { x: 250, y: 62.5 };
+        const THREE_PT_RADIUS = 197.5;
+        const THREE_PT_BREAK_Y = 62.5; // closer to the baseline than this, the 3PT line is the straight corner segment
+        const THREE_PT_CORNER_X = 52.5;
         const isThreePointShot = (x, y) => {
-            if (y <= THREE_PT_BREAK_Y) return x <= 30 || x >= 470;
+            if (y <= THREE_PT_BREAK_Y) return x <= THREE_PT_CORNER_X || x >= 500 - THREE_PT_CORNER_X;
             return Math.hypot(x - HOOP.x, y - HOOP.y) >= THREE_PT_RADIUS;
         };
+        // Shots logged on the old (inaccurate) court have no v:2. Map them onto the new court so they
+        // keep the same position relative to the rim and the 3-point line.
+        const OLD_TO_NEW = 197.5 / 220;
+        const shotXY = (sh) => sh.v === 2 ? [sh.x, sh.y] : [250 + (sh.x - 250) * OLD_TO_NEW, 62.5 + (sh.y - 42) * OLD_TO_NEW];
 
         // A real-looking half court: baseline, key, free-throw circle, restricted area, backboard,
         // rim, 3PT line (straight corners + arc), and a sliver of the half-court line/circle down low.
@@ -2692,16 +2700,23 @@ service cloud.firestore {
                 onTap(loc.x, loc.y);
             };
             return (
-                <svg ref={svgRef} viewBox="0 0 500 470" onClick={handleClick}
+                <svg ref={svgRef} viewBox="0 0 500 440" onClick={handleClick}
                      style={{ width: '100%', height: 'auto', display: 'block', cursor: onTap ? 'crosshair' : 'default', touchAction: 'manipulation', background: '#dcb386', borderRadius: '8px', border: '2px solid #333' }}>
-                    <line x1="4" y1="456" x2="496" y2="456" stroke="white" strokeWidth="2" />
-                    <circle cx="250" cy="456" r="50" fill="none" stroke="white" strokeWidth="2" />
-                    <rect x="170" y="10" width="160" height="190" fill="none" stroke="white" strokeWidth="2" />
-                    <circle cx="250" cy="200" r="60" fill="none" stroke="white" strokeWidth="2" />
-                    <path d="M 30 10 L 30 150 A 220 220 0 0 0 470 150 L 470 10" fill="none" stroke="white" strokeWidth="2" />
-                    <path d="M 210 42 A 40 40 0 0 1 290 42" fill="none" stroke="white" strokeWidth="1.5" />
-                    <line x1="212" y1="30" x2="288" y2="30" stroke="#333" strokeWidth="4" />
-                    <circle cx="250" cy="42" r="9" fill="none" stroke="#ff6a00" strokeWidth="2.5" />
+                    <rect x="190" y="10" width="120" height="190" fill="#cfa577" />
+                    <rect x="1.25" y="10" width="497.5" height="420" fill="none" stroke="white" strokeWidth="2.5" />
+                    <rect x="190" y="10" width="120" height="190" fill="none" stroke="white" strokeWidth="2.5" />
+                    <path d="M 190 200 A 60 60 0 0 0 310 200" fill="none" stroke="white" strokeWidth="2.5" />
+                    <path d="M 190 200 A 60 60 0 0 1 310 200" fill="none" stroke="white" strokeWidth="2.5" strokeDasharray="8 8" />
+                    <path d="M 52.5 10 L 52.5 62.5 A 197.5 197.5 0 0 0 447.5 62.5 L 447.5 10" fill="none" stroke="white" strokeWidth="2.5" />
+                    <path d="M 190 430 A 60 60 0 0 1 310 430" fill="none" stroke="white" strokeWidth="2.5" />
+                    {[80, 110, 140, 170].map(y => (
+                        <g key={y}>
+                            <line x1="182" y1={y} x2="190" y2={y} stroke="white" strokeWidth={y === 80 ? 7 : 2} />
+                            <line x1="310" y1={y} x2="318" y2={y} stroke="white" strokeWidth={y === 80 ? 7 : 2} />
+                        </g>
+                    ))}
+                    <line x1="220" y1="50" x2="280" y2="50" stroke="#333" strokeWidth="5" />
+                    <circle cx="250" cy="62.5" r="7.5" fill="none" stroke="#ff6a00" strokeWidth="3" />
                     {children}
                 </svg>
             );
