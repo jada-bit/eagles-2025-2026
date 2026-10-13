@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <!-- iOS APP CONFIGURATION -->
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -30,13 +30,17 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+    <script>
+        // NEW: offline app shell (see sw.js). After one visit on wifi, the app opens even without signal.
+        if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {})); }
+    </script>
     <style>
         :root { --gold: #FFB81C; --black: #050505; --red: #ef4444; --green: #22c55e; --blue: #3b82f6; --zinc: #18181b; }
         body { background-color: var(--black); color: white; font-family: 'Barlow Condensed', system-ui, -apple-system, sans-serif; -webkit-print-color-adjust: exact; touch-action: manipulation; }
         
         /* UTILS */
         .bento-card { background: rgba(30, 30, 30, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 1.25rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); }
-        .nav-btn { font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 10px 14px; border-radius: 99px; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; white-space: nowrap; }
+        .nav-btn { font-size: 12px; font-weight: 800; text-transform: uppercase; padding: 10px 14px; border-radius: 99px; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; white-space: nowrap; }
         .active-nav { background-color: var(--gold); color: black; box-shadow: 0 0 15px rgba(255, 184, 28, 0.3); }
         .inactive-nav { background: rgba(255,255,255,0.05); color: #888; }
         
@@ -45,15 +49,21 @@
         .score-val { font-size: 3rem; font-weight: 900; line-height: 1; text-align: center; }
         .score-label { font-size: 0.7rem; font-weight: 900; letter-spacing: 2px; color: #888; text-transform: uppercase; }
         
-        .coach-hud { display: grid; grid-template-columns: repeat(4, 1fr) auto; gap: 6px; padding: 8px; background: #111; border-bottom: 1px solid #333; align-items: center; }
+        .coach-hud { display: grid; grid-template-columns: repeat(6, 1fr) auto; gap: 6px; padding: 8px; background: #111; border-bottom: 1px solid #333; align-items: center; }
         .hud-box { text-align: center; background: #222; padding: 6px; border-radius: 6px; border: 1px solid #333; position: relative; }
-        .hud-label { font-size: 8px; font-weight: 900; color: #888; text-transform: uppercase; }
-        .hud-val { font-size: 14px; font-weight: 900; color: white; }
-        .bonus-badge { position: absolute; top: -5px; right: -5px; background: red; color: white; font-size: 8px; font-weight: 900; padding: 2px 4px; border-radius: 4px; animation: pulse 2s infinite; }
+        .hud-label { font-size: 11px; font-weight: 900; color: #888; text-transform: uppercase; }
+        .hud-val { font-size: 20px; font-weight: 900; color: white; }
+        .bonus-badge { position: absolute; top: -8px; right: -5px; background: red; color: white; font-size: 10px; white-space: nowrap; font-weight: 900; padding: 2px 4px; border-radius: 4px; animation: pulse 2s infinite; }
         
+        /* NEW: iPad sizing. Tiny 9-10px labels are bumped up on tablet-width screens. */
+        @media (min-width: 768px) {
+            .text-\[9px\] { font-size: 11px !important; }
+            .text-\[10px\] { font-size: 12px !important; }
+        }
+
         /* TIMEOUTS & POSSESSION */
         .timeout-pills { display: flex; gap: 4px; justify-content: center; margin-top: 4px; }
-        .to-pill { width: 18px; height: 18px; border-radius: 50%; font-size: 8px; font-weight: 900; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 1px solid #333; transition: 0.2s; }
+        .to-pill { width: 30px; height: 30px; border-radius: 50%; font-size: 11px; font-weight: 900; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 1px solid #333; transition: 0.2s; }
         .to-pill.active { background: var(--gold); color: black; border-color: white; }
         .to-pill.used { background: #333; color: #555; border-color: #222; }
         
@@ -62,7 +72,7 @@
 
         /* QUARTER SELECTOR */
         .q-selector { display: flex; gap: 2px; padding: 2px; background: #222; border-radius: 6px; justify-content: center; }
-        .q-btn { flex: 1; padding: 6px 4px; font-size: 10px; font-weight: 900; color: #666; background: transparent; border-radius: 4px; transition: all 0.2s; border: 1px solid transparent; }
+        .q-btn { flex: 1; padding: 10px 4px; font-size: 13px; font-weight: 900; color: #666; background: transparent; border-radius: 4px; transition: all 0.2s; border: 1px solid transparent; }
         .q-btn.active { background: var(--gold); color: black; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
         .q-btn:hover:not(.active) { background: rgba(255,255,255,0.1); color: white; }
 
@@ -84,7 +94,7 @@
         .kb-player-btn.selected { background: var(--gold); color: black; border-color: white; transform: scale(1.02); box-shadow: 0 0 15px rgba(255, 184, 28, 0.4); z-index: 10; }
         .kb-opp-btn { background: #450a0a; border: 1px solid #ef4444; color: white; }
         .kb-opp-btn.selected { background: #ef4444; color: white; border-color: white; transform: scale(1.02); box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
-        .kb-stat-btn { height: 100%; width: 100%; min-height: 50px; border-radius: 6px; font-weight: 900; font-size: 12px; text-transform: uppercase; display: flex; align-items: center; justify-content: center; transition: 0.1s; border: 1px solid rgba(255,255,255,0.1); }
+        .kb-stat-btn { height: 100%; width: 100%; min-height: 56px; border-radius: 6px; font-weight: 900; font-size: 15px; text-transform: uppercase; display: flex; align-items: center; justify-content: center; transition: 0.1s; border: 1px solid rgba(255,255,255,0.1); }
         .kb-stat-btn:active { transform: scale(0.95); }
         .bg-make { background: #166534; color: white; }
         .bg-miss { background: #7f1d1d; color: white; }
@@ -113,7 +123,7 @@
         .stat-row:hover { background: rgba(255,255,255,0.05); }
         .stat-input { background: #111; border: 1px solid #333; color: white; padding: 4px; text-align: center; border-radius: 4px; width: 100%; font-weight: bold; font-size: 12px; }
         .stepper-btn { width: 20px; height: 24px; display: flex; align-items: center; justify-content: center; background: #222; border: 1px solid #333; color: #888; font-size: 10px; cursor: pointer; border-radius: 4px; }
-        .sub-icon { position: absolute; top: 4px; right: 4px; font-size: 10px; background: #333; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; border: 1px solid #555; }
+        .sub-icon { position: absolute; top: 4px; right: 4px; font-size: 14px; background: #333; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; border: 1px solid #555; }
         .sub-icon:hover { background: var(--gold); color: black; }
         .player-card-bench { background: #111; border: 1px solid #333; border-radius: 8px; padding: 12px; cursor: pointer; opacity: 0.6; display: flex; align-items: center; justify-content: space-between; transition: 0.2s; }
         .player-card-bench:hover { border-color: var(--gold); opacity: 1; background: #222; }
@@ -236,6 +246,13 @@
             const [loading, setLoading] = React.useState(true);
             const [db, setDb] = React.useState(null);
             const [toasts, setToasts] = React.useState([]);
+            // NEW: connection status for the offline badge.
+            const [isOnline, setIsOnline] = React.useState(navigator.onLine);
+            React.useEffect(() => {
+                const up = () => setIsOnline(true), down = () => setIsOnline(false);
+                window.addEventListener('online', up); window.addEventListener('offline', down);
+                return () => { window.removeEventListener('online', up); window.removeEventListener('offline', down); };
+            }, []);
 
             // NEW: access control. currentUser comes from Firebase Auth (Email/Password). isEditor is
             // true only for accounts listed in ALLOWED_EDITORS above — everyone else (including anyone
@@ -324,6 +341,8 @@
             const [timeouts, setTimeoutsRaw] = useStickyState(defaultTimeouts(), 'eagles_timeouts');
             const [possession, setPossessionRaw] = useStickyState('home', 'eagles_possession');
             const [quarterFouls, setQuarterFoulsRaw] = useStickyState(0, 'eagles_q_fouls');
+            // NEW: opponent team fouls this period, so the HUD can show when WE are in the bonus.
+            const [oppQuarterFouls, setOppQuarterFoulsRaw] = useStickyState(0, 'eagles_opp_q_fouls');
 
             // NEW: true while viewing/editing an OLD saved game (via Log > Edit). While true, changes are
             // local-only and are not broadcast to (or overwritten by) the shared live game in Firestore,
@@ -357,6 +376,7 @@
             const setTimeouts = guardedUpdate(setTimeoutsRaw, 'timeouts');
             const setPossession = guardedUpdate(setPossessionRaw, 'possession');
             const setQuarterFouls = guardedUpdate(setQuarterFoulsRaw, 'quarterFouls');
+            const setOppQuarterFouls = guardedUpdate(setOppQuarterFoulsRaw, 'oppQuarterFouls');
             const setPlusMinus = guardedUpdate(setPlusMinusRaw, 'plusMinus');
             const setShotLog = guardedUpdate(setShotLogRaw, 'shotLog');
 
@@ -372,6 +392,7 @@
                 setTimeoutsRaw(data.timeouts || defaultTimeouts());
                 setPossessionRaw(data.possession || 'home');
                 setQuarterFoulsRaw(data.quarterFouls || 0);
+                setOppQuarterFoulsRaw(data.oppQuarterFouls || 0);
                 setPlusMinusRaw(data.plusMinus || {});
                 setShotLogRaw(data.shotLog || []);
                 setPotgOverrideRaw(data.potgOverride || null);
@@ -420,6 +441,7 @@
             // NEW: Scouting reports, one doc per opponent (see 'scoutingReports' collection below).
             // Every coach's notes for an opponent live together so they combine instead of overwrite.
             const [scoutReports, setScoutReports] = React.useState({});
+            const [scoutSection, setScoutSection] = React.useState('Personnel');
             const [selectedScoutOpp, setSelectedScoutOpp] = React.useState('');
             const [scoutAuthor, setScoutAuthor] = useStickyState('', 'eagles_scout_author');
             const [scoutNoteDraft, setScoutNoteDraft] = React.useState('');
@@ -444,6 +466,9 @@
                     const firebaseConfig = { apiKey: "AIzaSyA5H5SsumWG7bym_0EZ7jOlfWeswpSauhk", authDomain: "eagles-stats.firebaseapp.com", projectId: "eagles-stats", appId: "1:386723096734:web:b50e343c703983e838b38f" };
                     if(window.firebase && !firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
                     const d = firebase.firestore();
+                    // NEW: keep data on the iPad when the gym signal drops. Writes queue locally (and
+                    // survive a reload) and sync automatically once the connection is back.
+                    d.enablePersistence({ synchronizeTabs: true }).catch(() => {});
                     setDb(d);
 
                     // NEW: track sign-in state for access control (see ALLOWED_EDITORS/isEditor above).
@@ -538,6 +563,7 @@
                         showToast(`${periodLabel(q)} started. Team fouls carried over.`, "info");
                     } else {
                         setQuarterFouls(0);
+                        setOppQuarterFouls(0);
                         showToast(`${periodLabel(q)} started. Fouls reset.`, "info");
                     }
                 }
@@ -634,6 +660,7 @@
                     if (statKey === 'fg3m') updates['fg3a'] = (opponentStats.fg3a || 0) + 1;
                     if (statKey === 'ftm') updates['fta'] = (opponentStats.fta || 0) + 1;
                     setOpponentStats(prev => ({ ...prev, ...updates }));
+                    if (statKey === 'pf') setOppQuarterFouls(prev => prev + 1);
                     if (pointVal > 0) { setGameMeta(prev => ({ ...prev, oppScore: prev.oppScore + pointVal })); applyLineupSwing(-pointVal); }
                     logItem.type = 'opp'; logItem.name = 'Opponent'; logItem.desc = `${label} ${pointVal>0?`(+${pointVal})`:''}`;
                     setEventLog(prev => [logItem, ...prev].slice(0, 30)); 
@@ -735,6 +762,7 @@
                         return { ...prev, ...u };
                     });
                     if (event.val > 0) setGameMeta(prev => ({ ...prev, oppScore: Math.max(0, prev.oppScore - event.val) }));
+                    if (event.stat === 'pf') setOppQuarterFouls(prev => Math.max(0, prev - 1));
                 } else {
                     const pName = ROSTER.find(r => r.id === event.pid).name;
                     // Decrement Team Fouls if undoing a PF
@@ -781,6 +809,7 @@
                 setOpponentStats({fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0,to:0});
                 setGameMeta(prev => ({ ...prev, oppScore: 0, quarter: 1 }));
                 setQuarterFouls(0);
+                setOppQuarterFouls(0);
                 setTimeouts({ full: [true,true,true], thirty: [true,true] });
                 setEventLog([]);
                 setPlusMinus({});
@@ -919,10 +948,12 @@
                 // CHANGED: every saved game is now tagged with the active team and season.
                 const payload = { ...gameMeta, team: activeTeam, season: activeSeason, teamScore: tScore, stats, opponentStats, playStats, plusMinus, shotLog, potg, result: tScore > gameMeta.oppScore ? 'W' : 'L', updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
                 try { 
-                    if(editId) await db.collection('games').doc(editId).update(payload); 
-                    else await db.collection('games').add(payload); 
-                    showToast("Game Saved Successfully!", "success"); 
-                    setPlayerStats({}); setOpponentStats({fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0,to:0}); setEventLog([]); setQuarterFouls(0); setTimeouts({ full: [true,true,true], thirty: [true,true] });
+                    // NEW: don't wait on the network. The write lands on this device right away and syncs
+                    // when the connection is back, so Save Game never hangs on bad gym wifi.
+                    const write = editId ? db.collection('games').doc(editId).update(payload) : db.collection('games').doc().set(payload);
+                    write.catch(e => showToast("Saved game could not sync: " + e.message, "error"));
+                    showToast(navigator.onLine ? "Game Saved Successfully!" : "Game saved on this iPad. It will sync when you're back online.", "success"); 
+                    setPlayerStats({}); setOpponentStats({fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0,to:0}); setEventLog([]); setQuarterFouls(0); setOppQuarterFouls(0); setTimeouts({ full: [true,true,true], thirty: [true,true] });
                     setGameMeta({ date: new Date().toISOString().split('T')[0], opp: '', oppScore: 0, venue: 'Home', quarter: 1 }); setPlusMinus({}); setShotLog([]); setTrackingOpponent(false); setPotgOverride(null); setEditId(null); setView('log'); 
                     // NEW: if we were only editing an old saved game, the resets above were local-only
                     // (editingHistoryRef suppressed the push). Now that editing is done, drop the
@@ -1138,17 +1169,19 @@
             // notes appended from any coach so they combine instead of one coach overwriting another's.
             const slugifyOpponent = (name) => (name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'unknown';
             const allOpponents = Array.from(new Set(games.filter(g => (g.team||'varsity')===activeTeam).map(g => g.opp).filter(Boolean))).sort();
-            const addScoutNote = async (oppDisplayName, author, text) => {
+            // NEW: the five sections of the one-page scouting report.
+            const SCOUT_SECTIONS = ['Personnel', 'Offense', 'Defense', 'Inbounds', 'Keys to the game'];
+            const addScoutNote = async (oppDisplayName, author, text, section) => {
                 if (!requireEditor()) return;
                 if (!oppDisplayName || !oppDisplayName.trim()) return showToast("Enter an opponent name first", "error");
                 if (!text || !text.trim()) return showToast("Note can't be empty", "error");
                 const key = slugifyOpponent(oppDisplayName);
-                const note = { id: Date.now(), author: (author||'Coach').trim(), text: text.trim(), date: new Date().toISOString() };
-                try {
-                    await db.collection('scoutingReports').doc(key).set({ opp: oppDisplayName.trim(), notes: firebase.firestore.FieldValue.arrayUnion(note) }, { merge: true });
-                    setScoutNoteDraft('');
-                    showToast("Scouting note added", "success");
-                } catch(e) { showToast("Error saving note: " + e.message, "error"); }
+                const note = { id: Date.now(), author: (author||'Coach').trim(), text: text.trim(), date: new Date().toISOString(), section: section || 'Other' };
+                // NEW: no waiting on the network here either.
+                db.collection('scoutingReports').doc(key).set({ opp: oppDisplayName.trim(), notes: firebase.firestore.FieldValue.arrayUnion(note) }, { merge: true })
+                    .catch(e => showToast("Error saving note: " + e.message, "error"));
+                setScoutNoteDraft('');
+                showToast(`Added to ${note.section}`, "success");
             };
             const removeScoutNote = async (oppKey, note) => {
                 if (!requireEditor()) return;
@@ -1322,6 +1355,7 @@
                             ) : (
                                 <button onClick={()=>setShowSignIn(true)} className="bg-blue-700 hover:bg-blue-600 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-full">🔒 Sign In To Edit</button>
                             ))}
+                            {!isOnline && <span className="bg-orange-900/40 border border-orange-600 text-orange-300 text-[10px] font-black uppercase px-2 py-1 rounded-full">Offline. Stats save on this iPad</span>}
                             {currentUser && <button onClick={signOutUser} className="text-[10px] font-bold text-zinc-500 hover:text-white uppercase underline">Sign Out</button>}
                         </div>
                         <nav className="flex flex-col gap-1 w-full md:w-auto">
@@ -1362,7 +1396,7 @@
                     {view === 'live' && (
                         <div className="flex flex-col h-[85vh] overflow-hidden">
                             {authReady && !isEditor && (
-                                <div className="bg-yellow-900/30 border border-yellow-700 text-yellow-300 text-xs font-bold uppercase text-center py-2 rounded-lg mb-2">👁️ View Only — sign in on the Admin tab to record stats</div>
+                                <div className="bg-yellow-900/30 border border-yellow-700 text-yellow-300 text-xs font-bold uppercase text-center py-2 rounded-lg mb-2">👁️ View only. Tap Sign In To Edit at the top to record stats</div>
                             )}
                             {activeLineup.length > 0 && activePlayers.length < activeLineup.length && (
                                 <div className="bg-red-900/30 border border-red-700 text-red-300 text-xs font-bold uppercase text-center py-2 rounded-lg mb-2 flex items-center justify-between gap-2 px-3">
@@ -1372,12 +1406,13 @@
                             )}
                             <div className="live-header">
                                 <div className="score-box"><div className="score-label">EAGLES</div><div className="score-val text-gold">{getTeamScore()}</div>
+                                    <div className="text-[10px] text-zinc-500 font-bold text-center mt-1">Timeouts left (60 sec / 30 sec)</div>
                                     <div className="timeout-pills">
-                                        {timeouts.full.map((t,i)=><div key={`f-${i}`} onClick={()=>toggleTimeout('full',i)} className={`to-pill ${t?'active':'used'}`}>F</div>)}
+                                        {timeouts.full.map((t,i)=><div key={`f-${i}`} onClick={()=>toggleTimeout('full',i)} className={`to-pill ${t?'active':'used'}`}>60</div>)}
                                         {timeouts.thirty.map((t,i)=><div key={`30-${i}`} onClick={()=>toggleTimeout('thirty',i)} className={`to-pill ${t?'active':'used'}`}>30</div>)}
                                     </div>
                                 </div>
-                                <div className="flex flex-col items-center gap-1"><div onClick={togglePossession} className="poss-arrow text-white">{possession==='home'?'⬅️':'➡️'}</div><div className="text-zinc-600 font-black text-xs">POSS</div></div>
+                                <div className="flex flex-col items-center gap-1"><div onClick={togglePossession} className="poss-arrow text-white">{possession==='home'?'⬅️':'➡️'}</div><div className="text-zinc-500 font-black text-xs text-center leading-tight">Possession<br/>arrow</div></div>
                                 <div className="score-box"><div className="flex justify-center mb-1"><div onClick={()=>setTrackingOpponent(true)} className="score-val text-white cursor-pointer" title="Opponent points are added from the Opponent panel so every basket is logged and can be undone">{gameMeta.oppScore}</div></div><input value={gameMeta.opp} onChange={e=>setGameMeta({...gameMeta, opp:e.target.value})} className="bg-transparent border-0 text-center score-label w-full outline-none placeholder-zinc-700" placeholder="OPPONENT"/></div>
                             </div>
                             
@@ -1405,11 +1440,12 @@
 
                             {/* COACH HUD */}
                             <div className="coach-hud">
-                                <div className="q-selector">{Array.from({length: Math.min(8, Math.max(5, gameMeta.quarter + 1))}, (_, i) => i + 1).map(q=><button key={q} onClick={()=>changeQuarter(q)} className={`q-btn ${gameMeta.quarter===q?'active':''}`}>{periodLabel(q)}</button>)}</div>
-                                <div className="hud-box"><div className="hud-label">TEAM FOULS</div><div className={`hud-val ${quarterFouls>=5?'text-red-500':'text-white'}`}>{quarterFouls}</div>{quarterFouls>=5 && <div className="bonus-badge">BONUS</div>}</div>
-                                <div className="hud-box"><div className="hud-label">FG%</div><div className={`hud-val ${insights.fgPct>=45?'text-green-500':(insights.fgPct<30?'text-red-500':'text-white')}`}>{insights.fgPct}%</div></div>
-                                <div className="hud-box"><div className="hud-label">TO</div><div className={`hud-val ${insights.teamTO>=12?'text-red-500':'text-white'}`}>{insights.teamTO}</div></div>
-                                <button onClick={()=>setShowSnapshot(true)} className="bg-blue-600 text-white text-[10px] font-black uppercase p-2 rounded h-full">📊 SNAPSHOT</button>
+                                <div className="q-selector" style={{gridColumn:'span 2'}}>{Array.from({length: Math.min(8, Math.max(5, gameMeta.quarter + 1))}, (_, i) => i + 1).map(q=><button key={q} onClick={()=>changeQuarter(q)} className={`q-btn ${gameMeta.quarter===q?'active':''}`}>{periodLabel(q)}</button>)}</div>
+                                <div className="hud-box"><div className="hud-label">Our fouls</div><div className={`hud-val ${quarterFouls>=5?'text-red-500':'text-white'}`}>{quarterFouls}</div>{quarterFouls>=5 && <div className="bonus-badge">They shoot</div>}</div>
+                                <div className="hud-box"><div className="hud-label">Their fouls</div><div className={`hud-val ${oppQuarterFouls>=5?'text-green-500':'text-white'}`}>{oppQuarterFouls}</div>{oppQuarterFouls>=5 && <div className="bonus-badge" style={{background:'#16a34a'}}>We shoot</div>}</div>
+                                <div className="hud-box"><div className="hud-label">Our FG%</div><div className={`hud-val ${insights.fgPct>=45?'text-green-500':(insights.fgPct<30?'text-red-500':'text-white')}`}>{insights.fgPct}%</div></div>
+                                <div className="hud-box"><div className="hud-label">Turnovers</div><div className={`hud-val ${insights.teamTO>=12?'text-red-500':'text-white'}`}>{insights.teamTO}</div></div>
+                                <button onClick={()=>setShowSnapshot(true)} className="bg-blue-600 text-white text-[10px] font-black uppercase p-2 rounded h-full">📊 Quick summary</button>
                             </div>
                             
                             {insights.alerts.length > 0 && (
@@ -1433,7 +1469,7 @@
                                     })}
                                     <div onClick={() => setTrackingOpponent(true)} className={`kb-player-btn kb-opp-btn ${trackingOpponent ? 'selected' : ''}`}>
                                         <div className="text-xl font-black italic tracking-widest">OPPONENT</div>
-                                        <div className="text-[10px] opacity-70">Track Scoring</div>
+                                        <div className="text-[10px] opacity-70">Tap to log their shots</div>
                                     </div>
                                     
                                     {/* LIVE EVENT FEED (UNDO LIST) */}
@@ -1458,15 +1494,15 @@
                                         <>
                                             <div className="h-10 flex items-center justify-center text-red-400 font-bold uppercase text-xs border-b border-red-900/30">TRACKING OPPONENT SCORING</div>
                                             <OpponentShotChartPanel activePlayers={activePlayers} onCommit={logOpponentShot} onRebound={logRebound} />
-                                            <div className="flex gap-2"><button onClick={() => logOpponentAction('ftm', 1)} className="kb-stat-btn bg-make text-xl" style={{minHeight:'44px'}}>Opp FT (+1)</button><button onClick={() => logOpponentAction('fta')} className="kb-stat-btn bg-miss text-xl" style={{minHeight:'44px'}}>Opp FT Miss</button></div>
-                                            <button onClick={() => logOpponentAction('to')} className="kb-stat-btn bg-neg" style={{minHeight:'44px'}}>Opp TO (travel / bad pass / etc)</button>
+                                            <div className="flex gap-2"><button onClick={() => logOpponentAction('ftm', 1)} className="kb-stat-btn bg-make text-xl" style={{minHeight:'56px'}}>Opp FT (+1)</button><button onClick={() => logOpponentAction('fta')} className="kb-stat-btn bg-miss text-xl" style={{minHeight:'56px'}}>Opp FT Miss</button></div>
+                                            <div className="flex gap-2"><button onClick={() => logOpponentAction('to')} className="kb-stat-btn bg-neg" style={{minHeight:'56px'}}>Their turnover</button><button onClick={() => logOpponentAction('pf')} className="kb-stat-btn bg-neg" style={{minHeight:'56px'}}>Their foul</button></div>
                                         </>
                                     ) : (
                                         <>
                                             <ShotChartPanel activePlayers={activePlayers} onCommit={logShot} onRebound={logRebound} onAssist={logAssist} />
-                                            <div className="flex gap-2"><button onClick={() => startAction('ftm', 1, 'FT made')} className="kb-stat-btn bg-make" style={{minHeight:'44px'}}>FT MAKE (+1)</button><button onClick={() => startAction('fta', 0, 'FT missed')} className="kb-stat-btn bg-miss" style={{minHeight:'44px'}}>FT MISS</button></div>
-                                            <div className="flex gap-2"><button onClick={() => startAction('reb', 0, 'Rebound')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>REBOUND</button><button onClick={() => startAction('ast', 0, 'Assist')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>ASSIST</button><button onClick={() => startAction('stl', 0, 'Steal')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>STEAL</button></div>
-                                            <div className="flex gap-2"><button onClick={() => startAction('blk', 0, 'Block')} className="kb-stat-btn bg-action" style={{minHeight:'44px'}}>BLOCK</button><button onClick={() => startAction('to', 0, 'Turnover')} className="kb-stat-btn bg-neg" style={{minHeight:'44px'}}>TURNOVER</button><button onClick={() => startAction('pf', 0, 'Foul')} className="kb-stat-btn bg-neg" style={{minHeight:'44px'}}>FOUL</button></div>
+                                            <div className="flex gap-2"><button onClick={() => startAction('ftm', 1, 'FT made')} className="kb-stat-btn bg-make" style={{minHeight:'56px'}}>FT MAKE (+1)</button><button onClick={() => startAction('fta', 0, 'FT missed')} className="kb-stat-btn bg-miss" style={{minHeight:'56px'}}>FT MISS</button></div>
+                                            <div className="flex gap-2"><button onClick={() => startAction('reb', 0, 'Rebound')} className="kb-stat-btn bg-action" style={{minHeight:'56px'}}>REBOUND</button><button onClick={() => startAction('ast', 0, 'Assist')} className="kb-stat-btn bg-action" style={{minHeight:'56px'}}>ASSIST</button><button onClick={() => startAction('stl', 0, 'Steal')} className="kb-stat-btn bg-action" style={{minHeight:'56px'}}>STEAL</button></div>
+                                            <div className="flex gap-2"><button onClick={() => startAction('blk', 0, 'Block')} className="kb-stat-btn bg-action" style={{minHeight:'56px'}}>BLOCK</button><button onClick={() => startAction('to', 0, 'Turnover')} className="kb-stat-btn bg-neg" style={{minHeight:'56px'}}>TURNOVER</button><button onClick={() => startAction('pf', 0, 'Foul')} className="kb-stat-btn bg-neg" style={{minHeight:'56px'}}>OUR FOUL</button><button onClick={() => logOpponentAction('pf')} className="kb-stat-btn bg-neg" style={{minHeight:'56px'}}>THEIR FOUL</button></div>
                                         </>
                                     )}
                                 </div>
@@ -1739,23 +1775,38 @@
                                 <>
                                 <div className="bento-card space-y-3 border-t-4 border-gold">
                                     <div className="text-lg font-black uppercase italic">{selectedScoutOpp}</div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {SCOUT_SECTIONS.map(sec => (<button key={sec} onClick={()=>setScoutSection(sec)} className={`nav-btn ${scoutSection===sec?'active-nav':'inactive-nav'}`}>{sec}</button>))}
+                                    </div>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                         <input className="bg-black border border-zinc-700 p-2 rounded text-white font-bold text-sm" placeholder="Your name" value={scoutAuthor} onChange={e=>setScoutAuthor(e.target.value)} />
-                                        <textarea className="md:col-span-2 bg-black border border-zinc-700 p-2 rounded text-white font-bold text-sm" rows="2" placeholder="What did you see? (presses full court, goes right, etc.)" value={scoutNoteDraft} onChange={e=>setScoutNoteDraft(e.target.value)} />
+                                        <textarea className="md:col-span-2 bg-black border border-zinc-700 p-2 rounded text-white font-bold text-sm" rows="2" placeholder={{'Personnel':'Top scorers, shooters, who goes left or right, foul trouble risks','Offense':'Sets they run, who gets the ball late, transition habits','Defense':'Man or zone, press, how they guard ball screens','Inbounds':'Sideline and baseline plays, who they look for','Keys to the game':'The three things that decide this game'}[scoutSection]} value={scoutNoteDraft} onChange={e=>setScoutNoteDraft(e.target.value)} />
                                     </div>
-                                    <button onClick={()=>addScoutNote(selectedScoutOpp, scoutAuthor, scoutNoteDraft)} className="w-full py-3 bg-gold hover:bg-white text-black font-black uppercase text-xs rounded-lg">+ Add Note</button>
+                                    <button onClick={()=>addScoutNote(selectedScoutOpp, scoutAuthor, scoutNoteDraft, scoutSection)} className="w-full py-3 bg-gold hover:bg-white text-black font-black uppercase text-xs rounded-lg">+ Add to {scoutSection}</button>
                                 </div>
 
-                                <div className="space-y-2">
-                                    {scoutNotesForOpp.length > 0 ? scoutNotesForOpp.map(note => (
-                                        <div key={note.id} className="bento-card flex items-start justify-between gap-3">
-                                            <div>
-                                                <div className="text-[10px] font-black text-gold uppercase mb-1">{note.author} • {new Date(note.date).toLocaleDateString()}</div>
-                                                <div className="text-sm">{note.text}</div>
+                                {/* NEW: the report, grouped into the five sections. Notes from a first meeting stay here for the rematch. */}
+                                <div className="space-y-4">
+                                    {scoutNotesForOpp.length === 0 && <div className="text-center text-zinc-500 italic py-8">No notes yet for {selectedScoutOpp}. Pick a section and add the first one above.</div>}
+                                    {[...SCOUT_SECTIONS, 'Other'].map(sec => {
+                                        const secNotes = scoutNotesForOpp.filter(n => (n.section || 'Other') === sec);
+                                        if (scoutNotesForOpp.length === 0 || (sec === 'Other' && secNotes.length === 0)) return null;
+                                        return (
+                                            <div key={sec} className="bento-card space-y-2">
+                                                <div className="text-sm font-black uppercase text-gold">{sec === 'Other' ? 'Earlier notes' : sec}</div>
+                                                {secNotes.length === 0 && <div className="text-xs text-zinc-500 italic">Nothing yet.</div>}
+                                                {secNotes.map(note => (
+                                                    <div key={note.id} className="flex items-start justify-between gap-3 border-t border-zinc-800 pt-2">
+                                                        <div>
+                                                            <div className="text-sm">{note.text}</div>
+                                                            <div className="text-[10px] font-bold text-zinc-500 uppercase mt-1">{note.author} • {new Date(note.date).toLocaleDateString()}</div>
+                                                        </div>
+                                                        {isEditor && <button onClick={()=>removeScoutNote(scoutOppKey, note)} className="text-zinc-600 hover:text-red-400 text-lg leading-none">✕</button>}
+                                                    </div>
+                                                ))}
                                             </div>
-                                            {isEditor && <button onClick={()=>removeScoutNote(scoutOppKey, note)} className="text-zinc-600 hover:text-red-400 text-lg leading-none">✕</button>}
-                                        </div>
-                                    )) : <div className="text-center text-zinc-500 italic py-8">No notes yet for {selectedScoutOpp}. Add the first one above.</div>}
+                                        );
+                                    })}
                                 </div>
                                 </>
                             )}
@@ -2018,7 +2069,8 @@ service cloud.firestore {
                                 <div className="flex justify-between items-center bg-black/40 border border-white/10 rounded-lg p-3 mb-4 text-center">
                                     <div><div className="text-[9px] text-zinc-500 uppercase font-bold">Score</div><div className="text-lg font-black">{getTeamScore()}-{gameMeta.oppScore}</div></div>
                                     <div><div className="text-[9px] text-zinc-500 uppercase font-bold">Quarter</div><div className="text-lg font-black">{periodLabel(gameMeta.quarter)}</div></div>
-                                    <div><div className="text-[9px] text-zinc-500 uppercase font-bold">Team Fouls</div><div className={`text-lg font-black ${quarterFouls>=5?'text-red-500':'text-white'}`}>{quarterFouls}{quarterFouls>=5?' (BONUS)':''}</div></div>
+                                    <div><div className="text-[9px] text-zinc-500 uppercase font-bold">Our Fouls</div><div className={`text-lg font-black ${quarterFouls>=5?'text-red-500':'text-white'}`}>{quarterFouls}{quarterFouls>=5?' (they shoot)':''}</div></div>
+                                    <div><div className="text-[9px] text-zinc-500 uppercase font-bold">Their Fouls</div><div className={`text-lg font-black ${oppQuarterFouls>=5?'text-green-500':'text-white'}`}>{oppQuarterFouls}{oppQuarterFouls>=5?' (we shoot)':''}</div></div>
                                     <div><div className="text-[9px] text-zinc-500 uppercase font-bold">Timeouts</div><div className="text-lg font-black">{timeouts.full.filter(Boolean).length}F / {timeouts.thirty.filter(Boolean).length}×30</div></div>
                                 </div>
 
@@ -2185,7 +2237,7 @@ service cloud.firestore {
                         {step === 'assist' && <span className="text-green-400">Basket Made — Who Assisted?</span>}
                         {step === 'rebound' && <span className="text-white">Missed — Who Got The Rebound?</span>}
                     </div>
-                    <div style={{maxWidth: '300px', margin: '0 auto'}}>
+                    <div style={{maxWidth: 'min(100%, 46vh)', margin: '0 auto'}}>
                         <CourtSVG onTap={step === 'location' ? handleTap : undefined}>
                             {pending && <circle cx={pending.x} cy={pending.y} r="9" fill={pending.isThree ? '#3b82f6' : '#FFB81C'} stroke="white" strokeWidth="2" />}
                         </CourtSVG>
@@ -2252,7 +2304,7 @@ service cloud.firestore {
                         {step === 'result' && <span className={pending.isThree ? 'text-blue-400' : 'text-gold'}>Opp {pending.isThree ? '3PT' : '2PT'} — Made or Missed?</span>}
                         {step === 'rebound' && <span className="text-white">They Missed — Did We Get The Board?</span>}
                     </div>
-                    <div style={{maxWidth: '300px', margin: '0 auto'}}>
+                    <div style={{maxWidth: 'min(100%, 46vh)', margin: '0 auto'}}>
                         <CourtSVG onTap={step === 'location' ? handleTap : undefined}>
                             {pending && <circle cx={pending.x} cy={pending.y} r="9" fill="#ef4444" stroke="white" strokeWidth="2" />}
                         </CourtSVG>
