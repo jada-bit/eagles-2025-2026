@@ -220,7 +220,7 @@
         // Nothing in test mode reads or changes real data, and real mode never sees test data.
         const TEST_MODE = new URLSearchParams(window.location.search).has('test');
         const COL = (name) => TEST_MODE ? `test_${name}` : name;
-        const TEST_COLLECTIONS = ['games', 'liveGames', 'rosters', 'scoutingReports', 'settings', 'gutChecks'];
+        const TEST_COLLECTIONS = ['games', 'liveGames', 'rosters', 'scoutingReports', 'settings', 'gutChecks', 'plays'];
         const TEST_SEED = {
             varsity: Array.from({ length: 10 }, (_, i) => ({ id: i + 1, name: `Varsity Test${i + 1}`, pos: 'G' })),
             jv: Array.from({ length: 10 }, (_, i) => ({ id: i + 21, name: `JV Test${i + 1}`, pos: 'G' }))
@@ -325,10 +325,10 @@
         const NAV_GROUPS = [
             { name: 'Game', tabs: ['live', 'log', 'new'] },
             { name: 'Team', tabs: ['goals', 'stats', 'trends', 'profiles', 'season report'] },
-            { name: 'Prep', tabs: ['scout', 'practice', 'tactics', 'clipboard', 'ask coach'] },
+            { name: 'Prep', tabs: ['scout', 'playbook', 'practice', 'tactics', 'clipboard', 'ask coach'] },
             { name: 'Admin', tabs: ['admin'] }
         ];
-        const TAB_LABELS = { goals: 'Goals', live: 'Live game', log: 'Game log', new: 'Edit box score', stats: 'Stats', trends: 'Trends', profiles: 'Player profiles', 'season report': 'Season report', scout: 'Scout', practice: 'Practice focus', tactics: 'Tactics', clipboard: 'Clipboard', 'ask coach': 'Ask coach', admin: 'Admin' };
+        const TAB_LABELS = { playbook: 'Playbook', goals: 'Goals', live: 'Live game', log: 'Game log', new: 'Edit box score', stats: 'Stats', trends: 'Trends', profiles: 'Player profiles', 'season report': 'Season report', scout: 'Scout', practice: 'Practice focus', tactics: 'Tactics', clipboard: 'Clipboard', 'ask coach': 'Ask coach', admin: 'Admin' };
         const STAT_KEEPER_TABS = ['live'];
 
         // NEW: access control. Anyone with the link can VIEW everything (stats, history, roster) — no
@@ -1508,9 +1508,11 @@
             // NEW: weekly full backup (games + rosters + scouting) with a reminder banner for coaches.
             const [lastBackup, setLastBackup] = useStickyState(0, 'eagles_last_backup');
             const backupDue = isAdmin && games.length > 0 && (Date.now() - (lastBackup || 0)) > 7 * 24 * 60 * 60 * 1000;
-            const downloadBackup = () => {
+            const downloadBackup = async () => {
                 if (!isAdmin) return;
-                const data = { exportedAt: new Date().toISOString(), games, rosters: rosterData, scoutingReports: scoutReports, goals: goalsConfig || {}, gutChecks };
+                let plays = [];
+                try { const ps = await db.collection(COL('plays')).get(); plays = ps.docs.map(d => ({ id: d.id, ...d.data() })); } catch (e) {}
+                const data = { exportedAt: new Date().toISOString(), games, rosters: rosterData, scoutingReports: scoutReports, goals: goalsConfig || {}, gutChecks, plays };
                 const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a'); a.href = url; a.download = `eagles_${TEST_MODE ? 'TEST_' : ''}full_backup_${localToday()}.json`;
@@ -1532,6 +1534,7 @@
                         Object.values(data.scoutingReports || {}).forEach(r => { const { id, ...rest } = r; if (id) writes.push([db.collection(COL('scoutingReports')).doc(id), rest]); });
                         if (data.goals && Object.keys(data.goals).length) writes.push([db.collection(COL('settings')).doc('goals'), data.goals]);
                         (data.gutChecks || []).forEach(x => { const { id, ...rest } = x; if (id) writes.push([db.collection(COL('gutChecks')).doc(id), rest]); });
+                        (data.plays || []).forEach(x => { const { id, ...rest } = x; if (id) writes.push([db.collection(COL('plays')).doc(id), rest]); });
                         for (let k = 0; k < writes.length; k += 400) {
                             const batch = db.batch();
                             writes.slice(k, k + 400).forEach(([ref, val]) => batch.set(ref, val, { merge: true }));
@@ -2134,6 +2137,8 @@
                             )) : <div className="bento-card text-center text-zinc-500 italic py-12">{visibleGames.length < 2 ? "Need at least 2 games to build a practice focus." : "Nothing trending down right now — no clear area to flag for practice."}</div>}
                         </div>
                     )}
+
+                    {view === 'playbook' && isAdmin && <PlayBuilder db={db} isAdmin={isAdmin} showToast={showToast} author={currentUser?.email} />}
 
                     {view === 'scout' && (
                         <div className="space-y-4 animate-slideIn max-w-3xl mx-auto">
@@ -2877,6 +2882,280 @@ service cloud.firestore {
         // edit a player's name/number/position inline, remove a player, or add a new one. Every change
         // is written straight to Firestore (via the onAdd/onUpdate/onRemove callbacks from App), so it
         // shows up on every device within a second or two — no app update or code edit needed.
+        // ===================================================================================
+        // NEW: PLAY BUILDER (coaches only). Plays are saved to Firestore ('plays'). Published
+        // plays show up on playbook.html for players. Same court and drawing as the playbook.
+        // ===================================================================================
+        const PLAY_CATEGORIES = ['Half-court offense', 'Press break', 'Baseline inbounds', 'Sideline inbounds', 'Defense', 'Special situations'];
+        const PB_DEFAULT_START = { 1: [250, 320], 2: [80, 245], 3: [420, 245], 4: [178, 88], 5: [322, 88] };
+        const pbNewPlay = () => ({ name: '', category: PLAY_CATEGORIES[0], summary: '', video: '', published: false, start: JSON.parse(JSON.stringify(PB_DEFAULT_START)), ball: 1, steps: [{ say: '', moves: [], notes: {} }] });
+        const pbStateAt = (play, k) => {
+            const pos = {}; Object.keys(play.start).forEach(p => pos[p] = [...play.start[p]]);
+            let ball = play.ball;
+            for (let i = 0; i < k; i++) (play.steps[i].moves || []).forEach(m => { if (m.type === 'pass') ball = m.to; else pos[m.p] = [...m.to]; });
+            return { pos, ball };
+        };
+        const pbShorten = (a, b, by) => { const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1; return [b[0] - dx / L * by, b[1] - dy / L * by]; };
+        const pbZigzag = (a, b) => {
+            const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, n = Math.max(4, Math.floor(L / 16)), pts = [a];
+            for (let i = 1; i < n; i++) { const t = i / n, o = i % 2 ? 7 : -7; pts.push([a[0] + dx * t + nx * o, a[1] + dy * t + ny * o]); }
+            pts.push(b); return pts.map(p => p.join(',')).join(' ');
+        };
+        const PB_MOVE_LABEL = { cut: 'cuts to', dribble: 'dribbles to', screen: 'sets a screen at', pass: 'passes to' };
+
+        // The court with players, ball, and this step's arrows. t (0..1) animates the step.
+        function PlayCourtSVG({ play, k, t, onCourtTap, onPlayerTap, selected }) {
+            const svgRef = React.useRef(null);
+            const st = pbStateAt(play, k);
+            const step = play.steps[k] || { moves: [] };
+            const moves = step.moves || [];
+            const pos = {}; Object.keys(st.pos).forEach(p => pos[p] = [...st.pos[p]]);
+            let holder = st.ball, ballAt = st.pos[st.ball] || [250, 320];
+            if (t != null) {
+                const e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+                moves.forEach(m => {
+                    if (m.type === 'pass') {
+                        const a = st.pos[m.from], recv = moves.find(x => x.p == m.to && x.type !== 'pass'), b = recv ? recv.to : st.pos[m.to];
+                        if (a && b) { ballAt = [a[0] + (b[0] - a[0]) * e, a[1] + (b[1] - a[1]) * e]; holder = e >= 1 ? m.to : null; }
+                    } else if (st.pos[m.p]) { const a = st.pos[m.p]; pos[m.p] = [a[0] + (m.to[0] - a[0]) * e, a[1] + (m.to[1] - a[1]) * e]; }
+                });
+            }
+            const click = (e) => {
+                if (!onCourtTap || !svgRef.current) return;
+                const pt = svgRef.current.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+                const loc = pt.matrixTransform(svgRef.current.getScreenCTM().inverse());
+                onCourtTap([Math.round(Math.max(-5, Math.min(505, loc.x))), Math.round(Math.max(-45, Math.min(432, loc.y)))]);
+            };
+            const line = { stroke: 'white', strokeWidth: 2.5, fill: 'none' };
+            const arrows = t == null ? moves.map((m, i) => {
+                if (m.type === 'pass') {
+                    const a = st.pos[m.from], b0 = st.pos[m.to]; if (!a || !b0) return null; const b = pbShorten(a, b0, 20);
+                    return <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#111" strokeWidth="3" strokeDasharray="9 7" markerEnd="url(#pbAh)" />;
+                }
+                const a = st.pos[m.p]; if (!a) return null; const b = m.to;
+                if (m.type === 'dribble') return <polyline key={i} points={pbZigzag(a, pbShorten(a, b, 4))} fill="none" stroke="#111" strokeWidth="2.5" markerEnd="url(#pbAh)" />;
+                if (m.type === 'screen') {
+                    const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L * 13, ny = dx / L * 13;
+                    return <g key={i}><line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#111" strokeWidth="3" /><line x1={b[0] + nx} y1={b[1] + ny} x2={b[0] - nx} y2={b[1] - ny} stroke="#111" strokeWidth="5" strokeLinecap="round" /></g>;
+                }
+                const e2 = pbShorten(a, b, 4);
+                return <line key={i} x1={a[0]} y1={a[1]} x2={e2[0]} y2={e2[1]} stroke="#111" strokeWidth="3" markerEnd="url(#pbAh)" />;
+            }) : null;
+            const bx = holder != null && pos[holder] ? pos[holder][0] + 14 : ballAt[0], by = holder != null && pos[holder] ? pos[holder][1] - 14 : ballAt[1];
+            return (
+                <svg ref={svgRef} viewBox="-12 -55 524 495" onClick={click} style={{ width: '100%', height: 'auto', display: 'block', touchAction: 'manipulation', cursor: onCourtTap ? 'crosshair' : 'default' }}>
+                    <defs><marker id="pbAh" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#111" /></marker></defs>
+                    <rect x="-12" y="-55" width="524" height="495" fill="#3a2c1e" rx="10" />
+                    <text x="14" y="-32" fill="#c9a87f" fontSize="14" fontWeight="700">OUT OF BOUNDS</text>
+                    <rect x="0" y="10" width="500" height="420" fill="#d9b083" />
+                    <rect x="190" y="10" width="120" height="190" fill="#cfa577" />
+                    <rect x="0" y="10" width="500" height="420" {...line} />
+                    <rect x="190" y="10" width="120" height="190" {...line} />
+                    <path d="M 190 200 A 60 60 0 0 0 310 200" {...line} />
+                    <path d="M 190 200 A 60 60 0 0 1 310 200" {...line} strokeDasharray="8 8" />
+                    <path d="M 52.5 10 L 52.5 62.5 A 197.5 197.5 0 0 0 447.5 62.5 L 447.5 10" {...line} />
+                    <path d="M 190 430 A 60 60 0 0 1 310 430" {...line} />
+                    <line x1="220" y1="50" x2="280" y2="50" stroke="#222" strokeWidth="5" />
+                    <circle cx="250" cy="62.5" r="7.5" fill="none" stroke="#ff6a00" strokeWidth="3" />
+                    {arrows}
+                    {Object.keys(pos).map(p => {
+                        const [x, y] = pos[p], sel = selected == p;
+                        return (
+                            <g key={p} onClick={(e) => { if (onPlayerTap) { e.stopPropagation(); onPlayerTap(+p); } }} style={{ cursor: onPlayerTap ? 'pointer' : 'default' }}>
+                                {sel && <circle cx={x} cy={y} r="27" fill="none" stroke="#FFB81C" strokeWidth="4" />}
+                                <circle cx={x} cy={y} r="19" fill={sel ? '#FFB81C' : '#1f3a8a'} stroke="#fff" strokeWidth="2.5" />
+                                <text x={x} y={y + 7} textAnchor="middle" fontSize="21" fontWeight="800" fill={sel ? '#111' : '#fff'}>{p}</text>
+                            </g>
+                        );
+                    })}
+                    <circle cx={bx} cy={by} r="8" fill="#f97316" stroke="#111" strokeWidth="1.5" pointerEvents="none" />
+                </svg>
+            );
+        }
+
+        function PlayBuilder({ db, isAdmin, showToast, author }) {
+            const [plays, setPlays] = React.useState([]);
+            const [draft, setDraft] = React.useState(null);
+            const [editId, setEditId] = React.useState(null);
+            const [k, setK] = React.useState(0);
+            const [tool, setTool] = React.useState('cut');
+            const [actor, setActor] = React.useState(null);
+            const [anim, setAnim] = React.useState(null); // { k, t }
+            const [dirty, setDirty] = React.useState(false);
+            const rafRef = React.useRef(null);
+
+            React.useEffect(() => {
+                if (!db || !isAdmin) return;
+                return db.collection(COL('plays')).onSnapshot(snap => setPlays(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.category || '').localeCompare(b.category || '') || (a.name || '').localeCompare(b.name || ''))), () => {});
+            }, [db, isAdmin]);
+            React.useEffect(() => () => rafRef.current && cancelAnimationFrame(rafRef.current), []);
+
+            const change = (fn) => { setDraft(d => { const n = JSON.parse(JSON.stringify(d)); fn(n); return n; }); setDirty(true); };
+            const open = (p) => { if (dirty && !confirm("Leave without saving your changes?")) return; const { id, updatedAt, author: au, ...rest } = p; setDraft(JSON.parse(JSON.stringify({ ...pbNewPlay(), ...rest }))); setEditId(id || null); setK(0); setActor(null); setDirty(false); };
+            const close = () => { if (dirty && !confirm("Leave without saving your changes?")) return; setDraft(null); setEditId(null); setDirty(false); };
+            const save = () => {
+                if (!draft.name.trim()) return showToast("Give the play a name first", "error");
+                const ref = editId ? db.collection(COL('plays')).doc(editId) : db.collection(COL('plays')).doc();
+                ref.set({ ...draft, name: draft.name.trim(), updatedAt: new Date().toISOString(), author: author || 'Coach' }).catch(e => showToast("Couldn't save the play: " + e.message, "error"));
+                setEditId(ref.id); setDirty(false);
+                showToast(draft.published ? "Saved. Players can see this play." : "Saved as a draft. Players can't see it yet.", "success");
+            };
+            const remove = () => {
+                if (!editId) { setDraft(null); return; }
+                if (!confirm(`Delete "${draft.name || 'this play'}"? Players will no longer see it.`)) return;
+                db.collection(COL('plays')).doc(editId).delete().catch(e => showToast("Couldn't delete: " + e.message, "error"));
+                setDraft(null); setEditId(null); setDirty(false); showToast("Play deleted", "info");
+            };
+
+            // Taps on the court and on players
+            const onPlayerTap = (p) => {
+                if (k === 0) { setActor(actor === p ? null : p); return; }
+                if (tool === 'pass' && actor != null && actor !== p) {
+                    change(d => { d.steps[k].moves = (d.steps[k].moves || []).filter(m => !(m.type === 'pass')); d.steps[k].moves.push({ type: 'pass', from: actor, to: p }); });
+                    setActor(null); return;
+                }
+                setActor(actor === p ? null : p);
+            };
+            const onCourtTap = (pt) => {
+                if (actor == null) return;
+                if (k === 0) { change(d => { d.start[actor] = pt; }); return; }
+                if (tool === 'pass') return;
+                change(d => { d.steps[k].moves = (d.steps[k].moves || []).filter(m => m.type === 'pass' || m.p !== actor); d.steps[k].moves.push({ p: actor, type: tool, to: pt }); });
+                setActor(null);
+            };
+
+            const addStep = () => { change(d => { d.steps.push({ say: '', moves: [], notes: {} }); }); setK(draft.steps.length); setActor(null); };
+            const delStep = () => { if (k === 0) return; change(d => { d.steps.splice(k, 1); }); setK(Math.max(0, k - 1)); };
+            const moveStep = (dir) => { const j = k + dir; if (k === 0 || j < 1 || j >= draft.steps.length) return; change(d => { const tmp = d.steps[k]; d.steps[k] = d.steps[j]; d.steps[j] = tmp; }); setK(j); };
+
+            const preview = () => {
+                if (rafRef.current) cancelAnimationFrame(rafRef.current);
+                const n = draft.steps.length; let kk = 1, t0 = null;
+                if (n < 2) return showToast("Add a step to preview the play", "error");
+                const tick = (now) => {
+                    if (t0 == null) t0 = now;
+                    const t = Math.min(1, (now - t0) / 1300);
+                    setAnim({ k: kk, t });
+                    if (t >= 1) { if (kk < n - 1) { kk++; t0 = now + 500; } else { setTimeout(() => setAnim(null), 800); return; } }
+                    rafRef.current = requestAnimationFrame(tick);
+                };
+                rafRef.current = requestAnimationFrame(tick);
+            };
+
+            const hint = k === 0
+                ? (actor == null ? 'Tap a player, then tap their starting spot.' : `Now tap where ${actor} starts.`)
+                : tool === 'pass'
+                    ? (actor == null ? 'Tap the player passing the ball.' : `Now tap the player ${actor} passes to.`)
+                    : (actor == null ? `Tap the player who ${tool === 'screen' ? 'sets the screen' : tool === 'dribble' ? 'dribbles' : 'cuts'}.` : `Now tap where ${actor} ${tool === 'screen' ? 'sets the screen' : 'goes'}.`);
+
+            if (!draft) return (
+                <div className="space-y-4 animate-slideIn max-w-4xl mx-auto">
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
+                        <div>
+                            <h2 className="text-2xl font-black uppercase">Playbook</h2>
+                            <p className="text-sm text-zinc-400">Build plays here. Published plays show up for players on the playbook page. Drafts stay hidden.</p>
+                        </div>
+                        <div className="flex gap-2">
+                            <a href={TEST_MODE ? 'playbook.html?test' : 'playbook.html'} target="_blank" rel="noopener" className="py-2 px-4 bg-zinc-800 hover:bg-zinc-700 rounded font-black uppercase text-xs">Open player view</a>
+                            <button onClick={() => open(pbNewPlay())} className="py-2 px-4 bg-gold text-black rounded font-black uppercase text-xs">+ New play</button>
+                        </div>
+                    </div>
+                    {plays.length === 0 && <div className="bento-card text-center text-zinc-400 py-10">No plays yet. Tap <b>New play</b> to build the first one. Until you publish one, players see the two sample plays.</div>}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {plays.map(p => (
+                            <button key={p.id} onClick={() => open(p)} className="bento-card text-left hover:border-gold">
+                                <div className="flex justify-between items-start gap-2">
+                                    <div><div className="font-black text-lg">{p.name}</div><div className="text-xs text-zinc-400">{p.category} • {(p.steps || []).length} steps{p.video ? ' • video' : ''}</div></div>
+                                    <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-full border ${p.published ? 'border-green-600 text-green-300' : 'border-zinc-600 text-zinc-400'}`}>{p.published ? 'Published' : 'Draft'}</span>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            );
+
+            const step = draft.steps[k] || { moves: [] };
+            return (
+                <div className="space-y-4 animate-slideIn">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <button onClick={close} className="text-sm text-zinc-400 underline">← All plays</button>
+                        <div className="flex gap-2 flex-wrap">
+                            <label className="flex items-center gap-2 text-sm bg-zinc-900 border border-zinc-700 rounded px-3 py-2"><input type="checkbox" checked={!!draft.published} onChange={e => change(d => { d.published = e.target.checked; })} /> Published (players can see it)</label>
+                            <button onClick={preview} className="py-2 px-4 bg-zinc-800 rounded font-black uppercase text-xs">▶ Preview</button>
+                            <button onClick={save} className="py-2 px-4 bg-gold text-black rounded font-black uppercase text-xs">{dirty ? 'Save play' : 'Saved'}</button>
+                            <button onClick={remove} className="py-2 px-3 text-red-400 text-xs underline">Delete</button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                        <div className="lg:col-span-7 bento-card">
+                            <div className="text-sm font-bold text-gold mb-2 min-h-[1.25rem]">{anim ? `Previewing step ${anim.k + 1}` : hint}</div>
+                            <PlayCourtSVG play={draft} k={anim ? anim.k : k} t={anim ? anim.t : null} selected={anim ? null : actor} onCourtTap={anim ? null : onCourtTap} onPlayerTap={anim ? null : onPlayerTap} />
+                        </div>
+
+                        <div className="lg:col-span-5 space-y-3">
+                            <div className="bento-card space-y-2">
+                                <input className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" placeholder="Play name" value={draft.name} onChange={e => change(d => { d.name = e.target.value; })} />
+                                <select className="w-full bg-black border border-zinc-700 p-2 rounded text-white text-sm" value={draft.category} onChange={e => change(d => { d.category = e.target.value; })}>{PLAY_CATEGORIES.map(c => <option key={c}>{c}</option>)}</select>
+                                <textarea rows="2" className="w-full bg-black border border-zinc-700 p-2 rounded text-white text-sm" placeholder="One-line summary (when we run it)" value={draft.summary} onChange={e => change(d => { d.summary = e.target.value; })} />
+                                <input className="w-full bg-black border border-zinc-700 p-2 rounded text-white text-sm" placeholder="Video link (optional: unlisted YouTube or Google Drive)" value={draft.video || ''} onChange={e => change(d => { d.video = e.target.value.trim(); })} />
+                            </div>
+
+                            <div className="bento-card space-y-3">
+                                <div className="flex flex-wrap gap-1">
+                                    {draft.steps.map((_, i) => (
+                                        <button key={i} onClick={() => { setK(i); setActor(null); }} className={`nav-btn ${k === i ? 'active-nav' : 'inactive-nav'}`}>{i === 0 ? 'Setup' : `Step ${i + 1}`}</button>
+                                    ))}
+                                    <button onClick={addStep} className="nav-btn inactive-nav">+ Step</button>
+                                </div>
+
+                                {k === 0 ? (
+                                    <div className="space-y-2">
+                                        <div className="text-xs text-zinc-400">Place all five players where they start.</div>
+                                        <div className="flex items-center gap-2 text-sm"><span className="text-zinc-400">Ball starts with</span>
+                                            {[1, 2, 3, 4, 5].map(p => <button key={p} onClick={() => change(d => { d.ball = p; })} className={`w-9 h-9 rounded-full font-black ${draft.ball === p ? 'bg-orange-500 text-black' : 'bg-zinc-800'}`}>{p}</button>)}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        <div className="grid grid-cols-4 gap-1">
+                                            {['cut', 'dribble', 'screen', 'pass'].map(tl => <button key={tl} onClick={() => { setTool(tl); setActor(null); }} className={`py-2 rounded font-black uppercase text-xs ${tool === tl ? 'bg-gold text-black' : 'bg-zinc-800 text-zinc-300'}`}>{tl}</button>)}
+                                        </div>
+                                        <div className="space-y-1">
+                                            {(step.moves || []).length === 0 && <div className="text-xs text-zinc-500 italic">No moves yet. Pick an action above, then tap on the court.</div>}
+                                            {(step.moves || []).map((m, i) => (
+                                                <div key={i} className="flex justify-between items-center text-sm bg-black/40 rounded px-2 py-1.5">
+                                                    <span>{m.type === 'pass' ? `${m.from} passes to ${m.to}` : `${m.p} ${PB_MOVE_LABEL[m.type]} the spot shown`}</span>
+                                                    <button onClick={() => change(d => { d.steps[k].moves.splice(i, 1); })} className="text-zinc-500 hover:text-red-400">✕</button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="flex gap-2 text-xs">
+                                            <button onClick={() => moveStep(-1)} className="underline text-zinc-400">Move earlier</button>
+                                            <button onClick={() => moveStep(1)} className="underline text-zinc-400">Move later</button>
+                                            <button onClick={delStep} className="underline text-red-400 ml-auto">Delete step</button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <textarea rows="2" className="w-full bg-black border border-zinc-700 p-2 rounded text-white text-sm" placeholder={k === 0 ? 'Setup caption (for example, Horns set: 4 and 5 at the elbows)' : 'What happens in this step, in one sentence'} value={step.say || ''} onChange={e => change(d => { d.steps[k].say = e.target.value; })} />
+                                <details>
+                                    <summary className="text-xs text-gold cursor-pointer">"Your job" notes by position (optional)</summary>
+                                    <div className="space-y-1 mt-2">
+                                        {[1, 2, 3, 4, 5].map(p => (
+                                            <div key={p} className="flex items-center gap-2"><span className="w-6 text-center font-black">{p}</span>
+                                                <input className="flex-1 bg-black border border-zinc-700 p-1.5 rounded text-white text-sm" placeholder="Leave blank to auto-fill" value={(step.notes || {})[p] || ''} onChange={e => change(d => { d.steps[k].notes = d.steps[k].notes || {}; if (e.target.value) d.steps[k].notes[p] = e.target.value; else delete d.steps[k].notes[p]; })} />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </details>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         function RosterManager({ rosterData, rosterLoaded, initialTeam, onAdd, onUpdate, onRemove }) {
             // CHANGED: was hardcoded to 'varsity' regardless of which team you were actually viewing in
             // the app — easy to add/edit a player on the wrong team's roster without noticing. Now opens

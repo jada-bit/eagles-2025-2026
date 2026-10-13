@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Eagles Playbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --bg:#08090b; --panel:#15161a; --panel2:#1d1f24; --line:#2c2f36; --ink:#f4f4f5; --muted:#a1a1aa;
+  --gold:#FFB81C; --wood:#d9b083; --wood2:#cfa577; --courtline:#ffffff; --oob:#3a2c1e;
+  --us:#1f3a8a; --pass:#0f172a; --red:#ef4444;
+  color-scheme:dark;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Barlow",system-ui,-apple-system,sans-serif;line-height:1.45;touch-action:manipulation}
+h1,h2,h3,.cond{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.wrap{max-width:1100px;margin:0 auto;padding:16px}
+
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+header h1{margin:0;font-size:clamp(2rem,6vw,3rem);font-weight:800;line-height:.95;font-style:italic;text-transform:uppercase}
+header h1 span{color:var(--gold)}
+header p{margin:4px 0 0;color:var(--muted)}
+
+.plays{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px}
+.play-btn{flex:none;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;text-align:left;min-width:170px}
+.play-btn[aria-pressed="true"]{border-color:var(--gold);background:#231c0b}
+.play-btn b{display:block;font-family:"Barlow Condensed",sans-serif;font-size:1.25rem;line-height:1.1}
+.play-btn small{color:var(--muted)}
+.tag{display:inline-block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 6px;border-radius:99px;background:#3b2a07;color:var(--gold);margin-left:6px;vertical-align:2px}
+
+.layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,1fr);gap:14px;align-items:start}
+.court-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:10px}
+svg.court{display:block;width:100%;height:auto;max-height:72vh;touch-action:manipulation}
+
+.side{display:flex;flex-direction:column;gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px}
+.card h2{margin:0 0 2px;font-size:1.6rem;line-height:1.05}
+.muted{color:var(--muted)}
+.seg{display:flex;background:var(--panel2);border-radius:12px;padding:4px;gap:4px}
+.seg button{flex:1;border:0;background:none;padding:10px 8px;border-radius:9px;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:1.15rem;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--gold);color:#111}
+.label{font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:12px 0 6px}
+.spots{display:flex;gap:6px}
+.spots button{flex:1;min-height:46px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:1.25rem}
+.spots button[aria-pressed="true"]{background:var(--gold);color:#111;border-color:var(--gold)}
+.controls{display:flex;gap:8px;margin-top:12px}
+.controls button{flex:1;min-height:52px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);font-weight:700;font-size:1rem}
+.controls button.primary{background:var(--gold);color:#111;border-color:var(--gold)}
+.controls button:disabled{opacity:.35;cursor:default}
+.speed{display:flex;gap:6px;margin-top:8px}
+.speed button{flex:1;min-height:40px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--muted);font-weight:700}
+.speed button[aria-pressed="true"]{color:var(--ink);border-color:var(--ink)}
+
+.caption{background:var(--panel2);border-radius:12px;padding:12px 14px;margin-top:12px;min-height:92px}
+.caption .stepno{font-family:"Barlow Condensed",sans-serif;font-weight:700;color:var(--gold);font-size:1rem}
+.caption .say{font-size:1.1rem;margin-top:2px}
+.caption .mine{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-weight:600}
+.caption .mine::before{content:"Your job: ";color:var(--gold)}
+.dots{display:flex;gap:6px;margin-top:10px}
+.dots span{flex:1;height:5px;border-radius:99px;background:var(--line)}
+.dots span.done{background:var(--gold)}
+.dots span.now{background:#fff}
+
+.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;font-size:.9rem;color:var(--muted)}
+.legend svg{width:38px;height:12px;vertical-align:middle;margin-right:6px}
+
+#videoBox{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:10px;overflow:hidden}
+#videoBox iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+#videoBox a{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--gold);font-weight:700;font-size:1.1rem;text-decoration:underline}
+.empty{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;color:var(--muted)}
+footer{margin-top:18px;color:var(--muted);font-size:.85rem}
+
+@media (max-width:820px){
+  .layout{grid-template-columns:1fr}
+  svg.court{max-height:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Eagles <span>Playbook</span></h1>
+      <p>Freedom Girls Basketball. Watch it, step through it, then find your spot.</p>
+    </div>
+  </header>
+
+  <nav class="plays" id="plays" aria-label="Plays"></nav>
+
+  <div class="layout">
+    <div class="court-card">
+      <svg class="court" id="court" viewBox="-12 -55 524 495" role="img" aria-label="Play diagram"></svg>
+      <div id="videoBox" hidden></div>
+    </div>
+
+    <div class="side">
+      <div class="card">
+        <h2 id="playName"></h2>
+        <div class="muted" id="playSummary"></div>
+
+        <div class="label">Mode</div>
+        <div class="seg" role="group" aria-label="Mode">
+          <button id="modeWatch" aria-pressed="true">Watch</button>
+          <button id="modeStep" aria-pressed="false">Step by step</button>
+          <button id="modeVideo" aria-pressed="false" hidden>Video</button>
+        </div>
+
+        <div id="diagramOnly">
+        <div class="label">My spot</div>
+        <div class="spots" id="spots" role="group" aria-label="Highlight a position"></div>
+
+        <div class="controls" id="controls"></div>
+        <div class="speed" id="speedRow" role="group" aria-label="Speed">
+          <button data-speed="0.5" aria-pressed="false">Slow</button>
+          <button data-speed="1" aria-pressed="true">Normal</button>
+        </div>
+
+        <div class="caption" aria-live="polite">
+          <div class="stepno" id="stepNo"></div>
+          <div class="say" id="say"></div>
+          <div class="mine" id="mine" hidden></div>
+          <div class="dots" id="dots"></div>
+        </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="label" style="margin-top:0">How to read it</div>
+        <div class="legend">
+          <div><svg viewBox="0 0 38 12"><line x1="2" y1="6" x2="30" y2="6" stroke="#fff" stroke-width="2.5"/><path d="M30 2 L37 6 L30 10 Z" fill="#fff"/></svg>Cut (run)</div>
+          <div><svg viewBox="0 0 38 12"><line x1="2" y1="6" x2="30" y2="6" stroke="#fff" stroke-width="2.5" stroke-dasharray="4 4"/><path d="M30 2 L37 6 L30 10 Z" fill="#fff"/></svg>Pass</div>
+          <div><svg viewBox="0 0 38 12"><polyline points="2,6 6,2 10,10 14,2 18,10 22,2 26,6 30,6" fill="none" stroke="#fff" stroke-width="2"/><path d="M30 2 L37 6 L30 10 Z" fill="#fff"/></svg>Dribble</div>
+          <div><svg viewBox="0 0 38 12"><line x1="2" y1="6" x2="32" y2="6" stroke="#fff" stroke-width="2.5"/><line x1="32" y1="0" x2="32" y2="12" stroke="#fff" stroke-width="3"/></svg>Screen</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Plays only. No player names or stats are on this page.</footer>
+</div>
+
+<script>
+/* =====================================================================
+   PLAYS. Edit or add plays here. No other code needs to change.
+   Court: a real high school half court, 10 units per foot, basket at the top.
+   x runs 0 (left sideline) to 500 (right sideline). y runs 10 (baseline)
+   down to 430 (half court).
+   Handy spots:
+     basket 250,62     left block 178,88     right block 322,88
+     left elbow 180,205     right elbow 320,205     top of key 250,320
+     left wing 80,245       right wing 420,245
+     left corner 28,40      right corner 472,40
+     out of bounds under our basket: y around -25
+   Each step has:
+     say:   what happens, in one sentence
+     moves: what moves this step
+       { p: 4, type: 'cut' | 'dribble' | 'screen', to: [x, y] }
+       { type: 'pass', from: 1, to: 4 }
+     notes: optional "your job" text for a position, e.g. { 2: 'Wait, then curl hard' }
+   ===================================================================== */
+const SAMPLE_PLAYS = [
+  {
+    name: 'Horns Down',
+    category: 'Half-court offense',
+    sample: true,
+    summary: 'Sample play to show how the playbook works. Swap in our real plays after the coaches decide the system.',
+    start: { 1: [250, 320], 2: [28, 40], 3: [472, 40], 4: [180, 205], 5: [320, 205] },
+    ball: 1,
+    steps: [
+      { say: 'Everyone sets up in Horns: 4 and 5 at the elbows, 2 and 3 in the corners, 1 at the top with the ball.', moves: [],
+        notes: { 1: 'Bring the ball to the top of the key', 2: 'Get to the left corner', 3: 'Get to the right corner', 4: 'Left elbow, ready to catch', 5: 'Right elbow' } },
+      { say: '1 passes to 4 at the left elbow.', moves: [ { type: 'pass', from: 1, to: 4 } ],
+        notes: { 1: 'Pass to 4, then get ready to move', 4: 'Show your hands and catch' } },
+      { say: '5 sets a down screen for 3. 3 comes off it to the right wing. 1 slides to the left wing to keep spacing.',
+        moves: [ { p: 5, type: 'screen', to: [440, 110] }, { p: 3, type: 'cut', to: [420, 245] }, { p: 1, type: 'cut', to: [80, 250] } ],
+        notes: { 3: 'Wait for the screen, then cut hard to the wing', 5: 'Sprint down and set the screen on 3\'s defender', 1: 'Fill the left wing' } },
+      { say: '4 passes to 3 on the wing. 5 seals inside on the right block.',
+        moves: [ { type: 'pass', from: 4, to: 3 }, { p: 5, type: 'cut', to: [322, 88] } ],
+        notes: { 4: 'Pass to 3 as soon as 3 is open', 3: 'Catch ready to shoot', 5: 'Pin your defender and post up' } },
+      { say: '3 looks inside first. If 5 is open, pass for the layup. If not, shoot or reset.',
+        moves: [ { type: 'pass', from: 3, to: 5 } ],
+        notes: { 3: 'Look inside to 5 first', 5: 'Big target, finish strong', 2: 'Stay in the corner for a kick-out', 1: 'Stay spaced on the wing' } }
+    ]
+  },
+  {
+    name: 'Box Under',
+    category: 'Baseline inbounds',
+    sample: true,
+    summary: 'Sample inbounds play from under our basket. Shows how inbounds plays will look.',
+    start: { 1: [300, -28], 2: [180, 205], 3: [320, 205], 4: [178, 88], 5: [322, 88] },
+    ball: 1,
+    steps: [
+      { say: 'Box set: 4 and 5 on the blocks, 2 and 3 at the elbows. 1 takes the ball out under the basket.', moves: [],
+        notes: { 1: 'Inbound under the basket, slap the ball to start', 2: 'Left elbow', 3: 'Right elbow', 4: 'Left block', 5: 'Right block' } },
+      { say: '4 screens up for 2. 2 cuts hard to the left corner.',
+        moves: [ { p: 4, type: 'screen', to: [185, 168] }, { p: 2, type: 'cut', to: [30, 45] } ],
+        notes: { 4: 'Step up and screen 2\'s defender', 2: 'Use the screen and sprint to the corner' } },
+      { say: '5 screens across for 3. 3 cuts to the basket.',
+        moves: [ { p: 5, type: 'screen', to: [282, 150] }, { p: 3, type: 'cut', to: [266, 95] } ],
+        notes: { 5: 'Screen across for 3', 3: 'Cut straight to the rim, hands up' } },
+      { say: '1 passes to 3 for the layup. If 3 is covered, 2 in the corner is the safety pass.',
+        moves: [ { type: 'pass', from: 1, to: 3 } ],
+        notes: { 1: 'Hit 3 first, 2 in the corner if covered', 3: 'Catch and finish', 2: 'Be the safety outlet' } }
+    ]
+  }
+];
+
+/* ===================================================================== */
+// Coaches build plays in the stats app (Prep > Playbook). Published plays load here.
+// Until any are published, the two sample plays above are shown. Add ?test to the
+// address to see plays built in the app's test mode.
+let PLAYS = SAMPLE_PLAYS;
+const TEST_MODE = new URLSearchParams(location.search).has('test');
+const NS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('court');
+let playIdx = 0, mode = 'watch', spot = null, speed = 1;
+let stepIdx = 0;          // step currently shown
+let anim = null;          // running animation
+let playing = false;
+
+const el = (tag, attrs = {}, parent) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; };
+
+/* state at the START of step k: positions + ball holder */
+function stateAt(play, k) {
+  const pos = {}; for (const p in play.start) pos[p] = [...play.start[p]];
+  let ball = play.ball;
+  for (let i = 0; i < k; i++) {
+    for (const m of play.steps[i].moves) {
+      if (m.type === 'pass') ball = m.to; else pos[m.p] = [...m.to];
+    }
+  }
+  return { pos, ball };
+}
+
+/* ---------- court ---------- */
+function drawCourt(g) {
+  // Real high school (NFHS) half court at 10 px per foot: 50 ft wide x 42 ft deep.
+  // Baseline y=10, half court y=430. Backboard 4 ft in, rim center 5 ft 3 in in.
+  // Lane 12 ft wide, free throw line 19 ft from baseline, 3-point arc 19 ft 9 in.
+  el('rect', { x: -12, y: -55, width: 524, height: 495, fill: 'var(--oob)', rx: 10 }, g);
+  el('rect', { x: 0, y: 10, width: 500, height: 420, fill: 'var(--wood)' }, g);
+  el('rect', { x: 190, y: 10, width: 120, height: 190, fill: 'var(--wood2)' }, g);
+  const s = { stroke: 'var(--courtline)', 'stroke-width': 2.5, fill: 'none' };
+  el('rect', { x: 0, y: 10, width: 500, height: 420, ...s }, g);              // sidelines, baseline, half court
+  el('rect', { x: 190, y: 10, width: 120, height: 190, ...s }, g);            // lane
+  el('path', { d: 'M 190 200 A 60 60 0 0 0 310 200', ...s }, g);              // free throw circle, outside the lane
+  el('path', { d: 'M 190 200 A 60 60 0 0 1 310 200', ...s, 'stroke-dasharray': '8 8' }, g); // dashed inside the lane
+  el('path', { d: 'M 52.5 10 L 52.5 62.5 A 197.5 197.5 0 0 0 447.5 62.5 L 447.5 10', ...s }, g); // 3-point line
+  el('path', { d: 'M 190 430 A 60 60 0 0 1 310 430', ...s }, g);              // center circle
+  for (const y of [80, 110, 140, 170]) {                                       // lane space marks
+    el('line', { x1: 182, y1: y, x2: 190, y2: y, stroke: 'var(--courtline)', 'stroke-width': y === 80 ? 7 : 2 }, g);
+    el('line', { x1: 310, y1: y, x2: 318, y2: y, stroke: 'var(--courtline)', 'stroke-width': y === 80 ? 7 : 2 }, g);
+  }
+  el('line', { x1: 220, y1: 50, x2: 280, y2: 50, stroke: '#222', 'stroke-width': 5 }, g);   // backboard (6 ft)
+  el('circle', { cx: 250, cy: 62.5, r: 7.5, fill: 'none', stroke: '#ff6a00', 'stroke-width': 3 }, g); // rim (18 in)
+  const t = el('text', { x: 14, y: -32, 'text-anchor': 'start', fill: '#c9a87f', 'font-size': 14, 'font-family': 'Barlow Condensed', 'font-weight': 700 }, g);
+  t.textContent = 'OUT OF BOUNDS';
+}
+
+/* ---------- arrows ---------- */
+function defs() {
+  const d = el('defs', {}, svg);
+  const mk = (id, color) => { const m = el('marker', { id, viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' }, d); el('path', { d: 'M0 0 L10 5 L0 10 Z', fill: color }, m); };
+  mk('ah', '#111'); mk('ahHi', '#b45309'); mk('ahFade', 'rgba(17,17,17,.25)');
+}
+function shorten(a, b, by) { const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1; return [b[0] - dx / L * by, b[1] - dy / L * by]; }
+function zigzag(a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
+  const n = Math.max(4, Math.floor(L / 16)); const pts = [a];
+  for (let i = 1; i < n; i++) { const t = i / n, o = (i % 2 ? 7 : -7); pts.push([a[0] + dx * t + nx * o, a[1] + dy * t + ny * o]); }
+  pts.push(b); return pts.map(p => p.join(',')).join(' ');
+}
+function drawMove(g, m, st, style) {
+  const color = style === 'hi' ? '#b45309' : style === 'fade' ? 'rgba(17,17,17,.25)' : '#111';
+  const marker = style === 'hi' ? 'url(#ahHi)' : style === 'fade' ? 'url(#ahFade)' : 'url(#ah)';
+  const w = style === 'hi' ? 4 : 3;
+  if (m.type === 'pass') {
+    const a = st.pos[m.from], b = shorten(st.pos[m.from], st.pos[m.to], 20);
+    el('line', { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: color, 'stroke-width': w, 'stroke-dasharray': '9 7', 'marker-end': marker }, g);
+    return;
+  }
+  const a = st.pos[m.p], b = m.to;
+  if (m.type === 'dribble') { const e = shorten(a, b, 4); el('polyline', { points: zigzag(a, e), fill: 'none', stroke: color, 'stroke-width': w - .5, 'stroke-linejoin': 'round', 'marker-end': marker }, g); }
+  else if (m.type === 'screen') {
+    el('line', { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: color, 'stroke-width': w }, g);
+    const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L * 13, ny = dx / L * 13;
+    el('line', { x1: b[0] + nx, y1: b[1] + ny, x2: b[0] - nx, y2: b[1] - ny, stroke: color, 'stroke-width': w + 2, 'stroke-linecap': 'round' }, g);
+  } else { const e = shorten(a, b, 4); el('line', { x1: a[0], y1: a[1], x2: e[0], y2: e[1], stroke: color, 'stroke-width': w, 'marker-end': marker }, g); }
+}
+const involves = (m, p) => m.type === 'pass' ? (m.from == p || m.to == p) : m.p == p;
+
+/* ---------- render a frame ---------- */
+// t: 0..1 progress through step k (null = show arrows, players at start)
+function render(k, t) {
+  const play = PLAYS[playIdx];
+  svg.innerHTML = ''; defs();
+  const court = el('g', {}, svg); drawCourt(court);
+  const st = stateAt(play, k);
+  const step = play.steps[k];
+
+  // arrows for this step
+  const arrows = el('g', {}, svg);
+  if (step) for (const m of step.moves) drawMove(arrows, m, st, spot == null ? 'norm' : (involves(m, spot) ? 'hi' : 'fade'));
+
+  // positions at progress t
+  const pos = {}; for (const p in st.pos) pos[p] = [...st.pos[p]];
+  let ballAt = st.pos[st.ball], holder = st.ball;
+  if (step && t != null) {
+    const e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    for (const m of step.moves) {
+      if (m.type === 'pass') {
+        const a = st.pos[m.from], bEnd = (step.moves.find(x => x.p == m.to && x.type !== 'pass') || {}).to || st.pos[m.to];
+        ballAt = [a[0] + (bEnd[0] - a[0]) * e, a[1] + (bEnd[1] - a[1]) * e]; holder = e >= 1 ? m.to : null;
+      } else { const a = st.pos[m.p]; pos[m.p] = [a[0] + (m.to[0] - a[0]) * e, a[1] + (m.to[1] - a[1]) * e]; }
+    }
+    if (holder != null && !step.moves.some(m => m.type === 'pass')) ballAt = pos[holder];
+  }
+
+  // players
+  const players = el('g', {}, svg);
+  for (const p of Object.keys(pos)) {
+    const [x, y] = pos[p];
+    const mine = spot == p, dim = spot != null && !mine;
+    const g = el('g', { opacity: dim ? .35 : 1 }, players);
+    if (mine) el('circle', { cx: x, cy: y, r: 26, fill: 'none', stroke: 'var(--gold)', 'stroke-width': 4 }, g);
+    el('circle', { cx: x, cy: y, r: 18, fill: mine ? 'var(--gold)' : 'var(--us)', stroke: '#fff', 'stroke-width': 2.5 }, g);
+    const tx = el('text', { x, y: y + 7, 'text-anchor': 'middle', 'font-size': 21, 'font-weight': 800, 'font-family': 'Barlow Condensed', fill: mine ? '#111' : '#fff' }, g);
+    tx.textContent = p;
+  }
+  // ball
+  const bx = holder != null ? pos[holder][0] + 14 : ballAt[0], by = holder != null ? pos[holder][1] - 14 : ballAt[1];
+  el('circle', { cx: bx, cy: by, r: 8, fill: '#f97316', stroke: '#111', 'stroke-width': 1.5 }, svg);
+}
+
+/* ---------- captions ---------- */
+function yourJob(step, p) {
+  if (step.notes && step.notes[p]) return step.notes[p];
+  const m = step.moves.find(x => involves(x, p));
+  if (!m) return 'Hold your spot and stay ready.';
+  if (m.type === 'pass') return m.from == p ? `Pass to ${m.to}.` : `Catch the pass from ${m.from}.`;
+  return { cut: 'Cut to the spot shown.', dribble: 'Dribble to the spot shown.', screen: 'Set the screen shown.' }[m.type];
+}
+function updateCaption() {
+  const play = PLAYS[playIdx], n = play.steps.length, step = play.steps[stepIdx];
+  document.getElementById('stepNo').textContent = `Step ${stepIdx + 1} of ${n}`;
+  document.getElementById('say').textContent = step.say;
+  const mine = document.getElementById('mine');
+  if (spot != null) { mine.hidden = false; mine.textContent = yourJob(step, spot); } else mine.hidden = true;
+  document.getElementById('dots').innerHTML = play.steps.map((_, i) => `<span class="${i < stepIdx ? 'done' : i === stepIdx ? 'now' : ''}"></span>`).join('');
+}
+
+/* ---------- animation ---------- */
+function stopAnim() { if (anim) cancelAnimationFrame(anim); anim = null; }
+function animateStep(k, done) {
+  stopAnim();
+  const step = PLAYS[playIdx].steps[k];
+  const dur = (step.moves.length ? 1300 : 900) / speed;
+  const t0 = performance.now();
+  const tick = (now) => {
+    const t = Math.min(1, (now - t0) / dur);
+    render(k, step.moves.length ? t : null);
+    if (t < 1) anim = requestAnimationFrame(tick); else { anim = null; done && done(); }
+  };
+  anim = requestAnimationFrame(tick);
+}
+function watchFrom(k) {
+  playing = true; renderControls();
+  stepIdx = k; updateCaption();
+  const play = PLAYS[playIdx];
+  const next = () => {
+    if (!playing) return;
+    setTimeout(() => {
+      if (!playing) return;
+      if (stepIdx < play.steps.length - 1) { stepIdx++; updateCaption(); animateStep(stepIdx, next); }
+      else { playing = false; renderControls(); }
+    }, 650 / speed);
+  };
+  setTimeout(() => playing && animateStep(stepIdx, next), 450 / speed);
+}
+
+/* ---------- controls ---------- */
+function renderControls() {
+  const c = document.getElementById('controls'), n = PLAYS[playIdx].steps.length;
+  document.getElementById('speedRow').style.display = '';
+  if (mode === 'watch') {
+    c.innerHTML = `<button class="primary" id="playBtn">${playing ? 'Pause' : (stepIdx >= n - 1 ? 'Watch again' : 'Play')}</button><button id="restartBtn">Restart</button>`;
+    document.getElementById('playBtn').onclick = () => {
+      if (playing) { playing = false; stopAnim(); render(stepIdx + (stepIdx < n - 1 ? 0 : 0), null); renderControls(); }
+      else watchFrom(stepIdx >= n - 1 ? 0 : stepIdx);
+    };
+    document.getElementById('restartBtn').onclick = () => { playing = false; stopAnim(); stepIdx = 0; updateCaption(); render(0, null); renderControls(); };
+  } else {
+    c.innerHTML = `<button id="backBtn" ${stepIdx === 0 ? 'disabled' : ''}>Back</button><button id="showBtn">Show it</button><button class="primary" id="nextBtn" ${stepIdx >= n - 1 ? 'disabled' : ''}>Next</button>`;
+    document.getElementById('backBtn').onclick = () => { stopAnim(); stepIdx--; updateCaption(); render(stepIdx, null); renderControls(); };
+    document.getElementById('showBtn').onclick = () => animateStep(stepIdx, () => setTimeout(() => render(stepIdx, null), 500));
+    document.getElementById('nextBtn').onclick = () => { animateStep(stepIdx, () => { stepIdx++; updateCaption(); render(stepIdx, null); renderControls(); }); };
+  }
+}
+function videoEmbed(url) {
+  if (!url) return null;
+  let m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([\w-]{6,})/);
+  if (m) return `https://www.youtube-nocookie.com/embed/${m[1]}`;
+  m = url.match(/drive\.google\.com\/file\/d\/([\w-]+)/);
+  if (m) return `https://drive.google.com/file/d/${m[1]}/preview`;
+  return null;
+}
+function showVideo(on) {
+  const play = PLAYS[playIdx], box = document.getElementById('videoBox');
+  document.getElementById('court').hidden = on; box.hidden = !on;
+  document.getElementById('diagramOnly').hidden = on;
+  if (!on) { box.innerHTML = ''; return; }
+  const src = videoEmbed(play.video);
+  box.innerHTML = src ? `<iframe src="${esc(src)}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen title="Play video"></iframe>`
+                      : `<a href="${esc(play.video)}" target="_blank" rel="noopener">Open the video</a>`;
+}
+function setMode(m) {
+  mode = m; playing = false; stopAnim();
+  document.getElementById('modeWatch').setAttribute('aria-pressed', m === 'watch');
+  document.getElementById('modeStep').setAttribute('aria-pressed', m === 'step');
+  document.getElementById('modeVideo').setAttribute('aria-pressed', m === 'video');
+  showVideo(m === 'video');
+  if (m === 'video') return;
+  stepIdx = 0; updateCaption(); render(0, null); renderControls();
+}
+function selectPlay(i) {
+  playIdx = i; playing = false; stopAnim(); stepIdx = 0;
+  const play = PLAYS[i];
+  document.getElementById('modeVideo').hidden = !play.video;
+  if (mode === 'video' && !play.video) mode = 'watch';
+  document.getElementById('modeWatch').setAttribute('aria-pressed', mode === 'watch');
+  document.getElementById('modeStep').setAttribute('aria-pressed', mode === 'step');
+  document.getElementById('modeVideo').setAttribute('aria-pressed', mode === 'video');
+  showVideo(mode === 'video');
+  document.querySelectorAll('.play-btn').forEach((b, j) => b.setAttribute('aria-pressed', j === i));
+  document.getElementById('playName').textContent = play.name;
+  document.getElementById('playSummary').textContent = play.summary || '';
+  updateCaption(); render(0, null); renderControls();
+}
+
+/* ---------- build UI ---------- */
+const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function buildPlayList() {
+  document.getElementById('plays').innerHTML = PLAYS.map((p, i) =>
+    `<button class="play-btn" aria-pressed="${i === 0}" data-i="${i}"><b>${esc(p.name)}${p.sample ? '<span class="tag">Sample</span>' : ''}</b><small>${esc(p.category)}</small></button>`).join('');
+  document.querySelectorAll('.play-btn').forEach(b => b.onclick = () => selectPlay(+b.dataset.i));
+}
+buildPlayList();
+
+document.getElementById('spots').innerHTML = ['All', 1, 2, 3, 4, 5].map(s => `<button data-s="${s}" aria-pressed="${s === 'All'}">${s}</button>`).join('');
+document.querySelectorAll('#spots button').forEach(b => b.onclick = () => {
+  spot = b.dataset.s === 'All' ? null : +b.dataset.s;
+  document.querySelectorAll('#spots button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  updateCaption(); if (!anim) render(stepIdx, null);
+});
+document.querySelectorAll('#speedRow button').forEach(b => b.onclick = () => {
+  speed = +b.dataset.speed;
+  document.querySelectorAll('#speedRow button').forEach(x => x.setAttribute('aria-pressed', x === b));
+});
+document.getElementById('modeWatch').onclick = () => setMode('watch');
+document.getElementById('modeStep').onclick = () => setMode('step');
+document.getElementById('modeVideo').onclick = () => setMode('video');
+
+selectPlay(0);
+
+// Load published plays (read-only). Falls back to the samples if none are published or offline.
+try {
+  if (window.firebase) {
+    if (!firebase.apps.length) firebase.initializeApp({ apiKey: "AIzaSyA5H5SsumWG7bym_0EZ7jOlfWeswpSauhk", authDomain: "eagles-stats.firebaseapp.com", projectId: "eagles-stats", appId: "1:386723096734:web:b50e343c703983e838b38f" });
+    firebase.firestore().collection(TEST_MODE ? 'test_plays' : 'plays').where('published', '==', true).onSnapshot(snap => {
+      const live = snap.docs.map(d => d.data()).filter(p => p.start && Array.isArray(p.steps) && p.steps.length)
+        .sort((a, b) => (a.category || '').localeCompare(b.category || '') || (a.name || '').localeCompare(b.name || ''));
+      PLAYS = live.length ? live : SAMPLE_PLAYS;
+      buildPlayList(); selectPlay(0);
+    }, () => {});
+  }
+} catch (e) { /* offline: keep the samples */ }
+</script>
+</body>
+</html>
