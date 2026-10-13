@@ -190,6 +190,18 @@
         const STAT_FIELDS = ['fg2m','fg2a','fg3m','fg3a','ftm','fta','reb','ast','stl','blk','to','pf'];
         const ZONES = ['top_3', 'wing_l_3', 'wing_r_3', 'corn_l_3', 'corn_r_3', 'mid_l_2', 'mid_r_2', 'paint'];
         const OPPONENT_ID = 'OPP';
+        // ===== NEW: TEST MODE =====
+        // Open the app with ?test at the end of the address (…/eagles-2025-2026/?test) to use a
+        // separate copy of every collection (test_games, test_liveGames, ...) with a fake roster.
+        // Nothing in test mode reads or changes real data, and real mode never sees test data.
+        const TEST_MODE = new URLSearchParams(window.location.search).has('test');
+        const COL = (name) => TEST_MODE ? `test_${name}` : name;
+        const TEST_COLLECTIONS = ['games', 'liveGames', 'rosters', 'scoutingReports', 'settings', 'gutChecks'];
+        const TEST_SEED = {
+            varsity: Array.from({ length: 10 }, (_, i) => ({ id: i + 1, name: `Varsity Test${i + 1}`, pos: 'G' })),
+            jv: Array.from({ length: 10 }, (_, i) => ({ id: i + 21, name: `JV Test${i + 1}`, pos: 'G' }))
+        };
+
         // NEW: local date (not UTC). toISOString() is UTC, which stamped late games with the next day's date.
         const localToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
         const slugOpp = (name) => (name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -319,7 +331,8 @@
         const CURRENT_SEASON_DEFAULT = "2026-27";
 
         // --- HELPER HOOK FOR LOCAL STORAGE ---
-        function useStickyState(defaultValue, key) {
+        function useStickyState(defaultValue, rawKey) {
+            const key = TEST_MODE ? `test_${rawKey}` : rawKey;
             const [value, setValue] = React.useState(() => {
                 const stickyValue = window.localStorage.getItem(key);
                 return stickyValue !== null ? JSON.parse(stickyValue) : defaultValue;
@@ -447,7 +460,7 @@
             // editing history (see editingHistoryRef above).
             const pushLive = (fields) => {
                 if (!db || editingHistoryRef.current) return;
-                db.collection('liveGames').doc(activeTeam).set({ ...fields, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+                db.collection(COL('liveGames')).doc(activeTeam).set({ ...fields, updatedAt: Date.now() }, { merge: true }).catch(() => {});
             };
 
             // Wrapped setters: same names/call signature as plain useState setters (supports the
@@ -497,7 +510,7 @@
             const resyncLiveFromRemote = async () => {
                 if (!db) return;
                 try {
-                    const doc = await db.collection('liveGames').doc(activeTeam).get();
+                    const doc = await db.collection(COL('liveGames')).doc(activeTeam).get();
                     applyLiveSnapshot(doc.exists ? doc.data() : {});
                 } catch (e) {}
             };
@@ -589,25 +602,26 @@
                 if (!isEditor) { setGames([]); setScoutReports({}); setLoading(false); return; }
                 const unsubs = [];
                 if (isAdmin) {
-                    unsubs.push(db.collection('games').orderBy('date', 'desc').onSnapshot(snap => {
+                    unsubs.push(db.collection(COL('games')).orderBy('date', 'desc').onSnapshot(snap => {
                         setGames(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
                         setLoading(false);
                     }, () => setLoading(false)));
-                    unsubs.push(db.collection('settings').doc('goals').onSnapshot(doc => setGoalsConfig(doc.exists ? doc.data() : {}), () => setGoalsConfig({})));
-                    unsubs.push(db.collection('gutChecks').onSnapshot(snap => setGutChecks(snap.docs.map(d => ({ id: d.id, ...d.data() }))), () => {}));
-                    unsubs.push(db.collection('scoutingReports').onSnapshot(snap => {
+                    unsubs.push(db.collection(COL('settings')).doc('goals').onSnapshot(doc => setGoalsConfig(doc.exists ? doc.data() : {}), () => setGoalsConfig({})));
+                    unsubs.push(db.collection(COL('gutChecks')).onSnapshot(snap => setGutChecks(snap.docs.map(d => ({ id: d.id, ...d.data() }))), () => {}));
+                    unsubs.push(db.collection(COL('scoutingReports')).onSnapshot(snap => {
                         const loaded = {};
                         snap.docs.forEach(doc => { loaded[doc.id] = { id: doc.id, ...doc.data() }; });
                         setScoutReports(loaded);
                     }, () => {}));
                 } else { setGames([]); setScoutReports({}); setLoading(false); }
-                unsubs.push(db.collection('rosters').onSnapshot(async snap => {
+                unsubs.push(db.collection(COL('rosters')).onSnapshot(async snap => {
                     const loaded = {};
                     snap.docs.forEach(doc => { loaded[doc.id] = doc.data().players || []; });
                     for (const team of Object.keys(SEED_TEAMS)) {
                         if (!loaded[team]) {
-                            if (isAdmin && SEED_TEAMS[team].length) await db.collection('rosters').doc(team).set({ players: SEED_TEAMS[team] });
-                            loaded[team] = SEED_TEAMS[team];
+                            const seed = TEST_MODE ? TEST_SEED[team] : SEED_TEAMS[team];
+                            if (isAdmin && seed.length) await db.collection(COL('rosters')).doc(team).set({ players: seed });
+                            loaded[team] = seed;
                         }
                     }
                     setRosterData(loaded);
@@ -623,7 +637,7 @@
             // doesn't get overwritten mid-edit by whatever the live game is currently doing.
             React.useEffect(() => {
                 if (!db || !isEditor) return;
-                const unsub = db.collection('liveGames').doc(activeTeam).onSnapshot(doc => {
+                const unsub = db.collection(COL('liveGames')).doc(activeTeam).onSnapshot(doc => {
                     if (editingHistoryRef.current) return;
                     applyLiveSnapshot(doc.exists ? doc.data() : {});
                 }, () => { /* offline/permission errors: keep whatever is in local state */ });
@@ -681,7 +695,7 @@
                 if(!requireEditor()) return;
                 if(!confirm("Are you sure you want to delete this game record?")) return;
                 try {
-                    await db.collection('games').doc(id).delete();
+                    await db.collection(COL('games')).doc(id).delete();
                     showToast("Game Deleted", "info");
                 } catch(e) {
                     showToast("Error deleting: " + e.message, "error");
@@ -692,7 +706,7 @@
             const saveRoster = async (team, players) => {
                 if(!requireEditor()) return;
                 try {
-                    await db.collection('rosters').doc(team).set({ players });
+                    await db.collection(COL('rosters')).doc(team).set({ players });
                 } catch(e) {
                     showToast("Error saving roster: " + e.message, "error");
                 }
@@ -949,7 +963,7 @@
             const updateGamePOTG = async (gameId, name) => {
                 if (!requireEditor()) return;
                 try {
-                    await db.collection('games').doc(gameId).update({ potg: { name, auto: false } });
+                    await db.collection(COL('games')).doc(gameId).update({ potg: { name, auto: false } });
                     setViewGame(prev => prev && prev.id === gameId ? { ...prev, potg: { name, auto: false } } : prev);
                     showToast(`🏅 Player of the Game set to ${name.split(' ')[0]}`, "success");
                 } catch(e) { showToast("Error updating POTG: " + e.message, "error"); }
@@ -1063,7 +1077,7 @@
                 try { 
                     // NEW: don't wait on the network. The write lands on this device right away and syncs
                     // when the connection is back, so Save Game never hangs on bad gym wifi.
-                    const write = editId ? db.collection('games').doc(editId).update(payload) : db.collection('games').doc().set(payload);
+                    const write = editId ? db.collection(COL('games')).doc(editId).update(payload) : db.collection(COL('games')).doc().set(payload);
                     write.catch(e => showToast("Saved game could not sync: " + e.message, "error"));
                     showToast(navigator.onLine ? "Game Saved Successfully!" : "Game saved on this iPad. It will sync when you're back online.", "success"); 
                     setPlayerStats({}); setOpponentStats({fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0,to:0}); setEventLog([]); setQuarterFouls(0); setOppQuarterFouls(0); setTimeouts({ full: [true,true,true], thirty: [true,true] });
@@ -1292,7 +1306,7 @@
                 const key = slugifyOpponent(oppDisplayName);
                 const note = { id: Date.now(), author: (author||'Coach').trim(), text: text.trim(), date: new Date().toISOString(), section: section || 'Other' };
                 // NEW: no waiting on the network here either.
-                db.collection('scoutingReports').doc(key).set({ opp: oppDisplayName.trim(), notes: firebase.firestore.FieldValue.arrayUnion(note) }, { merge: true })
+                db.collection(COL('scoutingReports')).doc(key).set({ opp: oppDisplayName.trim(), notes: firebase.firestore.FieldValue.arrayUnion(note) }, { merge: true })
                     .catch(e => showToast("Error saving note: " + e.message, "error"));
                 setScoutNoteDraft('');
                 showToast(`Added to ${note.section}`, "success");
@@ -1301,7 +1315,7 @@
                 if (!requireEditor()) return;
                 if (!confirm("Remove this note?")) return;
                 try {
-                    await db.collection('scoutingReports').doc(oppKey).update({ notes: firebase.firestore.FieldValue.arrayRemove(note) });
+                    await db.collection(COL('scoutingReports')).doc(oppKey).update({ notes: firebase.firestore.FieldValue.arrayRemove(note) });
                 } catch(e) { showToast("Error removing note: " + e.message, "error"); }
             };
 
@@ -1403,8 +1417,8 @@
             const handlePlayUpdate = (index, points) => { const newPlays = [...playStats]; newPlays[index].att += 1; if (points > 0) { newPlays[index].made += 1; newPlays[index].pts += points; } setPlayStats(newPlays); };
             const handleSort = (key) => { setSortConfig({ key, direction: sortConfig.key === key && sortConfig.direction === 'desc' ? 'asc' : 'desc' }); };
             const exportData = () => { if(!games.length) return showToast("No data.", "error"); const headers = ['date', 'opp', 'team', 'season', 'teamScore', 'oppScore', 'result', 'venue', 'stats', 'playStats']; const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...games.map(g => headers.map(h => { let val = g[h]; if (typeof val === 'object') { val = JSON.stringify(val).replace(/"/g, '""'); return `"${val}"`; } return `"${val}"`; }).join(','))].join('\n'); const link = document.createElement("a"); link.setAttribute("href", encodeURI(csvContent)); link.setAttribute("download", `eagles_backup_${localToday()}.csv`); document.body.appendChild(link); link.click(); };
-            const importData = (e) => { if(!requireEditor()){ e.target.value=''; return; } const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = async (event) => { try { const rows = event.target.result.split('\n'); const headers = rows[0].split(','); let importedCount = 0; const parseCSVRow = (row) => { const regex = /(?:,|\n|^)("(?:(?:"")*[^"]*)*"|[^",\n]*|(?:\n|$))/g; const matches = []; let match; while(match = regex.exec(row)) { let val = match[1]; if(val.startsWith('"') && val.endsWith('"')) val = val.substring(1, val.length-1).replace(/""/g, '"'); matches.push(val); } return matches; }; for (let i = 1; i < rows.length; i++) { if (!rows[i].trim()) continue; const vals = parseCSVRow(rows[i]); const payload = {}; headers.forEach((h, index) => { const key = h.trim(); let val = vals[index]; if (['stats','opponentStats','playStats'].includes(key)) try { val = JSON.parse(val); } catch(e) { val = []; } if(['teamScore','oppScore'].includes(key)) val = parseInt(val) || 0; payload[key] = val; }); payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp(); await db.collection('games').add(payload); importedCount++; } showToast(`Restored ${importedCount} games!`, "success"); } catch (err) { showToast("Error importing CSV", "error"); } }; reader.readAsText(file); };
-            const purgeData = async () => { if(!requireEditor()) return; if(!confirm("⚠️ DELETE ALL GAMES?\n\nThis deletes every game for every team and season. This cannot be undone. Consider exporting a backup first.")) return; const snap = await db.collection('games').get(); const batch = db.batch(); snap.docs.forEach(doc => batch.delete(doc.ref)); await batch.commit(); showToast("Purged.", "success"); };
+            const importData = (e) => { if(!requireEditor()){ e.target.value=''; return; } const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = async (event) => { try { const rows = event.target.result.split('\n'); const headers = rows[0].split(','); let importedCount = 0; const parseCSVRow = (row) => { const regex = /(?:,|\n|^)("(?:(?:"")*[^"]*)*"|[^",\n]*|(?:\n|$))/g; const matches = []; let match; while(match = regex.exec(row)) { let val = match[1]; if(val.startsWith('"') && val.endsWith('"')) val = val.substring(1, val.length-1).replace(/""/g, '"'); matches.push(val); } return matches; }; for (let i = 1; i < rows.length; i++) { if (!rows[i].trim()) continue; const vals = parseCSVRow(rows[i]); const payload = {}; headers.forEach((h, index) => { const key = h.trim(); let val = vals[index]; if (['stats','opponentStats','playStats'].includes(key)) try { val = JSON.parse(val); } catch(e) { val = []; } if(['teamScore','oppScore'].includes(key)) val = parseInt(val) || 0; payload[key] = val; }); payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp(); await db.collection(COL('games')).add(payload); importedCount++; } showToast(`Restored ${importedCount} games!`, "success"); } catch (err) { showToast("Error importing CSV", "error"); } }; reader.readAsText(file); };
+            const purgeData = async () => { if(!requireEditor()) return; if(!confirm("⚠️ DELETE ALL GAMES?\n\nThis deletes every game for every team and season. This cannot be undone. Consider exporting a backup first.")) return; const snap = await db.collection(COL('games')).get(); const batch = db.batch(); snap.docs.forEach(doc => batch.delete(doc.ref)); await batch.commit(); showToast("Purged.", "success"); };
 
             // NEW: archives old (untagged) games as LEGACY_SEASON and switches the active view to a fresh season.
             // This never deletes anything — it just tags and switches, so history stays fully accessible via the season dropdown.
@@ -1413,7 +1427,7 @@
                 if(!requireEditor()) return;
                 if(!confirm(`Tag all untagged games as "${LEGACY_SEASON}" and switch your active view to "${CURRENT_SEASON_DEFAULT}"?\n\nNothing will be deleted.`)) return;
                 try {
-                    const snap = await db.collection('games').get();
+                    const snap = await db.collection(COL('games')).get();
                     const batch = db.batch();
                     let count = 0;
                     snap.docs.forEach(doc => {
@@ -1464,7 +1478,7 @@
                 const data = { exportedAt: new Date().toISOString(), games, rosters: rosterData, scoutingReports: scoutReports, goals: goalsConfig || {}, gutChecks };
                 const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href = url; a.download = `eagles_full_backup_${localToday()}.json`;
+                const a = document.createElement('a'); a.href = url; a.download = `eagles_${TEST_MODE ? 'TEST_' : ''}full_backup_${localToday()}.json`;
                 document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
                 setLastBackup(Date.now());
                 showToast("Backup downloaded. Keep it somewhere safe (Files, Drive, email to yourself).", "success");
@@ -1478,11 +1492,11 @@
                     try {
                         const data = JSON.parse(ev.target.result);
                         const writes = [];
-                        (data.games || []).forEach(g => { const { id, ...rest } = g; if (id) writes.push([db.collection('games').doc(id), rest]); });
-                        Object.entries(data.rosters || {}).forEach(([team, players]) => writes.push([db.collection('rosters').doc(team), { players }]));
-                        Object.values(data.scoutingReports || {}).forEach(r => { const { id, ...rest } = r; if (id) writes.push([db.collection('scoutingReports').doc(id), rest]); });
-                        if (data.goals && Object.keys(data.goals).length) writes.push([db.collection('settings').doc('goals'), data.goals]);
-                        (data.gutChecks || []).forEach(x => { const { id, ...rest } = x; if (id) writes.push([db.collection('gutChecks').doc(id), rest]); });
+                        (data.games || []).forEach(g => { const { id, ...rest } = g; if (id) writes.push([db.collection(COL('games')).doc(id), rest]); });
+                        Object.entries(data.rosters || {}).forEach(([team, players]) => writes.push([db.collection(COL('rosters')).doc(team), { players }]));
+                        Object.values(data.scoutingReports || {}).forEach(r => { const { id, ...rest } = r; if (id) writes.push([db.collection(COL('scoutingReports')).doc(id), rest]); });
+                        if (data.goals && Object.keys(data.goals).length) writes.push([db.collection(COL('settings')).doc('goals'), data.goals]);
+                        (data.gutChecks || []).forEach(x => { const { id, ...rest } = x; if (id) writes.push([db.collection(COL('gutChecks')).doc(id), rest]); });
                         for (let k = 0; k < writes.length; k += 400) {
                             const batch = db.batch();
                             writes.slice(k, k + 400).forEach(([ref, val]) => batch.set(ref, val, { merge: true }));
@@ -1511,7 +1525,7 @@
             const saveGoals = () => {
                 if (!isAdmin || !db) return;
                 const clean = goalsDraft.filter(g => g.metric).slice(0, 5).map(g => ({ text: (g.text || '').trim(), metric: g.metric, target: (g.target === '' || g.target === undefined) ? '' : String(g.target).trim() }));
-                db.collection('settings').doc('goals').set({ [activeTeam]: clean }, { merge: true }).catch(e => showToast("Couldn't save goals: " + e.message, "error"));
+                db.collection(COL('settings')).doc('goals').set({ [activeTeam]: clean }, { merge: true }).catch(e => showToast("Couldn't save goals: " + e.message, "error"));
                 setEditingGoals(false);
                 showToast(`${teamName(activeTeam)} goals saved`, "success");
             };
@@ -1533,9 +1547,24 @@
             const saveGutCheck = () => {
                 if (!isAdmin || !db) return;
                 const snapshot = goalRows.filter(r => r.metric).map(r => `${r.metric.label}: ${fmtMetric(r.metric, r.last3V)} last 3${r.goal.target !== '' ? ` (target ${r.goal.target})` : ''}${r.status ? `, ${STATUS_TEXT[r.status].toLowerCase()}` : ''}`);
-                db.collection('gutChecks').doc(gutId).set({ team: activeTeam, season: activeSeason, weekStart: weekKey, ...gutDraft, snapshot, author: currentUser?.email || 'Coach', updatedAt: new Date().toISOString() }, { merge: true })
+                db.collection(COL('gutChecks')).doc(gutId).set({ team: activeTeam, season: activeSeason, weekStart: weekKey, ...gutDraft, snapshot, author: currentUser?.email || 'Coach', updatedAt: new Date().toISOString() }, { merge: true })
                     .catch(e => showToast("Couldn't save gut check: " + e.message, "error"));
                 showToast("Gut check saved", "success");
+            };
+
+            // NEW: wipes every test_ collection so a test run can start fresh. Only works in test mode.
+            const clearTestData = async () => {
+                if (!TEST_MODE || !isAdmin || !db) return;
+                if (!confirm("Clear ALL test data?\n\nThis only deletes test_ collections. Real data is not touched.")) return;
+                try {
+                    for (const name of TEST_COLLECTIONS) {
+                        const snap = await db.collection(`test_${name}`).get();
+                        for (let k = 0; k < snap.docs.length; k += 400) { const b = db.batch(); snap.docs.slice(k, k + 400).forEach(d => b.delete(d.ref)); await b.commit(); }
+                    }
+                    Object.keys(window.localStorage).filter(k => k.startsWith('test_')).forEach(k => window.localStorage.removeItem(k));
+                    showToast("Test data cleared. Reloading…", "success");
+                    setTimeout(() => window.location.reload(), 800);
+                } catch (e) { showToast("Couldn't clear test data: " + e.message, "error"); }
             };
 
             // NEW: sign-in gate. Without a coach or stat keeper login, nothing is shown or loaded.
@@ -1543,7 +1572,7 @@
             if (!isEditor) return (
                 <div className="min-h-screen flex items-center justify-center p-6">
                     <div className="bento-card w-full max-w-md space-y-4">
-                        <div className="text-center"><span className="text-4xl">🦅</span><h1 className="text-2xl font-black italic uppercase mt-2">Eagles <span className="text-gold">Analytics</span></h1></div>
+                        <div className="text-center"><span className="text-4xl">🦅</span><h1 className="text-2xl font-black italic uppercase mt-2">Eagles <span className="text-gold">Analytics</span></h1>{TEST_MODE && <div className="mt-2 text-xs font-black uppercase text-orange-300">Test mode</div>}</div>
                         {currentUser ? (
                             <>
                                 <p className="text-sm text-zinc-300 text-center">Signed in as {currentUser.email}, which doesn't have access. Ask the coach to add this account.</p>
@@ -1631,6 +1660,13 @@
                         </select>}
                         <span className="text-[10px] font-bold text-zinc-600 uppercase">{visibleGames.length} game{visibleGames.length===1?'':'s'} in this view</span>
                     </div>
+
+                    {TEST_MODE && (
+                        <div className="mb-4 flex flex-col md:flex-row items-center justify-between gap-3 bg-orange-600 text-black rounded-xl px-4 py-3 no-print">
+                            <div className="text-sm font-black uppercase">Test mode. Nothing here touches real games, rosters, or scouting.</div>
+                            {isAdmin && <button onClick={clearTestData} className="py-2 px-4 bg-black text-orange-300 rounded font-black uppercase text-xs whitespace-nowrap">Clear test data</button>}
+                        </div>
+                    )}
 
                     {/* NEW: one shared list of scheduled opponents for every opponent box */}
                     <datalist id="opp-suggestions">{SCHEDULE_OPPONENTS.map(o => <option key={o} value={o} />)}</datalist>
