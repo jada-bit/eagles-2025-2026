@@ -3458,7 +3458,11 @@ service cloud.firestore {
             };
 
             const renderRow = (p) => (
-                <div key={p.id} className={`bg-zinc-900 border border-zinc-800 rounded-lg p-2 space-y-2 ${p.active===false ? 'opacity-60' : ''}`}>
+                // FIXED: the key now includes the team. With key={p.id} alone, switching Varsity -> JV reused
+                // the row for any matching jersey number, and because these inputs only read defaultValue
+                // when they first appear, the JV row kept showing the varsity player's name. Clicking in
+                // and out of that box then saved the varsity name onto the JV player.
+                <div key={`${team}-${p.id}`} className={`bg-zinc-900 border border-zinc-800 rounded-lg p-2 space-y-2 ${p.active===false ? 'opacity-60' : ''}`}>
                     <div className="flex items-center gap-2">
                         <input type="number" defaultValue={p.id} onBlur={e=>{const v=parseInt(e.target.value,10); if(!isNaN(v) && v!==p.id) onUpdate(team, p.id, {id:v});}} className="stat-input w-14" />
                         <input type="text" defaultValue={p.name} onBlur={e=>{const v=e.target.value.trim(); if(v && v!==p.name) onUpdate(team, p.id, {name:v});}} className="stat-input flex-1 text-left" />
