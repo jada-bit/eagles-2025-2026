@@ -2894,8 +2894,16 @@ service cloud.firestore {
         const pbStateAt = (play, k) => {
             const pos = {}; Object.keys(play.start).forEach(p => pos[p] = [...play.start[p]]);
             let ball = play.ball;
-            for (let i = 0; i < k; i++) (play.steps[i].moves || []).forEach(m => { if (m.type === 'pass') ball = m.to; else pos[m.p] = [...m.to]; });
+            for (let i = 0; i < k; i++) (play.steps[i].moves || []).forEach(m => { if (m.type === 'pass') ball = m.to; else if (m.type === 'shot') ball = null; else pos[m.p] = [...m.to]; });
             return { pos, ball };
+        };
+        // NEW: shot. An arc from the shooter to the rim (bowed to one side so it reads as a shot).
+        const PB_RIM = [250, 62.5];
+        const pbShotCurve = (a) => {
+            const mx = (a[0] + PB_RIM[0]) / 2, my = (a[1] + PB_RIM[1]) / 2, dx = PB_RIM[0] - a[0], dy = PB_RIM[1] - a[1];
+            const c = [mx - dy * 0.18, my + dx * 0.18], out = [];
+            for (let i = 0; i <= 20; i++) { const t = i / 20, u = 1 - t; out.push([u * u * a[0] + 2 * u * t * c[0] + t * t * PB_RIM[0], u * u * a[1] + 2 * u * t * c[1] + t * t * PB_RIM[1]]); }
+            return out;
         };
         const pbShorten = (a, b, by) => { const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1; return [b[0] - dx / L * by, b[1] - dy / L * by]; };
         const pbZigzag = (a, b) => {
@@ -2961,11 +2969,12 @@ service cloud.firestore {
             const step = play.steps[k] || { moves: [] };
             const moves = (step.moves || []).map((m, i) => drag && drag.bend === i ? { ...m, bend: { x: drag.pt[0], y: drag.pt[1] } } : m);
             const pos = {}; Object.keys(st.pos).forEach(p => pos[p] = [...st.pos[p]]);
-            let holder = st.ball, ballAt = st.pos[st.ball] || [250, 320];
+            let holder = st.ball, ballAt = st.ball == null ? [PB_RIM[0], PB_RIM[1] + 14] : (st.pos[st.ball] || [250, 320]), shotLift = 0;
             if (t != null) {
                 const e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
                 moves.forEach(m => {
-                    if (m.type === 'pass') {
+                    if (m.type === 'shot') { if (st.pos[m.p]) { ballAt = pbAlong(pbShotCurve(st.pos[m.p]), t); holder = null; shotLift = Math.sin(Math.PI * t); } }
+                    else if (m.type === 'pass') {
                         const a = st.pos[m.from], recv = moves.find(x => x.p == m.to && x.type !== 'pass'), b = recv ? recv.to : st.pos[m.to];
                         if (a && b) { ballAt = [a[0] + (b[0] - a[0]) * e, a[1] + (b[1] - a[1]) * e]; holder = e >= 1 ? m.to : null; }
                     } else if (st.pos[m.p]) pos[m.p] = pbAlong(pbMovePts(st.pos[m.p], m), e);
@@ -3010,6 +3019,10 @@ service cloud.firestore {
             };
             const line = { stroke: 'white', strokeWidth: 2.5, fill: 'none' };
             const arrows = t == null ? moves.map((m, i) => {
+                if (m.type === 'shot') {
+                    const a = st.pos[m.p]; if (!a) return null;
+                    return <g key={i}><polyline points={pbTrim(pbShotCurve(a), 12).map(q => q.join(',')).join(' ')} fill="none" stroke="#111" strokeWidth="3" strokeDasharray="2 6" strokeLinecap="round" /><circle cx={PB_RIM[0]} cy={PB_RIM[1]} r="14" fill="none" stroke="#111" strokeWidth="3" /></g>;
+                }
                 if (m.type === 'pass') {
                     const a = st.pos[m.from], b0 = st.pos[m.to]; if (!a || !b0) return null; const b = pbShorten(a, b0, 20);
                     return <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#111" strokeWidth="3" strokeDasharray="9 7" markerEnd="url(#pbAh)" />;
@@ -3031,6 +3044,7 @@ service cloud.firestore {
                 const e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2, h = Math.abs(Math.cos(Math.PI * e * bounces));
                 ballR = 5 + 3.5 * h; off = 9 + 7 * h;
             }
+            if (shotLift) ballR = 8 + 7 * shotLift;
             const bx = holder != null && pos[holder] ? pos[holder][0] + off : ballAt[0], by = holder != null && pos[holder] ? pos[holder][1] - off : ballAt[1];
             return (
                 <svg ref={svgRef} viewBox="-12 -55 524 495" onClick={click} onPointerMove={move} onPointerUp={up} onPointerCancel={() => setDrag(null)}
@@ -3063,7 +3077,7 @@ service cloud.firestore {
                     {drib && <ellipse cx={bx + 2} cy={by + 3} rx={ballR * .9} ry={ballR * .45} fill="rgba(0,0,0,.25)" pointerEvents="none" />}
                     <circle cx={bx} cy={by} r={ballR} fill="#f97316" stroke="#111" strokeWidth="1.5" pointerEvents="none" />
                     {onBend && t == null && moves.map((m, i) => {
-                        if (m.type === 'pass' || !st.pos[m.p]) return null;
+                        if (m.type === 'pass' || m.type === 'shot' || !st.pos[m.p]) return null;
                         const [hx, hy] = pbHandle(st.pos[m.p], m), active = drag && drag.bend === i;
                         return (
                             <g key={'h' + i} onPointerDown={downBend(i)} onClick={(e) => e.stopPropagation()} style={{ cursor: 'grab' }}>
@@ -3170,6 +3184,7 @@ service cloud.firestore {
             // Taps on the court and on players
             const onPlayerTap = (p) => {
                 if (isSetup) { setActor(actor === p ? null : p); return; }
+                if (tool === 'shot') { change(d => { S(d)[k].moves = (S(d)[k].moves || []).filter(m => m.p !== p && m.type !== 'shot'); S(d)[k].moves.push({ type: 'shot', p }); }); setActor(null); return; }
                 if (tool === 'pass' && actor != null && actor !== p) {
                     change(d => { S(d)[k].moves = (S(d)[k].moves || []).filter(m => !(m.type === 'pass')); S(d)[k].moves.push({ type: 'pass', from: actor, to: p }); });
                     setActor(null); return;
@@ -3192,10 +3207,10 @@ service cloud.firestore {
                 change(d => { S(d)[k].moves = (S(d)[k].moves || []).filter(m => m.type === 'pass' || m.p !== p); S(d)[k].moves.push({ p, type: tool, to: end }); });
                 setActor(null);
             };
-            const dragMode = anim ? null : (isSetup ? 'place' : (tool === 'pass' ? null : 'path'));
+            const dragMode = anim ? null : (isSetup ? 'place' : (tool === 'pass' || tool === 'shot' ? null : 'path'));
             // NEW: drag the gold dot on a line to bend it. Dropping it back on the line straightens it.
             const onBend = (i, pt) => change(d => {
-                const m = S(d)[k].moves[i]; if (!m || m.type === 'pass') return;
+                const m = S(d)[k].moves[i]; if (!m || m.type === 'pass' || m.type === 'shot') return;
                 const a = pbStateAt(vpOf(d), k).pos[m.p], mid = [(a[0] + m.to[0]) / 2, (a[1] + m.to[1]) / 2];
                 delete m.path;
                 if (Math.hypot(pt[0] - mid[0], pt[1] - mid[1]) < 10) delete m.bend; else m.bend = { x: Math.round(pt[0]), y: Math.round(pt[1]) };
@@ -3254,6 +3269,7 @@ service cloud.firestore {
 
             const hint = isSetup
                 ? (actor == null ? 'Drag each player to their starting spot (or tap a player, then tap the spot).' : `Now tap where ${actor} starts.`)
+                : tool === 'shot' ? 'Tap the player who shoots.'
                 : tool === 'pass'
                     ? (actor == null ? 'Tap the player passing the ball.' : `Now tap the player ${actor} passes to.`)
                     : (actor == null ? `Drag a player to where they ${tool === 'screen' ? 'set the screen' : 'go'} (or tap the player, then the spot). To curve it, drag the gold dot on the line.` : `Now tap where ${actor} ${tool === 'screen' ? 'sets the screen' : 'goes'}.`);
@@ -3375,14 +3391,14 @@ service cloud.firestore {
                                     </div>
                                 ) : (
                                     <div className="space-y-2">
-                                        <div className="grid grid-cols-4 gap-1">
-                                            {['cut', 'dribble', 'screen', 'pass'].map(tl => <button key={tl} onClick={() => { setTool(tl); setActor(null); }} className={`py-2 rounded font-black uppercase text-xs ${tool === tl ? 'bg-gold text-black' : 'bg-zinc-800 text-zinc-300'}`}>{tl}</button>)}
+                                        <div className="grid grid-cols-5 gap-1">
+                                            {['cut', 'dribble', 'screen', 'pass', 'shot'].map(tl => <button key={tl} onClick={() => { setTool(tl); setActor(null); }} className={`py-2 rounded font-black uppercase text-xs ${tool === tl ? 'bg-gold text-black' : 'bg-zinc-800 text-zinc-300'}`}>{tl}</button>)}
                                         </div>
                                         <div className="space-y-1">
                                             {(step.moves || []).length === 0 && <div className="text-xs text-zinc-500 italic">No moves yet. Pick an action above, then tap on the court.</div>}
                                             {(step.moves || []).map((m, i) => (
                                                 <div key={i} className="flex justify-between items-center text-sm bg-black/40 rounded px-2 py-1.5">
-                                                    <span>{m.type === 'pass' ? `${m.from} passes to ${m.to}` : `${m.p} ${PB_MOVE_LABEL[m.type]} the spot shown${m.bend || (m.path && m.path.length) ? ' (curved)' : ''}`}</span>
+                                                    <span>{m.type === 'shot' ? `${m.p} shoots` : m.type === 'pass' ? `${m.from} passes to ${m.to}` : `${m.p} ${PB_MOVE_LABEL[m.type]} the spot shown${m.bend || (m.path && m.path.length) ? ' (curved)' : ''}`}</span>
                                                     <span className="flex items-center gap-3">
                                                         {(m.bend || (m.path && m.path.length)) && <button onClick={() => change(d => { delete S(d)[k].moves[i].bend; delete S(d)[k].moves[i].path; })} className="text-xs text-zinc-400 underline">Straighten</button>}
                                                         <button onClick={() => change(d => { S(d)[k].moves.splice(i, 1); })} className="text-zinc-500 hover:text-red-400">✕</button>

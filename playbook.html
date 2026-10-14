@@ -255,10 +255,20 @@ function stateAt(play, k) {
   let ball = play.ball;
   for (let i = 0; i < k; i++) {
     for (const m of play.steps[i].moves) {
-      if (m.type === 'pass') ball = m.to; else pos[m.p] = [...m.to];
+      if (m.type === 'pass') ball = m.to;
+      else if (m.type === 'shot') ball = null; // NEW: the ball is at the rim after a shot
+      else pos[m.p] = [...m.to];
     }
   }
   return { pos, ball };
+}
+// NEW: shot path. A curve from the shooter to the rim, bowed to one side so it reads as an arc.
+const RIM = [250, 62.5];
+function shotCurve(a) {
+  const mx = (a[0] + RIM[0]) / 2, my = (a[1] + RIM[1]) / 2, dx = RIM[0] - a[0], dy = RIM[1] - a[1], L = Math.hypot(dx, dy) || 1;
+  const c = [mx - dy / L * L * 0.18, my + dx / L * L * 0.18], out = [];
+  for (let i = 0; i <= 20; i++) { const t = i / 20, u = 1 - t; out.push([u * u * a[0] + 2 * u * t * c[0] + t * t * RIM[0], u * u * a[1] + 2 * u * t * c[1] + t * t * RIM[1]]); }
+  return out;
 }
 
 /* ---------- court ---------- */
@@ -306,6 +316,12 @@ function drawMove(g, m, st, style) {
   if (m.type === 'pass') {
     const a = st.pos[m.from], b = shorten(st.pos[m.from], st.pos[m.to], 20);
     el('line', { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: color, 'stroke-width': w, 'stroke-dasharray': '9 7', 'marker-end': marker }, g);
+    return;
+  }
+  if (m.type === 'shot') {
+    const a = st.pos[m.p]; if (!a) return;
+    el('polyline', { points: ptsAttr(trimEnd(shotCurve(a), 12)), fill: 'none', stroke: color, 'stroke-width': w, 'stroke-dasharray': '2 6', 'stroke-linecap': 'round' }, g);
+    el('circle', { cx: RIM[0], cy: RIM[1], r: 14, fill: 'none', stroke: color, 'stroke-width': w }, g);
     return;
   }
   const pts = movePts(st.pos[m.p], m), b = pts[pts.length - 1], prev = pts[Math.max(0, pts.length - 2)];
@@ -386,16 +402,18 @@ function render(k, t) {
 
   // positions at progress t
   const pos = {}; for (const p in st.pos) pos[p] = [...st.pos[p]];
-  let ballAt = st.pos[st.ball], holder = st.ball;
+  let ballAt = st.ball == null ? [RIM[0], RIM[1] + 14] : st.pos[st.ball], holder = st.ball, shotLift = 0;
   if (step && t != null) {
     const e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
     for (const m of step.moves) {
-      if (m.type === 'pass') {
+      if (m.type === 'shot') {
+        if (st.pos[m.p]) { ballAt = along(shotCurve(st.pos[m.p]), t); holder = null; shotLift = Math.sin(Math.PI * t); }
+      } else if (m.type === 'pass') {
         const a = st.pos[m.from], bEnd = (step.moves.find(x => x.p == m.to && x.type !== 'pass') || {}).to || st.pos[m.to];
         ballAt = [a[0] + (bEnd[0] - a[0]) * e, a[1] + (bEnd[1] - a[1]) * e]; holder = e >= 1 ? m.to : null;
       } else { pos[m.p] = along(movePts(st.pos[m.p], m), e); }
     }
-    if (holder != null && !step.moves.some(m => m.type === 'pass')) ballAt = pos[holder];
+    if (holder != null && !step.moves.some(m => m.type === 'pass' || m.type === 'shot')) ballAt = pos[holder];
   }
 
   // players
@@ -420,6 +438,7 @@ function render(k, t) {
     br = 5 + 3.5 * h; off = 9 + 7 * h;
   }
   const bx = holder != null ? pos[holder][0] + off : ballAt[0], by = holder != null ? pos[holder][1] - off : ballAt[1];
+  if (shotLift) { br = 8 + 7 * shotLift; el('ellipse', { cx: bx + 4 + 10 * shotLift, cy: by + 6 + 14 * shotLift, rx: 7, ry: 3.5, fill: 'rgba(0,0,0,.2)' }, svg); }
   if (drib) el('ellipse', { cx: bx + 2, cy: by + 3, rx: br * .9, ry: br * .45, fill: 'rgba(0,0,0,.25)' }, svg);
   el('circle', { cx: bx, cy: by, r: br, fill: '#f97316', stroke: '#111', 'stroke-width': 1.5 }, svg);
 }
@@ -430,7 +449,7 @@ function yourJob(step, p) {
   const m = step.moves.find(x => involves(x, p));
   if (!m) return 'Hold your spot and stay ready.';
   if (m.type === 'pass') return m.from == p ? `Pass to ${m.to}.` : `Catch the pass from ${m.from}.`;
-  return { cut: 'Cut to the spot shown.', dribble: 'Dribble to the spot shown.', screen: 'Set the screen shown.' }[m.type];
+  return { cut: 'Cut to the spot shown.', dribble: 'Dribble to the spot shown.', screen: 'Set the screen shown.', shot: 'Shoot it.' }[m.type];
 }
 function updateCaption() {
   const p = basePlay(), play = vplay(), n = play.steps.length, step = play.steps[stepIdx];
