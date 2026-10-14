@@ -3114,6 +3114,18 @@ service cloud.firestore {
                 };
                 reader.readAsText(file);
             };
+            // NEW: export every play here to a .json file (same format Import plays reads). Use it to move
+            // plays from test mode into the real app, or to keep a copy.
+            const exportPlays = () => {
+                if (!plays.length) return showToast("No plays to export yet", "error");
+                const out = plays.map(({ id, updatedAt, author: au, imported, ...rest }) => rest);
+                const blob = new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const d = new Date(), stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                const a = document.createElement('a'); a.href = url; a.download = `eagles_plays_${TEST_MODE ? 'TEST_' : ''}${stamp}.json`;
+                document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+                showToast(`Exported ${out.length} play${out.length === 1 ? '' : 's'}`, "success");
+            };
             const remove = () => {
                 if (!editId) { setDraft(null); return; }
                 if (!confirm(`Delete "${draft.name || 'this play'}"? Players will no longer see it.`)) return;
@@ -3188,6 +3200,7 @@ service cloud.firestore {
                         </div>
                         <div className="flex gap-2">
                             <a href={TEST_MODE ? 'playbook.html?test' : 'playbook.html'} target="_blank" rel="noopener" className="py-2 px-4 bg-zinc-800 hover:bg-zinc-700 rounded font-black uppercase text-xs">Open player view</a>
+                            <button onClick={exportPlays} className="py-2 px-4 bg-zinc-800 hover:bg-zinc-700 rounded font-black uppercase text-xs">Export plays</button>
                             <label className="py-2 px-4 bg-zinc-800 hover:bg-zinc-700 rounded font-black uppercase text-xs cursor-pointer">Import plays<input type="file" accept=".json,application/json" onChange={importPlays} className="hidden" /></label>
                             <button onClick={() => open(pbNewPlay())} className="py-2 px-4 bg-gold text-black rounded font-black uppercase text-xs">+ New play</button>
                         </div>
