@@ -2888,7 +2888,9 @@ service cloud.firestore {
         // ===================================================================================
         const PLAY_CATEGORIES = ['Half-court offense', 'Press break', 'Baseline inbounds', 'Sideline inbounds', 'Defense', 'Special situations'];
         const PB_DEFAULT_START = { 1: [250, 320], 2: [80, 245], 3: [420, 245], 4: [178, 88], 5: [322, 88] };
-        const pbNewPlay = () => ({ name: '', category: PLAY_CATEGORIES[0], summary: '', video: '', published: false, start: JSON.parse(JSON.stringify(PB_DEFAULT_START)), ball: 1, steps: [{ say: '', moves: [], notes: {} }] });
+        // NEW: tags for filtering. Suggestions show alongside any tags already used.
+        const PB_TAG_SUGGESTIONS = ['Man-to-man', 'Zone', 'Continuity', 'Set play', 'Quick hitter', 'Ball screen', 'Backdoor', 'Handoff', 'End of game'];
+        const pbNewPlay = () => ({ name: '', category: PLAY_CATEGORIES[0], tags: [], summary: '', video: '', published: false, start: JSON.parse(JSON.stringify(PB_DEFAULT_START)), ball: 1, steps: [{ say: '', moves: [], notes: {} }] });
         const pbStateAt = (play, k) => {
             const pos = {}; Object.keys(play.start).forEach(p => pos[p] = [...play.start[p]]);
             let ball = play.ball;
@@ -3084,6 +3086,19 @@ service cloud.firestore {
             const [anim, setAnim] = React.useState(null); // { k, t }
             const [dirty, setDirty] = React.useState(false);
             const rafRef = React.useRef(null);
+            // NEW: list filters and the tag input
+            const [fText, setFText] = React.useState('');
+            const [fCat, setFCat] = React.useState('All');
+            const [fTags, setFTags] = React.useState([]);
+            const [fStatus, setFStatus] = React.useState('All');
+            const [tagInput, setTagInput] = React.useState('');
+            const allTags = Array.from(new Set(plays.flatMap(p => p.tags || []))).sort();
+            const shownPlays = plays.filter(p => {
+                const hay = [p.name, p.category, p.summary, ...(p.tags || [])].join(' ').toLowerCase();
+                return (!fText || hay.includes(fText.toLowerCase())) && (fCat === 'All' || p.category === fCat)
+                    && fTags.every(t => (p.tags || []).includes(t))
+                    && (fStatus === 'All' || (fStatus === 'Published' ? p.published : !p.published));
+            });
 
             React.useEffect(() => {
                 if (!db || !isAdmin) return;
@@ -3176,6 +3191,12 @@ service cloud.firestore {
                 if (Math.hypot(pt[0] - mid[0], pt[1] - mid[1]) < 10) delete m.bend; else m.bend = { x: Math.round(pt[0]), y: Math.round(pt[1]) };
             });
 
+            const addTag = (raw) => {
+                const t = (raw || '').trim().replace(/\s+/g, ' ');
+                if (!t) return;
+                change(d => { d.tags = d.tags || []; if (!d.tags.some(x => x.toLowerCase() === t.toLowerCase())) d.tags.push(t); });
+                setTagInput('');
+            };
             const addStep = () => { change(d => { d.steps.push({ say: '', moves: [], notes: {} }); }); setK(draft.steps.length); setActor(null); };
             const delStep = () => { if (k === 0) return; change(d => { d.steps.splice(k, 1); }); setK(Math.max(0, k - 1)); };
             const moveStep = (dir) => { const j = k + dir; if (k === 0 || j < 1 || j >= draft.steps.length) return; change(d => { const tmp = d.steps[k]; d.steps[k] = d.steps[j]; d.steps[j] = tmp; }); setK(j); };
@@ -3214,12 +3235,31 @@ service cloud.firestore {
                             <button onClick={() => open(pbNewPlay())} className="py-2 px-4 bg-gold text-black rounded font-black uppercase text-xs">+ New play</button>
                         </div>
                     </div>
+                    {plays.length > 0 && (
+                        <div className="bento-card space-y-2">
+                            <div className="flex flex-col md:flex-row gap-2">
+                                <input className="flex-1 bg-black border border-zinc-700 p-2 rounded text-white text-sm" placeholder="Search plays" value={fText} onChange={e => setFText(e.target.value)} />
+                                <select className="bg-black border border-zinc-700 p-2 rounded text-white text-sm" value={fCat} onChange={e => setFCat(e.target.value)}>
+                                    <option>All</option>{PLAY_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                                </select>
+                                <select className="bg-black border border-zinc-700 p-2 rounded text-white text-sm" value={fStatus} onChange={e => setFStatus(e.target.value)}>
+                                    <option>All</option><option>Published</option><option>Drafts</option>
+                                </select>
+                            </div>
+                            {allTags.length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                    {allTags.map(t => <button key={t} onClick={() => setFTags(f => f.includes(t) ? f.filter(x => x !== t) : [...f, t])} className={`nav-btn ${fTags.includes(t) ? 'active-nav' : 'inactive-nav'}`} style={{ padding: '6px 10px' }}>{t}</button>)}
+                                </div>
+                            )}
+                            <div className="text-xs text-zinc-500">{shownPlays.length} of {plays.length} plays</div>
+                        </div>
+                    )}
                     {plays.length === 0 && <div className="bento-card text-center text-zinc-400 py-10">No plays yet. Tap <b>New play</b> to build the first one. Until you publish one, players see the two sample plays.</div>}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {plays.map(p => (
+                        {shownPlays.map(p => (
                             <button key={p.id} onClick={() => open(p)} className="bento-card text-left hover:border-gold">
                                 <div className="flex justify-between items-start gap-2">
-                                    <div><div className="font-black text-lg">{p.name}</div><div className="text-xs text-zinc-400">{p.category} • {(p.steps || []).length} steps{p.video ? ' • video' : ''}</div></div>
+                                    <div><div className="font-black text-lg">{p.name}</div><div className="text-xs text-zinc-400">{p.category} • {(p.steps || []).length} steps{p.video ? ' • video' : ''}</div>{(p.tags || []).length > 0 && <div className="text-[11px] text-zinc-500 mt-1">{p.tags.join(' • ')}</div>}</div>
                                     <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-full border ${p.published ? 'border-green-600 text-green-300' : 'border-zinc-600 text-zinc-400'}`}>{p.published ? 'Published' : (p.imported ? 'Imported draft' : 'Draft')}</span>
                                 </div>
                             </button>
@@ -3251,6 +3291,15 @@ service cloud.firestore {
                             <div className="bento-card space-y-2">
                                 <input className="w-full bg-black border border-zinc-700 p-2 rounded text-white font-bold" placeholder="Play name" value={draft.name} onChange={e => change(d => { d.name = e.target.value; })} />
                                 <select className="w-full bg-black border border-zinc-700 p-2 rounded text-white text-sm" value={draft.category} onChange={e => change(d => { d.category = e.target.value; })}>{PLAY_CATEGORIES.map(c => <option key={c}>{c}</option>)}</select>
+                                <div className="space-y-1">
+                                    <div className="flex flex-wrap gap-1">
+                                        {(draft.tags || []).map(t => <span key={t} className="text-xs bg-gold text-black font-bold rounded-full pl-2 pr-1 py-0.5 flex items-center gap-1">{t}<button onClick={() => change(d => { d.tags = (d.tags || []).filter(x => x !== t); })} className="px-1">✕</button></span>)}
+                                    </div>
+                                    <input className="w-full bg-black border border-zinc-700 p-2 rounded text-white text-sm" placeholder="Add a tag and press Enter (for example, Man-to-man)" value={tagInput} onChange={e => { const v = e.target.value; if (v.includes(',')) { v.split(',').forEach(addTag); } else setTagInput(v); }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag(tagInput); } }} />
+                                    <div className="flex flex-wrap gap-1">
+                                        {Array.from(new Set([...allTags, ...PB_TAG_SUGGESTIONS])).filter(t => !(draft.tags || []).includes(t)).slice(0, 14).map(t => <button key={t} onClick={() => addTag(t)} className="text-[11px] border border-zinc-700 text-zinc-400 rounded-full px-2 py-0.5 hover:border-gold">+ {t}</button>)}
+                                    </div>
+                                </div>
                                 <textarea rows="2" className="w-full bg-black border border-zinc-700 p-2 rounded text-white text-sm" placeholder="One-line summary (when we run it)" value={draft.summary} onChange={e => change(d => { d.summary = e.target.value; })} />
                                 <input className="w-full bg-black border border-zinc-700 p-2 rounded text-white text-sm" placeholder="Video link (optional: unlisted YouTube or Google Drive)" value={draft.video || ''} onChange={e => change(d => { d.video = e.target.value.trim(); })} />
                             </div>

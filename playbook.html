@@ -37,6 +37,14 @@ header p{margin:4px 0 0;color:var(--muted)}
 .play-btn[aria-pressed="true"]{border-color:var(--gold);background:#231c0b}
 .play-btn b{display:block;font-family:"Barlow Condensed",sans-serif;font-size:1.25rem;line-height:1.1}
 .play-btn small{color:var(--muted)}
+/* NEW: filters for a growing playbook */
+.filters{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.filters input{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--ink);font:inherit}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:6px 12px;font-size:.9rem;font-weight:600;color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:#111}
+.play-btn .ptags{display:block;font-size:.75rem;color:var(--muted);margin-top:2px}
+.noresults{color:var(--muted);padding:10px 4px}
 .tag{display:inline-block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 6px;border-radius:99px;background:#3b2a07;color:var(--gold);margin-left:6px;vertical-align:2px}
 
 .layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,1fr);gap:14px;align-items:start}
@@ -96,6 +104,11 @@ footer{margin-top:18px;color:var(--muted);font-size:.85rem}
     </div>
   </header>
 
+  <div class="filters" id="filters" hidden>
+    <input id="search" type="search" placeholder="Search plays" aria-label="Search plays">
+    <div class="chips" id="catChips" role="group" aria-label="Filter by type"></div>
+    <div class="chips" id="tagChips" role="group" aria-label="Filter by tag"></div>
+  </div>
   <nav class="plays" id="plays" aria-label="Plays"></nav>
 
   <div class="layout">
@@ -486,7 +499,7 @@ function selectPlay(i) {
   document.getElementById('modeStep').setAttribute('aria-pressed', mode === 'step');
   document.getElementById('modeVideo').setAttribute('aria-pressed', mode === 'video');
   showVideo(mode === 'video');
-  document.querySelectorAll('.play-btn').forEach((b, j) => b.setAttribute('aria-pressed', j === i));
+  document.querySelectorAll('.play-btn').forEach(b => b.setAttribute('aria-pressed', +b.dataset.i === i));
   document.getElementById('playName').textContent = play.name;
   document.getElementById('playSummary').textContent = play.summary || '';
   updateCaption(); render(0, null); renderControls();
@@ -494,11 +507,34 @@ function selectPlay(i) {
 
 /* ---------- build UI ---------- */
 const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-function buildPlayList() {
-  document.getElementById('plays').innerHTML = PLAYS.map((p, i) =>
-    `<button class="play-btn" aria-pressed="${i === 0}" data-i="${i}"><b>${esc(p.name)}${p.sample ? '<span class="tag">Sample</span>' : ''}</b><small>${esc(p.category)}</small></button>`).join('');
-  document.querySelectorAll('.play-btn').forEach(b => b.onclick = () => selectPlay(+b.dataset.i));
+// NEW: search, type, and tag filters. They appear once there are more than a few plays.
+let fText = '', fCat = 'All', fTags = new Set();
+const matches = (p) => {
+  const hay = [p.name, p.category, p.summary, ...(p.tags || [])].join(' ').toLowerCase();
+  return (!fText || hay.includes(fText)) && (fCat === 'All' || p.category === fCat) && [...fTags].every(t => (p.tags || []).includes(t));
+};
+function buildFilters() {
+  const box = document.getElementById('filters');
+  box.hidden = PLAYS.length <= 4;
+  const cats = ['All', ...new Set(PLAYS.map(p => p.category).filter(Boolean))];
+  const tags = [...new Set(PLAYS.flatMap(p => p.tags || []))].sort();
+  if (!cats.includes(fCat)) fCat = 'All';
+  fTags = new Set([...fTags].filter(t => tags.includes(t)));
+  document.getElementById('catChips').innerHTML = cats.length > 2 ? cats.map(c => `<button class="chip" data-c="${esc(c)}" aria-pressed="${c === fCat}">${esc(c)}</button>`).join('') : '';
+  document.getElementById('tagChips').innerHTML = tags.map(t => `<button class="chip" data-t="${esc(t)}" aria-pressed="${fTags.has(t)}">${esc(t)}</button>`).join('');
+  document.querySelectorAll('#catChips .chip').forEach(b => b.onclick = () => { fCat = b.dataset.c; buildFilters(); buildPlayList(true); });
+  document.querySelectorAll('#tagChips .chip').forEach(b => b.onclick = () => { const t = b.dataset.t; fTags.has(t) ? fTags.delete(t) : fTags.add(t); buildFilters(); buildPlayList(true); });
 }
+document.getElementById('search').addEventListener('input', e => { fText = e.target.value.trim().toLowerCase(); buildPlayList(true); });
+function buildPlayList(keepSelection) {
+  const shown = PLAYS.map((p, i) => [p, i]).filter(([p]) => matches(p));
+  document.getElementById('plays').innerHTML = shown.length ? shown.map(([p, i]) =>
+    `<button class="play-btn" aria-pressed="${i === playIdx}" data-i="${i}"><b>${esc(p.name)}${p.sample ? '<span class="tag">Sample</span>' : ''}</b><small>${esc(p.category)}</small>${(p.tags || []).length ? `<span class="ptags">${esc(p.tags.join(' • '))}</span>` : ''}</button>`).join('')
+    : '<div class="noresults">No plays match. Clear a filter to see more.</div>';
+  document.querySelectorAll('.play-btn').forEach(b => b.onclick = () => selectPlay(+b.dataset.i));
+  if (keepSelection && shown.length && !shown.some(([, i]) => i === playIdx)) selectPlay(shown[0][1]);
+}
+buildFilters();
 buildPlayList();
 
 document.getElementById('spots').innerHTML = ['All', 1, 2, 3, 4, 5].map(s => `<button data-s="${s}" aria-pressed="${s === 'All'}">${s}</button>`).join('');
@@ -525,7 +561,7 @@ try {
       const live = snap.docs.map(d => d.data()).filter(p => p.start && Array.isArray(p.steps) && p.steps.length)
         .sort((a, b) => (a.category || '').localeCompare(b.category || '') || (a.name || '').localeCompare(b.name || ''));
       PLAYS = live.length ? live : SAMPLE_PLAYS;
-      buildPlayList(); selectPlay(0);
+      playIdx = 0; buildFilters(); buildPlayList(); selectPlay(0);
     }, () => {});
   }
 } catch (e) { /* offline: keep the samples */ }
