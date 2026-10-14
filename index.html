@@ -3021,7 +3021,15 @@ service cloud.firestore {
                 }
                 return <polyline key={i} points={pbTrim(pts, 4).map(q => q.join(',')).join(' ')} fill="none" stroke="#111" strokeWidth="3" strokeLinejoin="round" markerEnd="url(#pbAh)" />;
             }) : null;
-            const bx = holder != null && pos[holder] ? pos[holder][0] + 14 : ballAt[0], by = holder != null && pos[holder] ? pos[holder][1] - 14 : ballAt[1];
+            // NEW: the ball bounces while a player dribbles (bigger at the hand, smaller at the floor).
+            let ballR = 8, off = 14;
+            const drib = t != null && holder != null && moves.find(m => m.type === 'dribble' && m.p == holder);
+            if (drib && st.pos[holder]) {
+                const L = pbLen(pbMovePts(st.pos[holder], drib)), bounces = Math.max(3, Math.round(L / 35));
+                const e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2, h = Math.abs(Math.cos(Math.PI * e * bounces));
+                ballR = 5 + 3.5 * h; off = 9 + 7 * h;
+            }
+            const bx = holder != null && pos[holder] ? pos[holder][0] + off : ballAt[0], by = holder != null && pos[holder] ? pos[holder][1] - off : ballAt[1];
             return (
                 <svg ref={svgRef} viewBox="-12 -55 524 495" onClick={click} onPointerMove={move} onPointerUp={up} onPointerCancel={() => setDrag(null)}
                      style={{ width: '100%', height: 'auto', display: 'block', touchAction: dragMode ? 'none' : 'manipulation', cursor: onCourtTap ? 'crosshair' : 'default', userSelect: 'none' }}>
@@ -3050,7 +3058,8 @@ service cloud.firestore {
                             </g>
                         );
                     })}
-                    <circle cx={bx} cy={by} r="8" fill="#f97316" stroke="#111" strokeWidth="1.5" pointerEvents="none" />
+                    {drib && <ellipse cx={bx + 2} cy={by + 3} rx={ballR * .9} ry={ballR * .45} fill="rgba(0,0,0,.25)" pointerEvents="none" />}
+                    <circle cx={bx} cy={by} r={ballR} fill="#f97316" stroke="#111" strokeWidth="1.5" pointerEvents="none" />
                     {onBend && t == null && moves.map((m, i) => {
                         if (m.type === 'pass' || !st.pos[m.p]) return null;
                         const [hx, hy] = pbHandle(st.pos[m.p], m), active = drag && drag.bend === i;

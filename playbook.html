@@ -373,8 +373,18 @@ function render(k, t) {
     tx.textContent = p;
   }
   // ball
-  const bx = holder != null ? pos[holder][0] + 14 : ballAt[0], by = holder != null ? pos[holder][1] - 14 : ballAt[1];
-  el('circle', { cx: bx, cy: by, r: 8, fill: '#f97316', stroke: '#111', 'stroke-width': 1.5 }, svg);
+  // NEW: dribbling. While a player dribbles, the ball bounces: big when it's at the hand (closer to
+  // the camera above), small at the floor. Players without a dribble move just hold it.
+  let br = 8, off = 14;
+  const drib = step && t != null && holder != null && step.moves.find(m => m.type === 'dribble' && m.p == holder);
+  if (drib) {
+    const L = plen(movePts(st.pos[holder], drib)), bounces = Math.max(3, Math.round(L / 35));
+    const e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2, h = Math.abs(Math.cos(Math.PI * e * bounces));
+    br = 5 + 3.5 * h; off = 9 + 7 * h;
+  }
+  const bx = holder != null ? pos[holder][0] + off : ballAt[0], by = holder != null ? pos[holder][1] - off : ballAt[1];
+  if (drib) el('ellipse', { cx: bx + 2, cy: by + 3, rx: br * .9, ry: br * .45, fill: 'rgba(0,0,0,.25)' }, svg);
+  el('circle', { cx: bx, cy: by, r: br, fill: '#f97316', stroke: '#111', 'stroke-width': 1.5 }, svg);
 }
 
 /* ---------- captions ---------- */
