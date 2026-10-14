@@ -45,6 +45,10 @@ header p{margin:4px 0 0;color:var(--muted)}
 .chip[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:#111}
 .play-btn .ptags{display:block;font-size:.75rem;color:var(--muted);margin-top:2px}
 .noresults{color:var(--muted);padding:10px 4px}
+.reads{margin-top:12px;padding-top:10px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.reads-q{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:1.15rem;color:var(--gold)}
+.reads button{min-height:46px;border-radius:10px;border:1px solid var(--gold);background:#231c0b;color:var(--ink);font-weight:700;text-align:left;padding:8px 12px}
+.reads button.keep{border-color:var(--line);background:var(--panel)}
 .tag{display:inline-block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 6px;border-radius:99px;background:#3b2a07;color:var(--gold);margin-left:6px;vertical-align:2px}
 
 .layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,1fr);gap:14px;align-items:start}
@@ -144,6 +148,7 @@ footer{margin-top:18px;color:var(--muted);font-size:.85rem}
           <div class="say" id="say"></div>
           <div class="mine" id="mine" hidden></div>
           <div class="dots" id="dots"></div>
+          <div class="reads" id="reads" hidden></div>
         </div>
         </div>
       </div>
@@ -347,10 +352,29 @@ const ptsAttr = pts => pts.map(p => p.join(',')).join(' ');
 
 const involves = (m, p) => m.type === 'pass' ? (m.from == p || m.to == p) : m.p == p;
 
+/* ---------- NEW: options (reads) ----------
+   A play can carry options: [{ name, from, steps }]. An option starts from where everyone is
+   right after main step "from" and shows a different read (hit the roller, backdoor, shot...). */
+let branch = null;   // index of the option being viewed, or null for the main play
+let atEnd = false;   // true after the last main step finishes (for reads at the very end)
+const basePlay = () => PLAYS[playIdx];
+function vplay() {
+  const p = basePlay();
+  if (branch == null) return p;
+  const o = (p.options || [])[branch]; if (!o) return p;
+  const st = stateAt(p, o.from + 1);
+  return { ...p, start: st.pos, ball: st.ball, steps: (o.steps && o.steps.length) ? o.steps : [{ say: o.name, moves: [] }] };
+}
+function optionsHere() {
+  if (branch != null) return [];
+  const p = basePlay(), n = p.steps.length;
+  return (p.options || []).map((o, i) => ({ o, i })).filter(({ o }) => atEnd ? o.from === n - 1 : (o.from + 1 === stepIdx && o.from + 1 < n));
+}
+
 /* ---------- render a frame ---------- */
 // t: 0..1 progress through step k (null = show arrows, players at start)
 function render(k, t) {
-  const play = PLAYS[playIdx];
+  const play = vplay();
   svg.innerHTML = ''; defs();
   const court = el('g', {}, svg); drawCourt(court);
   const st = stateAt(play, k);
@@ -409,19 +433,54 @@ function yourJob(step, p) {
   return { cut: 'Cut to the spot shown.', dribble: 'Dribble to the spot shown.', screen: 'Set the screen shown.' }[m.type];
 }
 function updateCaption() {
-  const play = PLAYS[playIdx], n = play.steps.length, step = play.steps[stepIdx];
-  document.getElementById('stepNo').textContent = `Step ${stepIdx + 1} of ${n}`;
-  document.getElementById('say').textContent = step.say;
+  const p = basePlay(), play = vplay(), n = play.steps.length, step = play.steps[stepIdx];
+  const opt = branch != null ? p.options[branch] : null;
+  document.getElementById('stepNo').textContent = opt ? `${opt.name}: step ${stepIdx + 1} of ${n}` : (atEnd ? 'End of the play' : `Step ${stepIdx + 1} of ${n}`);
+  document.getElementById('say').textContent = step.say || '';
   const mine = document.getElementById('mine');
   if (spot != null) { mine.hidden = false; mine.textContent = yourJob(step, spot); } else mine.hidden = true;
-  document.getElementById('dots').innerHTML = play.steps.map((_, i) => `<span class="${i < stepIdx ? 'done' : i === stepIdx ? 'now' : ''}"></span>`).join('');
+  document.getElementById('dots').innerHTML = play.steps.map((_, i) => `<span class="${i < stepIdx || atEnd ? 'done' : i === stepIdx ? 'now' : ''}"></span>`).join('');
+  // reads
+  const box = document.getElementById('reads'), here = optionsHere();
+  if (here.length) {
+    box.hidden = false;
+    box.innerHTML = `<div class="reads-q">What's open?</div>` + here.map(({ o, i }) => `<button data-opt="${i}">${esc(o.name)}</button>`).join('') + (atEnd ? '' : `<button data-keep="1" class="keep">Keep running the play</button>`);
+  } else if (opt && stepIdx === n - 1) {
+    const others = (p.options || []).map((o, i) => ({ o, i })).filter(({ o, i }) => i !== branch && o.from === opt.from);
+    box.hidden = false;
+    box.innerHTML = `<button data-back="1" class="keep">Back to the play</button>` + (others.length ? `<div class="reads-q">Try another read</div>` + others.map(({ o, i }) => `<button data-opt="${i}">${esc(o.name)}</button>`).join('') : '');
+  } else { box.hidden = true; box.innerHTML = ''; }
+  box.querySelectorAll('[data-opt]').forEach(b => b.onclick = () => chooseOption(+b.dataset.opt));
+  const keep = box.querySelector('[data-keep]'); if (keep) keep.onclick = keepRunning;
+  const back = box.querySelector('[data-back]'); if (back) back.onclick = backToPlay;
+}
+function chooseOption(i) {
+  stopAnim(); playing = false; branch = i; atEnd = false; stepIdx = 0;
+  updateCaption(); render(0, null); renderControls();
+  if (mode === 'watch') watchFrom(0);
+}
+function backToPlay() {
+  const p = basePlay(), o = p.options[branch];
+  stopAnim(); playing = false; branch = null;
+  if (o.from + 1 < p.steps.length) { stepIdx = o.from + 1; atEnd = false; } else { stepIdx = p.steps.length - 1; atEnd = true; }
+  updateCaption(); render(stepIdx, atEnd ? 1 : null); renderControls();
+}
+function keepRunning() {
+  document.getElementById('reads').hidden = true;
+  if (mode === 'watch') watchFrom(stepIdx);
+  else animateStep(stepIdx, () => stepForward());
+}
+function stepForward() {
+  const n = vplay().steps.length;
+  if (stepIdx < n - 1) { stepIdx++; } else if (branch == null) { atEnd = true; }
+  updateCaption(); render(stepIdx, atEnd ? 1 : null); renderControls();
 }
 
 /* ---------- animation ---------- */
 function stopAnim() { if (anim) cancelAnimationFrame(anim); anim = null; }
 function animateStep(k, done) {
   stopAnim();
-  const step = PLAYS[playIdx].steps[k];
+  const step = vplay().steps[k];
   const dur = (step.moves.length ? 1300 : 900) / speed;
   const t0 = performance.now();
   const tick = (now) => {
@@ -432,15 +491,21 @@ function animateStep(k, done) {
   anim = requestAnimationFrame(tick);
 }
 function watchFrom(k) {
-  playing = true; renderControls();
-  stepIdx = k; updateCaption();
-  const play = PLAYS[playIdx];
+  playing = true; atEnd = false; stepIdx = k; updateCaption(); renderControls();
+  document.getElementById('reads').hidden = true;
   const next = () => {
     if (!playing) return;
     setTimeout(() => {
       if (!playing) return;
-      if (stepIdx < play.steps.length - 1) { stepIdx++; updateCaption(); animateStep(stepIdx, next); }
-      else { playing = false; renderControls(); }
+      const n = vplay().steps.length;
+      if (stepIdx < n - 1) {
+        stepIdx++; updateCaption();
+        if (optionsHere().length) { playing = false; render(stepIdx, null); renderControls(); return; } // pause to read
+        animateStep(stepIdx, next);
+      } else {
+        playing = false; if (branch == null) atEnd = true;
+        updateCaption(); render(stepIdx, atEnd ? 1 : null); renderControls();
+      }
     }, 650 / speed);
   };
   setTimeout(() => playing && animateStep(stepIdx, next), 450 / speed);
@@ -448,20 +513,27 @@ function watchFrom(k) {
 
 /* ---------- controls ---------- */
 function renderControls() {
-  const c = document.getElementById('controls'), n = PLAYS[playIdx].steps.length;
+  const c = document.getElementById('controls'), n = vplay().steps.length;
+  const endReads = branch == null && (basePlay().options || []).some(o => o.from === basePlay().steps.length - 1);
   document.getElementById('speedRow').style.display = '';
+  const restart = () => { playing = false; stopAnim(); branch = null; atEnd = false; stepIdx = 0; updateCaption(); render(0, null); renderControls(); };
   if (mode === 'watch') {
-    c.innerHTML = `<button class="primary" id="playBtn">${playing ? 'Pause' : (stepIdx >= n - 1 ? 'Watch again' : 'Play')}</button><button id="restartBtn">Restart</button>`;
+    const finished = atEnd || (!playing && stepIdx >= n - 1 && branch != null);
+    c.innerHTML = `<button class="primary" id="playBtn">${playing ? 'Pause' : (atEnd ? 'Watch again' : (optionsHere().length ? 'Keep running' : (finished ? 'Watch again' : 'Play')))}</button><button id="restartBtn">Restart</button>`;
     document.getElementById('playBtn').onclick = () => {
-      if (playing) { playing = false; stopAnim(); render(stepIdx + (stepIdx < n - 1 ? 0 : 0), null); renderControls(); }
-      else watchFrom(stepIdx >= n - 1 ? 0 : stepIdx);
+      if (playing) { playing = false; stopAnim(); render(stepIdx, null); renderControls(); }
+      else if (atEnd) restart(), watchFrom(0);
+      else if (finished) watchFrom(0);
+      else watchFrom(stepIdx);
     };
-    document.getElementById('restartBtn').onclick = () => { playing = false; stopAnim(); stepIdx = 0; updateCaption(); render(0, null); renderControls(); };
+    document.getElementById('restartBtn').onclick = restart;
   } else {
-    c.innerHTML = `<button id="backBtn" ${stepIdx === 0 ? 'disabled' : ''}>Back</button><button id="showBtn">Show it</button><button class="primary" id="nextBtn" ${stepIdx >= n - 1 ? 'disabled' : ''}>Next</button>`;
-    document.getElementById('backBtn').onclick = () => { stopAnim(); stepIdx--; updateCaption(); render(stepIdx, null); renderControls(); };
-    document.getElementById('showBtn').onclick = () => animateStep(stepIdx, () => setTimeout(() => render(stepIdx, null), 500));
-    document.getElementById('nextBtn').onclick = () => { animateStep(stepIdx, () => { stepIdx++; updateCaption(); render(stepIdx, null); renderControls(); }); };
+    const last = stepIdx >= n - 1;
+    const nextLabel = last && endReads && !atEnd ? 'Finish' : 'Next';
+    c.innerHTML = `<button id="backBtn" ${stepIdx === 0 && !atEnd ? 'disabled' : ''}>Back</button><button id="showBtn">Show it</button><button class="primary" id="nextBtn" ${(last && !(endReads && !atEnd)) ? 'disabled' : ''}>${nextLabel}</button>`;
+    document.getElementById('backBtn').onclick = () => { stopAnim(); if (atEnd) atEnd = false; else stepIdx--; updateCaption(); render(stepIdx, null); renderControls(); };
+    document.getElementById('showBtn').onclick = () => animateStep(stepIdx, () => setTimeout(() => render(stepIdx, atEnd ? 1 : null), 500));
+    document.getElementById('nextBtn').onclick = () => animateStep(stepIdx, stepForward);
   }
 }
 function videoEmbed(url) {
@@ -482,7 +554,7 @@ function showVideo(on) {
                       : `<a href="${esc(play.video)}" target="_blank" rel="noopener">Open the video</a>`;
 }
 function setMode(m) {
-  mode = m; playing = false; stopAnim();
+  mode = m; playing = false; stopAnim(); branch = null; atEnd = false;
   document.getElementById('modeWatch').setAttribute('aria-pressed', m === 'watch');
   document.getElementById('modeStep').setAttribute('aria-pressed', m === 'step');
   document.getElementById('modeVideo').setAttribute('aria-pressed', m === 'video');
@@ -491,7 +563,7 @@ function setMode(m) {
   stepIdx = 0; updateCaption(); render(0, null); renderControls();
 }
 function selectPlay(i) {
-  playIdx = i; playing = false; stopAnim(); stepIdx = 0;
+  playIdx = i; playing = false; stopAnim(); stepIdx = 0; branch = null; atEnd = false;
   const play = PLAYS[i];
   document.getElementById('modeVideo').hidden = !play.video;
   if (mode === 'video' && !play.video) mode = 'watch';
@@ -529,7 +601,7 @@ document.getElementById('search').addEventListener('input', e => { fText = e.tar
 function buildPlayList(keepSelection) {
   const shown = PLAYS.map((p, i) => [p, i]).filter(([p]) => matches(p));
   document.getElementById('plays').innerHTML = shown.length ? shown.map(([p, i]) =>
-    `<button class="play-btn" aria-pressed="${i === playIdx}" data-i="${i}"><b>${esc(p.name)}${p.sample ? '<span class="tag">Sample</span>' : ''}</b><small>${esc(p.category)}</small>${(p.tags || []).length ? `<span class="ptags">${esc(p.tags.join(' • '))}</span>` : ''}</button>`).join('')
+    `<button class="play-btn" aria-pressed="${i === playIdx}" data-i="${i}"><b>${esc(p.name)}${p.sample ? '<span class="tag">Sample</span>' : ''}</b><small>${esc(p.category)}${(p.options || []).length ? ` • ${p.options.length} read${p.options.length === 1 ? '' : 's'}` : ''}</small>${(p.tags || []).length ? `<span class="ptags">${esc(p.tags.join(' • '))}</span>` : ''}</button>`).join('')
     : '<div class="noresults">No plays match. Clear a filter to see more.</div>';
   document.querySelectorAll('.play-btn').forEach(b => b.onclick = () => selectPlay(+b.dataset.i));
   if (keepSelection && shown.length && !shown.some(([, i]) => i === playIdx)) selectPlay(shown[0][1]);
