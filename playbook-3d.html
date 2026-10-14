@@ -264,14 +264,56 @@ renderer.domElement.addEventListener('wheel', e => { if (view !== 'broadcast') r
 /* ---------- drawing a frame ---------- */
 let k = 0, t = 0, playing = false, speed = 1, pauseLeft = 0;
 const HAND = 3.9;
+// NEW: who is this screen for? The mover (this step, or the next one if the screen is set first)
+// whose path passes closest to the screen spot. Returns where that player is right now.
+function distToPath(pt, pts) {
+  let best = Infinity;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1;
+    const u = Math.max(0, Math.min(1, ((pt[0] - a[0]) * dx + (pt[1] - a[1]) * dy) / L2));
+    best = Math.min(best, Math.hypot(pt[0] - (a[0] + dx * u), pt[1] - (a[1] + dy * u)));
+  }
+  return pts.length === 1 ? Math.hypot(pt[0] - pts[0][0], pt[1] - pts[0][1]) : best;
+}
+function findScreenUser(screener, spot, steps) {
+  let best = null;
+  for (const kk of steps) {
+    const stp = VIEW.steps[kk]; if (!stp) continue;
+    const base = stateAt(kk);
+    for (const m of stp.moves) {
+      if (m.type === 'pass' || m.type === 'shot' || m.type === 'screen' || m.p == screener || !base.pos[m.p]) continue;
+      const d = distToPath(spot, movePts(base.pos[m.p], m));
+      if (d < 90 && (!best || d < best.d)) best = { p: m.p, d };
+    }
+    if (best) break;
+  }
+  return best && best.p;
+}
+function screenTarget(p, f) {
+  const step = VIEW.steps[k], mine = step.moves.find(m => m.p == p && m.type !== 'pass' && m.type !== 'shot');
+  let user = null;
+  if (mine && mine.type === 'screen') { if (ease(t) > 0.6) user = findScreenUser(p, mine.to, [k, k + 1]); }
+  else if (!mine && k > 0) {
+    const prev = VIEW.steps[k - 1].moves.find(m => m.p == p && m.type === 'screen');
+    if (prev) user = findScreenUser(p, prev.to, [k]);
+  }
+  return user && f.pos[user] ? W(...f.pos[user]) : null;
+}
 function draw() {
   const f = frame(k, t);
   for (const p in players) {
     const [x, y] = f.pos[p], pl = players[p], v = W(x, y);
     pl.grp.position.copy(v);
-    // face the basket, or the direction of travel while cutting
-    const look = f.moving.has(p) ? W(...along(movePts(stateAt(k).pos[p], VIEW.steps[k].moves.find(m => m.p == p)), Math.min(1, ease(t) + 0.05))) : W(250, 62.5);
-    pl.grp.lookAt(look.x, 0, look.z);
+    // face the direction of travel while moving; screeners face the player they're screening for;
+    // everyone else faces the basket. Turning is smoothed so nobody snaps around.
+    let look = f.moving.has(p) ? W(...along(movePts(stateAt(k).pos[p], VIEW.steps[k].moves.find(m => m.p == p)), Math.min(1, ease(t) + 0.05))) : W(250, 62.5);
+    const tgt = screenTarget(p, f);
+    if (tgt) look = tgt;
+    const want = Math.atan2(look.x - v.x, look.z - v.z);
+    if (pl.yaw == null) pl.yaw = want;
+    let diff = want - pl.yaw; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    pl.yaw += diff * (playing ? 0.18 : 1);
+    pl.grp.rotation.set(0, pl.yaw, 0);
     pl.jersey.color.setHex(p == me && view === 'first' ? 0xFFB81C : 0x1f3a8a);
     pl.grp.visible = !(view === 'first' && p == me);
   }
