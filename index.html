@@ -2984,7 +2984,7 @@ service cloud.firestore {
             const toCourt = (e) => {
                 const pt = svgRef.current.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
                 const loc = pt.matrixTransform(svgRef.current.getScreenCTM().inverse());
-                return [Math.round(Math.max(-5, Math.min(505, loc.x))), Math.round(Math.max(-45, Math.min(432, loc.y)))];
+                return [Math.round(Math.max(-24, Math.min(524, loc.x))), Math.round(Math.max(-45, Math.min(432, loc.y)))]; // NEW: room for a sideline inbounder
             };
             const click = (e) => {
                 if (suppressClick.current) { suppressClick.current = false; return; }
@@ -3047,10 +3047,10 @@ service cloud.firestore {
             if (shotLift) ballR = 8 + 7 * shotLift;
             const bx = holder != null && pos[holder] ? pos[holder][0] + off : ballAt[0], by = holder != null && pos[holder] ? pos[holder][1] - off : ballAt[1];
             return (
-                <svg ref={svgRef} viewBox="-12 -55 524 495" onClick={click} onPointerMove={move} onPointerUp={up} onPointerCancel={() => setDrag(null)}
+                <svg ref={svgRef} viewBox="-36 -55 572 495" onClick={click} onPointerMove={move} onPointerUp={up} onPointerCancel={() => setDrag(null)}
                      style={{ width: '100%', height: 'auto', display: 'block', touchAction: dragMode ? 'none' : 'manipulation', cursor: onCourtTap ? 'crosshair' : 'default', userSelect: 'none' }}>
                     <defs><marker id="pbAh" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#111" /></marker></defs>
-                    <rect x="-12" y="-55" width="524" height="495" fill="#3a2c1e" rx="10" />
+                    <rect x="-36" y="-55" width="572" height="495" fill="#3a2c1e" rx="10" />
                     <text x="14" y="-32" fill="#c9a87f" fontSize="14" fontWeight="700">OUT OF BOUNDS</text>
                     <rect x="0" y="10" width="500" height="420" fill="#d9b083" />
                     <rect x="190" y="10" width="120" height="190" fill="#cfa577" />

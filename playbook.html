@@ -117,7 +117,7 @@ footer{margin-top:18px;color:var(--muted);font-size:.85rem}
 
   <div class="layout">
     <div class="court-card">
-      <svg class="court" id="court" viewBox="-12 -55 524 495" role="img" aria-label="Play diagram"></svg>
+      <svg class="court" id="court" viewBox="-36 -55 572 495" role="img" aria-label="Play diagram"></svg>
       <div id="videoBox" hidden></div>
     </div>
 
@@ -276,7 +276,7 @@ function drawCourt(g) {
   // Real high school (NFHS) half court at 10 px per foot: 50 ft wide x 42 ft deep.
   // Baseline y=10, half court y=430. Backboard 4 ft in, rim center 5 ft 3 in in.
   // Lane 12 ft wide, free throw line 19 ft from baseline, 3-point arc 19 ft 9 in.
-  el('rect', { x: -12, y: -55, width: 524, height: 495, fill: 'var(--oob)', rx: 10 }, g);
+  el('rect', { x: -36, y: -55, width: 572, height: 495, fill: 'var(--oob)', rx: 10 }, g);
   el('rect', { x: 0, y: 10, width: 500, height: 420, fill: 'var(--wood)' }, g);
   el('rect', { x: 190, y: 10, width: 120, height: 190, fill: 'var(--wood2)' }, g);
   const s = { stroke: 'var(--courtline)', 'stroke-width': 2.5, fill: 'none' };
